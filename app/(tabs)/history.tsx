@@ -11,6 +11,8 @@ import {
   Linking,
   ScrollView,
   Image,
+  Modal,
+  Dimensions,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -22,8 +24,10 @@ import {
   formatDuration,
   getShiftDuration,
 } from "@/lib/shift-storage";
-import type { Shift, LocationPoint } from "@/lib/shift-types";
-import { openPDFReport } from "@/lib/pdf-generator";
+import type { Shift, LocationPoint, ShiftPhoto } from "@/lib/shift-types";
+import { generatePDFReport, getStaticMapUrl } from "@/lib/pdf-generator";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Generate trail map URL that shows all points
 const getTrailMapUrl = (locations: LocationPoint[]): string => {
@@ -32,7 +36,6 @@ const getTrailMapUrl = (locations: LocationPoint[]): string => {
     const loc = locations[0];
     return `https://www.openstreetmap.org/?mlat=${loc.latitude}&mlon=${loc.longitude}&zoom=17`;
   }
-  // Create bounding box for all locations
   const lats = locations.map(l => l.latitude);
   const lngs = locations.map(l => l.longitude);
   const minLat = Math.min(...lats);
@@ -68,6 +71,7 @@ export default function HistoryScreen() {
   const colors = useColors();
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
+  const [selectedPhoto, setSelectedPhoto] = useState<ShiftPhoto | null>(null);
   const [startAddress, setStartAddress] = useState<string>("");
   const [endAddress, setEndAddress] = useState<string>("");
 
@@ -135,7 +139,41 @@ export default function HistoryScreen() {
     Linking.openURL(url);
   };
 
-  const generateReport = async (shift: Shift) => {
+  const viewPDFReport = (shift: Shift) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    
+    try {
+      const html = generatePDFReport(shift);
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch (error) {
+      console.error("PDF error:", error);
+      alert("Failed to generate PDF. Please try again.");
+    }
+  };
+
+  const sharePhoto = async (photo: ShiftPhoto) => {
+    try {
+      const photoTime = new Date(photo.timestamp).toLocaleString();
+      const message = `📷 Timestamp Photo\n\n📅 ${photoTime}\n📍 ${photo.address || "Location unavailable"}\n${photo.location ? `🌐 ${photo.location.latitude.toFixed(6)}, ${photo.location.longitude.toFixed(6)}` : ""}\n\nFrom: ${selectedShift?.siteName || "Timestamp Camera"}`;
+      
+      await Share.share({
+        message,
+        title: "Timestamp Photo",
+      });
+      
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (e) {
+      console.error("Share photo error:", e);
+    }
+  };
+
+  const generateTextReport = async (shift: Shift) => {
     if (Platform.OS !== "web") {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -144,7 +182,6 @@ export default function HistoryScreen() {
     const startDate = new Date(shift.startTime).toLocaleString();
     const endDate = shift.endTime ? new Date(shift.endTime).toLocaleString() : "In Progress";
 
-    // Build report text
     let report = `📋 SHIFT REPORT\n`;
     report += `═══════════════════════════\n\n`;
     report += `📍 Site: ${shift.siteName}\n`;
@@ -175,7 +212,6 @@ export default function HistoryScreen() {
       report += `  📍 ${endAddress || `${last.latitude.toFixed(6)}, ${last.longitude.toFixed(6)}`}\n`;
       report += `  🕐 ${new Date(last.timestamp).toLocaleTimeString()}\n\n`;
 
-      // Trail map link
       report += `VIEW TRAIL MAP:\n`;
       report += `${getTrailMapUrl(shift.locations)}\n\n`;
     }
@@ -207,12 +243,59 @@ export default function HistoryScreen() {
     }
   };
 
+  // Photo Viewer Modal
+  const PhotoViewerModal = () => {
+    if (!selectedPhoto) return null;
+    
+    return (
+      <Modal
+        visible={!!selectedPhoto}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setSelectedPhoto(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setSelectedPhoto(null)}>
+                <Text style={[styles.modalClose, { color: colors.primary }]}>✕ Close</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => sharePhoto(selectedPhoto)}>
+                <Text style={[styles.modalShare, { color: colors.primary }]}>📤 Share</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <Image source={{ uri: selectedPhoto.uri }} style={styles.modalImage} resizeMode="contain" />
+            
+            <View style={[styles.modalInfo, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.modalTime, { color: colors.foreground }]}>
+                📅 {new Date(selectedPhoto.timestamp).toLocaleString()}
+              </Text>
+              {selectedPhoto.address && (
+                <Text style={[styles.modalAddress, { color: colors.muted }]}>
+                  📍 {selectedPhoto.address}
+                </Text>
+              )}
+              {selectedPhoto.location && (
+                <Text style={[styles.modalCoords, { color: colors.muted }]}>
+                  🌐 {selectedPhoto.location.latitude.toFixed(6)}, {selectedPhoto.location.longitude.toFixed(6)}
+                </Text>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
   // Shift Detail View
   if (selectedShift) {
     const duration = formatDuration(getShiftDuration(selectedShift));
+    const mapUrl = getStaticMapUrl(selectedShift.locations);
 
     return (
       <ScreenContainer>
+        <PhotoViewerModal />
         <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.detailHeader}>
@@ -251,10 +334,25 @@ export default function HistoryScreen() {
             </Text>
           </View>
 
+          {/* Trail Map Preview */}
+          {mapUrl && (
+            <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.infoTitle, { color: colors.foreground }]}>🗺️ Trail Map</Text>
+              <TouchableOpacity onPress={() => viewTrailOnMap(selectedShift)}>
+                <Image 
+                  source={{ uri: mapUrl }} 
+                  style={styles.mapPreview}
+                  resizeMode="cover"
+                />
+                <Text style={[styles.mapHint, { color: colors.primary }]}>Tap to view full map →</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Location Trail */}
           {selectedShift.locations.length > 0 && (
             <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.infoTitle, { color: colors.foreground }]}>🗺️ Location Trail</Text>
+              <Text style={[styles.infoTitle, { color: colors.foreground }]}>📍 Location Trail</Text>
               
               <View style={styles.locationItem}>
                 <Text style={[styles.locationLabel, { color: colors.success }]}>START</Text>
@@ -280,39 +378,41 @@ export default function HistoryScreen() {
             </View>
           )}
 
-          {/* Photos */}
+          {/* Photos Gallery */}
           {selectedShift.photos.length > 0 && (
             <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Text style={[styles.infoTitle, { color: colors.foreground }]}>📷 Photos ({selectedShift.photos.length})</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
+              <View style={styles.photoGrid}>
                 {selectedShift.photos.map((photo) => (
-                  <View key={photo.id} style={styles.photoContainer}>
-                    <Image source={{ uri: photo.uri }} style={styles.photoThumbnail} />
-                    <Text style={[styles.photoTime, { color: colors.muted }]}>
-                      {new Date(photo.timestamp).toLocaleTimeString()}
-                    </Text>
-                    {photo.address && (
-                      <Text style={[styles.photoAddress, { color: colors.muted }]} numberOfLines={1}>
-                        {photo.address.split(",")[0]}
+                  <TouchableOpacity
+                    key={photo.id}
+                    style={styles.photoGridItem}
+                    onPress={() => setSelectedPhoto(photo)}
+                  >
+                    <Image source={{ uri: photo.uri }} style={styles.photoGridImage} />
+                    <View style={[styles.photoGridOverlay, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
+                      <Text style={styles.photoGridTime}>
+                        {new Date(photo.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </Text>
-                    )}
-                  </View>
+                    </View>
+                  </TouchableOpacity>
                 ))}
-              </ScrollView>
+              </View>
+              <Text style={[styles.photoHint, { color: colors.muted }]}>Tap a photo to view full size and share</Text>
             </View>
           )}
 
           {/* Action Buttons */}
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.primary }]}
-            onPress={() => openPDFReport(selectedShift)}
+            onPress={() => viewPDFReport(selectedShift)}
           >
             <Text style={styles.actionButtonText}>📄 View PDF Report</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: "#6366f1" }]}
-            onPress={() => generateReport(selectedShift)}
+            onPress={() => generateTextReport(selectedShift)}
           >
             <Text style={styles.actionButtonText}>📤 Share as Text</Text>
           </TouchableOpacity>
@@ -465,6 +565,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 4,
   },
+  mapPreview: {
+    width: "100%",
+    height: 180,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  mapHint: {
+    fontSize: 13,
+    textAlign: "center",
+  },
   locationItem: {
     marginBottom: 12,
     paddingBottom: 12,
@@ -489,26 +599,38 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     marginTop: 4,
   },
-  photoScroll: {
-    marginTop: 8,
+  photoGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 8,
   },
-  photoContainer: {
-    marginRight: 12,
-    alignItems: "center",
-    width: 90,
-  },
-  photoThumbnail: {
-    width: 80,
-    height: 80,
+  photoGridItem: {
+    width: (SCREEN_WIDTH - 80) / 3,
+    height: (SCREEN_WIDTH - 80) / 3,
     borderRadius: 8,
+    overflow: "hidden",
   },
-  photoTime: {
-    fontSize: 11,
-    marginTop: 4,
+  photoGridImage: {
+    width: "100%",
+    height: "100%",
   },
-  photoAddress: {
+  photoGridOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 4,
+  },
+  photoGridTime: {
+    color: "#FFF",
     fontSize: 10,
     textAlign: "center",
+  },
+  photoHint: {
+    fontSize: 12,
+    textAlign: "center",
+    fontStyle: "italic",
   },
   actionButton: {
     padding: 16,
@@ -520,5 +642,51 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    width: "100%",
+    height: "100%",
+    paddingTop: 50,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
+  modalClose: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalShare: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalImage: {
+    flex: 1,
+    width: "100%",
+  },
+  modalInfo: {
+    padding: 20,
+  },
+  modalTime: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  modalAddress: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  modalCoords: {
+    fontSize: 12,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
 });

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   ScrollView,
   Share,
   Image,
+  Modal,
+  Dimensions,
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import { useFocusEffect } from "expo-router";
@@ -28,7 +30,9 @@ import {
 import { addWatermarkToPhoto, formatWatermarkTimestamp } from "@/lib/watermark";
 import type { Shift, LocationPoint, ShiftPhoto } from "@/lib/shift-types";
 
-type AppState = "idle" | "startForm" | "active" | "camera" | "confirmEnd";
+type AppState = "idle" | "startForm" | "active" | "camera" | "confirmEnd" | "gallery";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Reverse geocoding using Nominatim (free, no API key)
 const getAddressFromCoords = async (lat: number, lng: number): Promise<string> => {
@@ -59,14 +63,12 @@ const getTrailMapUrl = (locations: LocationPoint[]): string => {
     const loc = locations[0];
     return `https://www.openstreetmap.org/?mlat=${loc.latitude}&mlon=${loc.longitude}&zoom=16`;
   }
-  // For multiple points, create a bounding box view
   const lats = locations.map(l => l.latitude);
   const lngs = locations.map(l => l.longitude);
   const minLat = Math.min(...lats);
   const maxLat = Math.max(...lats);
   const minLng = Math.min(...lngs);
   const maxLng = Math.max(...lngs);
-  // Add some padding
   const padding = 0.002;
   return `https://www.openstreetmap.org/?bbox=${minLng - padding},${minLat - padding},${maxLng + padding},${maxLat + padding}&layer=mapnik`;
 };
@@ -85,6 +87,7 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [lastPhoto, setLastPhoto] = useState<string | null>(null);
+  const [selectedPhoto, setSelectedPhoto] = useState<ShiftPhoto | null>(null);
   const cameraRef = useRef<CameraView>(null);
 
   // Update time every second
@@ -105,7 +108,7 @@ export default function HomeScreen() {
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
     if (activeShift?.isActive && appState === "active") {
-      trackLocation(); // Track immediately
+      trackLocation();
       interval = setInterval(() => trackLocation(), 30000);
     }
     return () => { if (interval) clearInterval(interval); };
@@ -256,6 +259,24 @@ export default function HomeScreen() {
     }
   };
 
+  const sharePhoto = async (photo: ShiftPhoto) => {
+    try {
+      const photoTime = new Date(photo.timestamp).toLocaleString();
+      const message = `📷 Timestamp Photo\n\n📅 ${photoTime}\n📍 ${photo.address || "Location unavailable"}\n${photo.location ? `🌐 ${photo.location.latitude.toFixed(6)}, ${photo.location.longitude.toFixed(6)}` : ""}\n\nFrom: ${activeShift?.siteName || "Timestamp Camera"}`;
+      
+      await Share.share({
+        message,
+        title: "Timestamp Photo",
+      });
+      
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (e) {
+      console.error("Share photo error:", e);
+    }
+  };
+
   const takePicture = async () => {
     if (!cameraRef.current || !activeShift) {
       alert("Camera not ready");
@@ -267,7 +288,6 @@ export default function HomeScreen() {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
       
-      // Take picture with base64 for web compatibility
       const photo = await cameraRef.current.takePictureAsync({ 
         quality: 0.7,
         base64: true,
@@ -279,7 +299,6 @@ export default function HomeScreen() {
         return;
       }
 
-      // Get fresh location for photo
       let photoLocation = currentLocation;
       try {
         photoLocation = await Location.getCurrentPositionAsync({});
@@ -288,7 +307,6 @@ export default function HomeScreen() {
         console.log("Using cached location for photo");
       }
 
-      // Add watermark to photo
       const watermarkTimestamp = formatWatermarkTimestamp(new Date());
       const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
         timestamp: watermarkTimestamp,
@@ -329,6 +347,54 @@ export default function HomeScreen() {
 
   const formatTime = () => currentTime.toLocaleTimeString("en-US", { hour12: false });
   const formatDate = () => currentTime.toLocaleDateString();
+
+  // ========== PHOTO VIEWER MODAL ==========
+  const PhotoViewerModal = () => {
+    if (!selectedPhoto) return null;
+    
+    return (
+      <Modal
+        visible={!!selectedPhoto}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setSelectedPhoto(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setSelectedPhoto(null)}>
+                <Text style={[styles.modalClose, { color: colors.primary }]}>✕ Close</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => sharePhoto(selectedPhoto)}>
+                <Text style={[styles.modalShare, { color: colors.primary }]}>📤 Share</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {/* Photo */}
+            <Image source={{ uri: selectedPhoto.uri }} style={styles.modalImage} resizeMode="contain" />
+            
+            {/* Info */}
+            <View style={[styles.modalInfo, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.modalTime, { color: colors.foreground }]}>
+                📅 {new Date(selectedPhoto.timestamp).toLocaleString()}
+              </Text>
+              {selectedPhoto.address && (
+                <Text style={[styles.modalAddress, { color: colors.muted }]}>
+                  📍 {selectedPhoto.address}
+                </Text>
+              )}
+              {selectedPhoto.location && (
+                <Text style={[styles.modalCoords, { color: colors.muted }]}>
+                  🌐 {selectedPhoto.location.latitude.toFixed(6)}, {selectedPhoto.location.longitude.toFixed(6)}
+                </Text>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
 
   // ========== IDLE STATE ==========
   if (appState === "idle") {
@@ -442,6 +508,59 @@ export default function HomeScreen() {
     );
   }
 
+  // ========== PHOTO GALLERY ==========
+  if (appState === "gallery" && activeShift) {
+    return (
+      <ScreenContainer>
+        <PhotoViewerModal />
+        <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
+          {/* Header */}
+          <View style={styles.galleryHeader}>
+            <TouchableOpacity onPress={() => setAppState("active")}>
+              <Text style={[styles.backText, { color: colors.primary }]}>← Back</Text>
+            </TouchableOpacity>
+            <Text style={[styles.galleryTitle, { color: colors.foreground }]}>
+              Photos ({activeShift.photos.length})
+            </Text>
+            <View style={{ width: 50 }} />
+          </View>
+
+          {activeShift.photos.length === 0 ? (
+            <View style={styles.emptyGallery}>
+              <Text style={[styles.emptyText, { color: colors.muted }]}>
+                No photos yet.{"\n"}Take some photos during your shift!
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.photoGrid}>
+              {activeShift.photos.map((photo) => (
+                <TouchableOpacity
+                  key={photo.id}
+                  style={styles.photoGridItem}
+                  onPress={() => setSelectedPhoto(photo)}
+                >
+                  <Image source={{ uri: photo.uri }} style={styles.photoGridImage} />
+                  <View style={[styles.photoGridOverlay, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
+                    <Text style={styles.photoGridTime}>
+                      {new Date(photo.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.primaryBtn, { backgroundColor: colors.primary, marginTop: 20 }]}
+            onPress={() => setAppState("camera")}
+          >
+            <Text style={styles.primaryBtnText}>📷 Take More Photos</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </ScreenContainer>
+    );
+  }
+
   // ========== CAMERA VIEW ==========
   if (appState === "camera" && activeShift) {
     if (!permission?.granted) {
@@ -543,6 +662,7 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer>
+      <PhotoViewerModal />
       <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
@@ -583,15 +703,47 @@ export default function HomeScreen() {
 
         {/* Stats */}
         <View style={styles.statsRow}>
-          <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <TouchableOpacity 
+            style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => activeShift.photos.length > 0 && setAppState("gallery")}
+          >
             <Text style={[styles.statValue, { color: colors.foreground }]}>{activeShift.photos.length}</Text>
             <Text style={[styles.statLabel, { color: colors.muted }]}>Photos</Text>
-          </View>
+            {activeShift.photos.length > 0 && (
+              <Text style={[styles.statHint, { color: colors.primary }]}>Tap to view</Text>
+            )}
+          </TouchableOpacity>
           <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.statValue, { color: colors.foreground }]}>{activeShift.locations.length}</Text>
             <Text style={[styles.statLabel, { color: colors.muted }]}>Locations</Text>
           </View>
         </View>
+
+        {/* Photo Thumbnails */}
+        {activeShift.photos.length > 0 && (
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={styles.photoHeaderRow}>
+              <Text style={[styles.label, { color: colors.foreground }]}>📷 Recent Photos</Text>
+              <TouchableOpacity onPress={() => setAppState("gallery")}>
+                <Text style={[styles.viewAllText, { color: colors.primary }]}>View All →</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
+              {activeShift.photos.slice(-5).reverse().map((photo) => (
+                <TouchableOpacity 
+                  key={photo.id} 
+                  style={styles.photoThumbContainer}
+                  onPress={() => setSelectedPhoto(photo)}
+                >
+                  <Image source={{ uri: photo.uri }} style={styles.photoThumb} />
+                  <Text style={[styles.photoThumbTime, { color: colors.muted }]}>
+                    {new Date(photo.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Action Buttons */}
         <TouchableOpacity
@@ -600,6 +752,15 @@ export default function HomeScreen() {
         >
           <Text style={styles.primaryBtnText}>📷 Take Photo</Text>
         </TouchableOpacity>
+
+        {activeShift.photos.length > 0 && (
+          <TouchableOpacity
+            style={[styles.secondaryBtn, { borderColor: colors.primary }]}
+            onPress={() => setAppState("gallery")}
+          >
+            <Text style={[styles.secondaryBtnText, { color: colors.primary }]}>🖼️ View All Photos</Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={[styles.dangerBtn, { backgroundColor: colors.error }]}
@@ -624,8 +785,8 @@ const styles = StyleSheet.create({
   timestamp: { fontSize: 12, marginTop: 8 },
   primaryBtn: { padding: 16, borderRadius: 12, alignItems: "center", marginBottom: 12 },
   primaryBtnText: { color: "#FFF", fontSize: 18, fontWeight: "600" },
-  secondaryBtn: { padding: 16, borderRadius: 12, alignItems: "center", borderWidth: 1 },
-  secondaryBtnText: { fontSize: 16 },
+  secondaryBtn: { padding: 16, borderRadius: 12, alignItems: "center", borderWidth: 1, marginBottom: 12 },
+  secondaryBtnText: { fontSize: 16, fontWeight: "500" },
   dangerBtn: { padding: 16, borderRadius: 12, alignItems: "center", marginBottom: 12 },
   dangerBtnText: { color: "#FFF", fontSize: 18, fontWeight: "600" },
   heroTitle: { fontSize: 32, fontWeight: "bold", marginBottom: 8, textAlign: "center" },
@@ -649,6 +810,7 @@ const styles = StyleSheet.create({
   statCard: { flex: 1, padding: 16, borderRadius: 12, borderWidth: 1, alignItems: "center" },
   statValue: { fontSize: 28, fontWeight: "bold" },
   statLabel: { fontSize: 12, marginTop: 4 },
+  statHint: { fontSize: 11, marginTop: 4 },
   cameraTop: { position: "absolute", top: 50, left: 20, right: 20, zIndex: 10 },
   backBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, alignSelf: "flex-start" },
   cameraInfo: { position: "absolute", top: 100, left: 20, right: 20, zIndex: 10 },
@@ -663,4 +825,33 @@ const styles = StyleSheet.create({
   flipBtn: { width: 50, height: 50, borderRadius: 25, justifyContent: "center", alignItems: "center" },
   captureBtn: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, borderColor: "#FFF", justifyContent: "center", alignItems: "center" },
   captureBtnInner: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FFF" },
+  // Gallery styles
+  galleryHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  galleryTitle: { fontSize: 20, fontWeight: "bold" },
+  backText: { fontSize: 16, fontWeight: "600" },
+  emptyGallery: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 60 },
+  emptyText: { textAlign: "center", fontSize: 16, lineHeight: 24 },
+  photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  photoGridItem: { width: (SCREEN_WIDTH - 56) / 3, height: (SCREEN_WIDTH - 56) / 3, borderRadius: 8, overflow: "hidden" },
+  photoGridImage: { width: "100%", height: "100%" },
+  photoGridOverlay: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 4 },
+  photoGridTime: { color: "#FFF", fontSize: 10, textAlign: "center" },
+  // Photo thumbnails in dashboard
+  photoHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  viewAllText: { fontSize: 14, fontWeight: "500" },
+  photoScroll: { marginTop: 8 },
+  photoThumbContainer: { marginRight: 12, alignItems: "center" },
+  photoThumb: { width: 70, height: 70, borderRadius: 8 },
+  photoThumbTime: { fontSize: 10, marginTop: 4 },
+  // Modal styles
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.9)", justifyContent: "center", alignItems: "center" },
+  modalContent: { width: "100%", height: "100%", paddingTop: 50 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16 },
+  modalClose: { fontSize: 16, fontWeight: "600" },
+  modalShare: { fontSize: 16, fontWeight: "600" },
+  modalImage: { flex: 1, width: "100%" },
+  modalInfo: { padding: 20 },
+  modalTime: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
+  modalAddress: { fontSize: 14, marginBottom: 4 },
+  modalCoords: { fontSize: 12, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
 });

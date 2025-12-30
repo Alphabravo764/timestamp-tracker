@@ -77,3 +77,19 @@
 - [x] Burn timestamp watermark on photos (canvas overlay on web)
 - [x] PDF export with static map image showing trail
 - [x] PDF includes all photos with timestamps and addresses
+
+
+## NEW REQUIREMENTS (User Feedback)
+- [ ] Share Live Location - generate our own link instead of direct OpenStreetMap link
+- [ ] Live Location Page - must show trail (polyline path) not just markers
+- [ ] Live Location Page - must have "Download Report" button
+- [ ] Share Report - should be PDF, not just text
+- [ ] PDF Report - must show actual trail path (polyline), not just start/end points
+- [ ] Trail visualization using Leaflet.js for interactive map
+
+
+## NEW USER REQUESTS
+- [x] Fix PDF view error
+- [x] Add photo gallery to view taken photos with timestamps
+- [x] Enable individual photo sharing
+- [x] Update PDF to use Google Maps static image with trail

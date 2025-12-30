@@ -203,21 +203,28 @@ export default function TrackingScreen() {
     const { latitude, longitude } = currentLocation.coords;
     const timestamp = new Date().toLocaleString();
     
-    // Create shareable message with pair code and current location
+    // Get the base URL for our viewer
+    const baseUrl = Platform.OS === "web" 
+      ? window.location.origin 
+      : "https://8081-i4k0orawdmfzlz97qze7e-c1ad53ca.us2.manus.computer";
+    const viewerUrl = `${baseUrl}/viewer/${session.pairCode}`;
+    
+    // Create shareable message with our own viewer link
     const message = `📍 Live Location Tracking
 
 Staff: ${session.staffName}
 Pair Code: ${session.pairCode}
 Started: ${new Date(session.startTime).toLocaleString()}
 
+🔗 View Live Location & Trail:
+${viewerUrl}
+
 Current Location:
 Lat: ${latitude.toFixed(6)}
 Lng: ${longitude.toFixed(6)}
 Updated: ${timestamp}
 
-View on map: https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}&zoom=16
-
-Use pair code "${session.pairCode}" to track this staff member in the app.`;
+The link shows real-time location with trail map and has a Download Report button.`;
 
     try {
       await Share.share({
