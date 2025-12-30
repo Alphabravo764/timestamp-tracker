@@ -56,21 +56,27 @@ const getAddressFromCoords = async (lat: number, lng: number): Promise<string> =
   }
 };
 
-// Generate trail map URL using OpenStreetMap
+// Generate trail map URL using Google Maps
 const getTrailMapUrl = (locations: LocationPoint[]): string => {
   if (locations.length === 0) return "";
   if (locations.length === 1) {
     const loc = locations[0];
-    return `https://www.openstreetmap.org/?mlat=${loc.latitude}&mlon=${loc.longitude}&zoom=16`;
+    return `https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`;
   }
-  const lats = locations.map(l => l.latitude);
-  const lngs = locations.map(l => l.longitude);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-  const padding = 0.002;
-  return `https://www.openstreetmap.org/?bbox=${minLng - padding},${minLat - padding},${maxLng + padding},${maxLat + padding}&layer=mapnik`;
+  // For multiple points, create Google Maps directions URL to show the trail
+  const start = locations[0];
+  const end = locations[locations.length - 1];
+  // Add waypoints for intermediate locations (max 10 for URL length)
+  const waypoints = locations.slice(1, -1);
+  const waypointStr = waypoints.length > 0 
+    ? waypoints.slice(0, 10).map(l => `${l.latitude},${l.longitude}`).join("|")
+    : "";
+  
+  let url = `https://www.google.com/maps/dir/${start.latitude},${start.longitude}/${end.latitude},${end.longitude}`;
+  if (waypointStr) {
+    url = `https://www.google.com/maps/dir/?api=1&origin=${start.latitude},${start.longitude}&destination=${end.latitude},${end.longitude}&waypoints=${waypointStr}`;
+  }
+  return url;
 };
 
 export default function HomeScreen() {
@@ -249,10 +255,14 @@ export default function HomeScreen() {
 
   const sharePairCode = async () => {
     if (!activeShift) return;
-    const trailUrl = getTrailMapUrl(activeShift.locations);
+    
+    // Generate live viewer URL
+    const baseUrl = Platform.OS === "web" ? window.location.origin : "https://timestamp-tracker.app";
+    const liveUrl = `${baseUrl}/live/${activeShift.pairCode}`;
+    
     try {
       await Share.share({
-        message: `📍 Live Location Tracking\n\nStaff: ${activeShift.staffName}\nSite: ${activeShift.siteName}\nPair Code: ${activeShift.pairCode}\n\nCurrent Location:\n${currentAddress}\n\nView Trail Map:\n${trailUrl}\n\nUse pair code in Timestamp Tracker app to monitor.`,
+        message: `📍 Live Location Tracking\n\nStaff: ${activeShift.staffName}\nSite: ${activeShift.siteName}\n\n🔗 View Live Location & Trail:\n${liveUrl}\n\nPair Code: ${activeShift.pairCode}\n\nCurrent Location:\n${currentAddress}`,
       });
     } catch (e) {
       console.error("Share error:", e);

@@ -93,3 +93,17 @@
 - [x] Add photo gallery to view taken photos with timestamps
 - [x] Enable individual photo sharing
 - [x] Update PDF to use Google Maps static image with trail
+
+
+## LIVE VIEWER PAGE
+- [x] Create /live/[token] route for live location viewing
+- [x] Google Maps integration with trail polyline
+- [x] Real-time location updates (auto-refresh)
+- [x] Download Report button that generates PDF
+- [x] Show staff name, site, shift duration
+- [x] Display recent photos
+- [x] Update share link to use custom live page URL
+
+
+## ADDITIONAL FIX
+- [x] Change share location to use Google Maps trail instead of OpenStreetMap

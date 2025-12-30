@@ -29,21 +29,27 @@ import { generatePDFReport, getStaticMapUrl } from "@/lib/pdf-generator";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-// Generate trail map URL that shows all points
+// Generate trail map URL using Google Maps
 const getTrailMapUrl = (locations: LocationPoint[]): string => {
   if (locations.length === 0) return "";
   if (locations.length === 1) {
     const loc = locations[0];
-    return `https://www.openstreetmap.org/?mlat=${loc.latitude}&mlon=${loc.longitude}&zoom=17`;
+    return `https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`;
   }
-  const lats = locations.map(l => l.latitude);
-  const lngs = locations.map(l => l.longitude);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-  const padding = 0.001;
-  return `https://www.openstreetmap.org/?bbox=${minLng - padding},${minLat - padding},${maxLng + padding},${maxLat + padding}&layer=mapnik`;
+  // For multiple points, create Google Maps directions URL to show the trail
+  const start = locations[0];
+  const end = locations[locations.length - 1];
+  // Add waypoints for intermediate locations (max 10 for URL length)
+  const waypoints = locations.slice(1, -1);
+  const waypointStr = waypoints.length > 0 
+    ? waypoints.slice(0, 10).map(l => `${l.latitude},${l.longitude}`).join("|")
+    : "";
+  
+  let url = `https://www.google.com/maps/dir/${start.latitude},${start.longitude}/${end.latitude},${end.longitude}`;
+  if (waypointStr) {
+    url = `https://www.google.com/maps/dir/?api=1&origin=${start.latitude},${start.longitude}&destination=${end.latitude},${end.longitude}&waypoints=${waypointStr}`;
+  }
+  return url;
 };
 
 // Reverse geocoding using Nominatim
