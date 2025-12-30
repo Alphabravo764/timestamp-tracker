@@ -139,3 +139,4 @@
 - [x] Fix report sharing during shift to use PDF instead of text
 - [x] Update Watcher view to use Google Maps with trail instead of OpenStreetMap
 - [x] Fix photo sharing to share actual watermarked image instead of text
+- [x] Fix Share Report on mobile - Blob API not available on native

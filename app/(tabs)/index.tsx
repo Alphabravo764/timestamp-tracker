@@ -325,11 +325,36 @@ export default function HomeScreen() {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       
-      // Generate and open PDF report
-      const html = generatePDFReport(activeShift);
-      const blob = new Blob([html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
+      if (Platform.OS === "web") {
+        // On web, open PDF in new tab
+        const html = generatePDFReport(activeShift);
+        const blob = new Blob([html], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank");
+      } else {
+        // On mobile, share a text summary with live tracking link
+        const duration = formatDuration(getShiftDuration(activeShift));
+        const photoCount = activeShift.photos.length;
+        const locationCount = activeShift.locations.length;
+        const notesCount = activeShift.notes?.length || 0;
+        
+        // Get base URL for live tracking
+        const liveUrl = `https://timestamp-tracker.app/live/${activeShift.pairCode}`;
+        
+        const message = `📊 Shift Report - ${activeShift.siteName}\n\n` +
+          `👤 Staff: ${activeShift.staffName}\n` +
+          `⏱️ Duration: ${duration}\n` +
+          `📷 Photos: ${photoCount}\n` +
+          `📍 Locations: ${locationCount}\n` +
+          (notesCount > 0 ? `📝 Notes: ${notesCount}\n` : "") +
+          `\n🔗 Live Tracking: ${liveUrl}\n` +
+          `\nGenerated: ${new Date().toLocaleString()}`;
+        
+        await Share.share({
+          message,
+          title: `Shift Report - ${activeShift.siteName}`,
+        });
+      }
     } catch (e) {
       console.error("Share report error:", e);
       alert("Failed to generate report");
