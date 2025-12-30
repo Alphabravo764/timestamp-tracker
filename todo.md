@@ -224,3 +224,6 @@
 - [x] Implement dev login button for testing
 - [x] Update home screen sign-in flow
 - [x] Test authentication with dev login
+- [x] Fix session persistence - login creates user but doesn't maintain session
+- [x] Debug cookie/session handling in browser
+- [x] Ensure auth state refreshes after login

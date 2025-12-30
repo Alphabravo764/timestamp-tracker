@@ -43,12 +43,20 @@ export const appRouter = router({
           throw new Error("Failed to create user");
         }
 
-        // Set session cookie (simplified for dev)
-        const sessionToken = Buffer.from(JSON.stringify({ userId: user.id })).toString(
-          "base64"
-        );
+        // Create proper JWT session token
+        const { sdk } = await import("./_core/sdk.js");
+        const { ENV } = await import("./_core/env.js");
+        const sessionToken = await sdk.signSession({
+          openId: user.openId,
+          appId: ENV.appId,
+          name: user.name || "Dev User",
+        });
+        
         const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie(COOKIE_NAME, sessionToken, cookieOptions);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, {
+          ...cookieOptions,
+          maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        });
 
         return { user };
       }),
