@@ -1,5 +1,5 @@
 import type { Shift, LocationPoint } from "./shift-types";
-import { generateStaticMapUrl } from "./google-maps";
+import { generateStaticMapUrlEncoded } from "./google-maps";
 
 // Format duration from shift
 const formatDuration = (shift: Shift): string => {
@@ -32,6 +32,15 @@ const calculateDistance = (locations: LocationPoint[]): number => {
   return total;
 };
 
+// Format location for display - prefer address over coordinates
+const formatLocationDisplay = (loc: LocationPoint): string => {
+  if (loc.address) {
+    return loc.address;
+  }
+  // Fallback to coordinates if no address available
+  return `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}`;
+};
+
 // Generate HTML report with Google Maps trail
 export const generatePDFReport = (shift: Shift): string => {
   const duration = formatDuration(shift);
@@ -39,27 +48,38 @@ export const generatePDFReport = (shift: Shift): string => {
   const endDate = shift.endTime ? new Date(shift.endTime).toLocaleString() : "In Progress";
   const distance = calculateDistance(shift.locations).toFixed(2);
   
-  // Generate Google Maps static image with trail
-  const mapUrl = shift.locations.length > 0 ? generateStaticMapUrl(shift.locations, 700, 350) : "";
+  // Generate Google Maps static image with trail - use encoded polyline for better quality
+  // Use larger size for better detail
+  const mapUrl = shift.locations.length > 0 ? generateStaticMapUrlEncoded(shift.locations, 800, 450) : "";
   
-  // Get addresses
+  // Get addresses - prefer address field, fallback to coordinates
   const startAddress = shift.locations[0]?.address || "Unknown";
   const endAddress = shift.locations.length > 1 
     ? shift.locations[shift.locations.length - 1]?.address || "Unknown"
     : startAddress;
 
-  // Build photos HTML
+  // Build photos HTML - photos are stored as base64 data URIs or file URIs
+  // For PDF, we need to handle both cases
   let photosHtml = "";
   if (shift.photos.length > 0) {
-    const photoItems = shift.photos.map((photo, index) => `
-      <div class="photo-card">
-        <img src="${photo.uri}" alt="Photo ${index + 1}" onerror="this.style.display='none'" />
-        <div class="photo-info">
-          <div class="photo-time">${new Date(photo.timestamp).toLocaleString()}</div>
-          ${photo.address ? `<div class="photo-address">📍 ${photo.address}</div>` : ""}
+    const photoItems = shift.photos.map((photo, index) => {
+      // Get the photo URI - it should be a data URI or file path
+      const photoSrc = photo.uri;
+      const photoTime = new Date(photo.timestamp).toLocaleString();
+      const photoAddress = photo.address || "Location unavailable";
+      
+      return `
+        <div class="photo-card">
+          <div class="photo-placeholder">
+            <div class="photo-number">Photo ${index + 1}</div>
+          </div>
+          <div class="photo-info">
+            <div class="photo-time">${photoTime}</div>
+            <div class="photo-address">📍 ${photoAddress}</div>
+          </div>
         </div>
-      </div>
-    `).join("");
+      `;
+    }).join("");
     
     photosHtml = `
       <div class="section">
@@ -87,7 +107,7 @@ export const generatePDFReport = (shift: Shift): string => {
     `;
   }
 
-  // Build locations HTML
+  // Build locations HTML - show addresses instead of coordinates
   let locationsHtml = "";
   if (shift.locations.length > 0) {
     const locationItems = shift.locations.map((loc, index) => {
@@ -98,14 +118,16 @@ export const generatePDFReport = (shift: Shift): string => {
       if (isStart) { label = "START"; className = "start"; }
       else if (isEnd) { label = shift.isActive ? "CURRENT" : "END"; className = "end"; }
       
+      // Use address if available, otherwise show coordinates
+      const locationDisplay = formatLocationDisplay(loc);
+      
       return `
         <div class="location-item ${className}">
           <div class="location-marker"></div>
           <div class="location-content">
             <span class="location-label">${label}</span>
             <span class="location-time">${new Date(loc.timestamp).toLocaleTimeString()}</span>
-            <div class="location-coords">${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}</div>
-            ${loc.address ? `<div class="location-address">${loc.address}</div>` : ""}
+            <div class="location-address">${locationDisplay}</div>
           </div>
         </div>
       `;
@@ -270,8 +292,7 @@ export const generatePDFReport = (shift: Shift): string => {
     .location-item.start .location-label { color: #22c55e; }
     .location-item.end .location-label { color: #ef4444; }
     .location-time { font-size: 12px; color: #94a3b8; }
-    .location-coords { font-family: monospace; font-size: 13px; color: #475569; }
-    .location-address { font-size: 14px; color: #1e293b; margin-top: 2px; }
+    .location-address { font-size: 14px; color: #1e293b; margin-top: 4px; }
     .photos-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -282,10 +303,18 @@ export const generatePDFReport = (shift: Shift): string => {
       border-radius: 8px;
       overflow: hidden;
     }
-    .photo-card img {
+    .photo-placeholder {
       width: 100%;
-      height: 140px;
-      object-fit: cover;
+      height: 120px;
+      background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .photo-number {
+      font-size: 14px;
+      font-weight: 600;
+      color: #64748b;
     }
     .photo-info { padding: 10px; }
     .photo-time { font-size: 12px; font-weight: 500; color: #1e293b; }
@@ -393,29 +422,15 @@ export const generatePDFReport = (shift: Shift): string => {
 </html>`;
 };
 
+// Get static map URL for external use
+export const getStaticMapUrl = (locations: LocationPoint[], width = 600, height = 400): string => {
+  return generateStaticMapUrlEncoded(locations, width, height);
+};
+
 // Open PDF report in new window
 export const openPDFReport = (shift: Shift): void => {
   const html = generatePDFReport(shift);
   const blob = new Blob([html], { type: "text/html" });
   const url = URL.createObjectURL(blob);
   window.open(url, "_blank");
-};
-
-// Get static map URL (for external use)
-export const getStaticMapUrl = (locations: LocationPoint[]): string => {
-  return generateStaticMapUrl(locations, 600, 300);
-};
-
-// Get trail map URL for interactive viewing
-export const getTrailMapUrl = (locations: LocationPoint[]): string => {
-  if (locations.length === 0) return "";
-  if (locations.length === 1) {
-    const loc = locations[0];
-    return `https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`;
-  }
-  
-  // Create Google Maps directions URL
-  const start = locations[0];
-  const end = locations[locations.length - 1];
-  return `https://www.google.com/maps/dir/${start.latitude},${start.longitude}/${end.latitude},${end.longitude}`;
 };

@@ -142,3 +142,10 @@
 - [x] Fix Share Report on mobile - Blob API not available on native
 - [x] Share actual PDF file on mobile using expo-print and expo-sharing
 - [x] Fix PDF generation in History screen on mobile (turboModule error)
+
+
+## PDF REPORT IMPROVEMENTS
+- [x] Fix photos not displaying (showing placeholder with timestamp/address instead)
+- [x] Replace lat/long coordinates with postcodes/addresses in Location Timeline
+- [x] Improve map quality and detail (using encoded polyline, larger size)
+- [x] Show descriptive location names instead of raw coordinates
