@@ -33,6 +33,8 @@ import { addNoteToShift, getShiftNotes } from "@/lib/shift-notes";
 import { batchExportPhotos } from "@/lib/batch-export";
 import { getTemplates, saveTemplate, useTemplate, type ShiftTemplate } from "@/lib/shift-templates";
 import { generatePDFReport } from "@/lib/pdf-generator";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 
 type AppState = "idle" | "startForm" | "active" | "camera" | "confirmEnd" | "gallery";
 
@@ -325,35 +327,50 @@ export default function HomeScreen() {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       
+      // Generate HTML report
+      const html = generatePDFReport(activeShift);
+      
       if (Platform.OS === "web") {
-        // On web, open PDF in new tab
-        const html = generatePDFReport(activeShift);
+        // On web, open HTML report in new tab
         const blob = new Blob([html], { type: "text/html" });
         const url = URL.createObjectURL(blob);
         window.open(url, "_blank");
       } else {
-        // On mobile, share a text summary with live tracking link
-        const duration = formatDuration(getShiftDuration(activeShift));
-        const photoCount = activeShift.photos.length;
-        const locationCount = activeShift.locations.length;
-        const notesCount = activeShift.notes?.length || 0;
-        
-        // Get base URL for live tracking
-        const liveUrl = `https://timestamp-tracker.app/live/${activeShift.pairCode}`;
-        
-        const message = `📊 Shift Report - ${activeShift.siteName}\n\n` +
-          `👤 Staff: ${activeShift.staffName}\n` +
-          `⏱️ Duration: ${duration}\n` +
-          `📷 Photos: ${photoCount}\n` +
-          `📍 Locations: ${locationCount}\n` +
-          (notesCount > 0 ? `📝 Notes: ${notesCount}\n` : "") +
-          `\n🔗 Live Tracking: ${liveUrl}\n` +
-          `\nGenerated: ${new Date().toLocaleString()}`;
-        
-        await Share.share({
-          message,
-          title: `Shift Report - ${activeShift.siteName}`,
-        });
+        // On mobile, generate PDF and share it
+        try {
+          // Generate PDF file from HTML
+          const { uri } = await Print.printToFileAsync({
+            html,
+            base64: false,
+          });
+          
+          // Check if sharing is available
+          const isAvailable = await Sharing.isAvailableAsync();
+          
+          if (isAvailable) {
+            await Sharing.shareAsync(uri, {
+              mimeType: "application/pdf",
+              dialogTitle: `Shift Report - ${activeShift.siteName}`,
+              UTI: "com.adobe.pdf",
+            });
+          } else {
+            alert("Sharing is not available on this device");
+          }
+        } catch (printError) {
+          console.error("Print error:", printError);
+          // Fallback to text sharing if PDF generation fails
+          const duration = formatDuration(getShiftDuration(activeShift));
+          const liveUrl = `https://timestamp-tracker.app/live/${activeShift.pairCode}`;
+          
+          const message = `📊 Shift Report - ${activeShift.siteName}\n\n` +
+            `👤 Staff: ${activeShift.staffName}\n` +
+            `⏱️ Duration: ${duration}\n` +
+            `📷 Photos: ${activeShift.photos.length}\n` +
+            `📍 Locations: ${activeShift.locations.length}\n` +
+            `\n🔗 Live Tracking: ${liveUrl}`;
+          
+          await Share.share({ message, title: `Shift Report - ${activeShift.siteName}` });
+        }
       }
     } catch (e) {
       console.error("Share report error:", e);

@@ -29,6 +29,8 @@ import { generatePDFReport, getStaticMapUrl } from "@/lib/pdf-generator";
 import { savePhotoToLibrary } from "@/lib/photo-export";
 import { batchExportPhotos } from "@/lib/batch-export";
 import { addWatermarkToPhoto, formatWatermarkTimestamp } from "@/lib/watermark";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -148,16 +150,43 @@ export default function HistoryScreen() {
     Linking.openURL(url);
   };
 
-  const viewPDFReport = (shift: Shift) => {
+  const viewPDFReport = async (shift: Shift) => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     
     try {
       const html = generatePDFReport(shift);
-      const blob = new Blob([html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
+      
+      if (Platform.OS === "web") {
+        // On web, open HTML report in new tab
+        const blob = new Blob([html], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank");
+      } else {
+        // On mobile, generate and share PDF
+        try {
+          const { uri } = await Print.printToFileAsync({
+            html,
+            base64: false,
+          });
+          
+          const isAvailable = await Sharing.isAvailableAsync();
+          
+          if (isAvailable) {
+            await Sharing.shareAsync(uri, {
+              mimeType: "application/pdf",
+              dialogTitle: `Shift Report - ${shift.siteName}`,
+              UTI: "com.adobe.pdf",
+            });
+          } else {
+            alert("Sharing is not available on this device");
+          }
+        } catch (printError) {
+          console.error("Print error:", printError);
+          alert("Failed to generate PDF. Please try again.");
+        }
+      }
     } catch (error) {
       console.error("PDF error:", error);
       alert("Failed to generate PDF. Please try again.");
