@@ -202,3 +202,18 @@
 - [x] Verify all navigation paths are correct
 - [x] Ensure tab routes are properly configured
 - [x] Add missing route files if needed
+- [x] Debug persistent routing error after server restart
+- [x] Check anchor configuration in root layout
+- [x] Verify initial route is properly set
+
+
+## New Features
+
+### Shift History on Home Screen
+- [x] Display list of past shifts on home screen
+- [x] Show shift date, site name, and duration
+- [x] Add "View Report" button for each shift
+- [x] Add "Share Link" button for each shift
+- [x] Show shift status badge (completed/cancelled)
+- [x] Add pull-to-refresh functionality
+- [x] Add empty state when no shifts exist
