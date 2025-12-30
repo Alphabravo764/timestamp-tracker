@@ -67,3 +67,13 @@
 - [x] Photo capture error - FIXED (added base64, better error handling)
 - [x] Add reverse geocoding - DONE (using Nominatim API, shows street name + postcode)
 - [x] Add trail visualization - DONE (bounding box URL shows all points on OpenStreetMap)
+
+
+## CRITICAL BUGS
+- [x] "Failed to end shift" error - FIXED (improved error handling, better storage keys)
+- [x] Start shift issues - FIXED (clear existing shift before starting new one)
+
+## NEW FEATURES REQUESTED
+- [x] Burn timestamp watermark on photos (canvas overlay on web)
+- [x] PDF export with static map image showing trail
+- [x] PDF includes all photos with timestamps and addresses

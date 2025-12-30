@@ -17,14 +17,15 @@ import { useColors } from "@/hooks/use-colors";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import {
-  getActiveShift,
   startShift,
+  getActiveShift,
   endShift,
   addLocationToShift,
   addPhotoToShift,
   formatDuration,
   getShiftDuration,
 } from "@/lib/shift-storage";
+import { addWatermarkToPhoto, formatWatermarkTimestamp } from "@/lib/watermark";
 import type { Shift, LocationPoint, ShiftPhoto } from "@/lib/shift-types";
 
 type AppState = "idle" | "startForm" | "active" | "camera" | "confirmEnd";
@@ -287,9 +288,18 @@ export default function HomeScreen() {
         console.log("Using cached location for photo");
       }
 
+      // Add watermark to photo
+      const watermarkTimestamp = formatWatermarkTimestamp(new Date());
+      const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
+        timestamp: watermarkTimestamp,
+        address: currentAddress || "Location unavailable",
+        latitude: photoLocation?.coords.latitude || 0,
+        longitude: photoLocation?.coords.longitude || 0,
+      });
+
       const shiftPhoto: ShiftPhoto = {
         id: Date.now().toString(),
-        uri: photo.uri,
+        uri: watermarkedUri,
         timestamp: new Date().toISOString(),
         location: photoLocation ? {
           latitude: photoLocation.coords.latitude,

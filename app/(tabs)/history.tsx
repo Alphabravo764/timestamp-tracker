@@ -23,6 +23,7 @@ import {
   getShiftDuration,
 } from "@/lib/shift-storage";
 import type { Shift, LocationPoint } from "@/lib/shift-types";
+import { openPDFReport } from "@/lib/pdf-generator";
 
 // Generate trail map URL that shows all points
 const getTrailMapUrl = (locations: LocationPoint[]): string => {
@@ -304,9 +305,16 @@ export default function HistoryScreen() {
           {/* Action Buttons */}
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.primary }]}
+            onPress={() => openPDFReport(selectedShift)}
+          >
+            <Text style={styles.actionButtonText}>📄 View PDF Report</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: "#6366f1" }]}
             onPress={() => generateReport(selectedShift)}
           >
-            <Text style={styles.actionButtonText}>📤 Generate & Share Report</Text>
+            <Text style={styles.actionButtonText}>📤 Share as Text</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
