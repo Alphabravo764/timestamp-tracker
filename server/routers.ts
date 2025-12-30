@@ -18,6 +18,40 @@ export const appRouter = router({
         success: true,
       } as const;
     }),
+    // Dev login for testing (creates/finds user and sets session)
+    devLogin: publicProcedure
+      .input(
+        z.object({
+          email: z.string().email(),
+          name: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const openId = `dev-${input.email}`;
+        
+        // Upsert user (create or update)
+        await db.upsertUser({
+          openId,
+          email: input.email,
+          name: input.name || "Dev User",
+          loginMethod: "dev",
+        });
+
+        // Get the user
+        const user = await db.getUserByOpenId(openId);
+        if (!user) {
+          throw new Error("Failed to create user");
+        }
+
+        // Set session cookie (simplified for dev)
+        const sessionToken = Buffer.from(JSON.stringify({ userId: user.id })).toString(
+          "base64"
+        );
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, cookieOptions);
+
+        return { user };
+      }),
   }),
 
   // Shift management routes

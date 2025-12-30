@@ -39,6 +39,14 @@ export default function HomeScreen() {
     }
   );
 
+  // Dev login mutation
+  const devLoginMutation = trpc.auth.devLogin.useMutation({
+    onSuccess: () => {
+      // Refresh auth state
+      window.location.reload();
+    },
+  });
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await Promise.all([refetchActive(), refetchHistory()]);
@@ -101,6 +109,13 @@ export default function HomeScreen() {
     );
   }
 
+  const handleDevLogin = async () => {
+    await devLoginMutation.mutateAsync({
+      email: "staff@example.com",
+      name: "Staff Member",
+    });
+  };
+
   if (!isAuthenticated) {
     return (
       <ScreenContainer className="p-6 justify-center">
@@ -116,9 +131,14 @@ export default function HomeScreen() {
 
           <TouchableOpacity
             className="bg-primary px-8 py-4 rounded-full"
-            onPress={() => router.push("/oauth/callback" as any)}
+            onPress={handleDevLogin}
+            disabled={devLoginMutation.isPending}
           >
-            <Text className="text-white font-semibold text-lg">Sign In to Start</Text>
+            {devLoginMutation.isPending ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text className="text-white font-semibold text-lg">Sign In to Start</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScreenContainer>

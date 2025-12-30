@@ -217,3 +217,10 @@
 - [x] Show shift status badge (completed/cancelled)
 - [x] Add pull-to-refresh functionality
 - [x] Add empty state when no shifts exist
+
+
+### Authentication Issues
+- [x] Fix OAuth callback error (Missing code or state parameter)
+- [x] Implement dev login button for testing
+- [x] Update home screen sign-in flow
+- [x] Test authentication with dev login
