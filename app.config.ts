@@ -79,7 +79,13 @@ const config: ExpoConfig = {
     [
       "expo-camera",
       {
-        cameraPermission: "Allow $(PRODUCT_NAME) to access your camera to take timestamp photos.",
+        cameraPermission: "Allow $(PRODUCT_NAME) to access your camera to take timestamped photos.",
+      },
+    ],
+    [
+      "expo-audio",
+      {
+        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone.",
       },
     ],
     [

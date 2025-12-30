@@ -1,310 +1,254 @@
-import { useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-  Share,
-} from "react-native";
-import { router } from "expo-router";
+import { useState, useRef, useEffect } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Alert } from "react-native";
+import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import { ScreenContainer } from "@/components/screen-container";
-import { trpc } from "@/lib/trpc";
 import { useColors } from "@/hooks/use-colors";
-import { useAuth } from "@/hooks/use-auth";
+import * as Location from "expo-location";
+import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export default function HomeScreen() {
+interface PhotoData {
+  id: string;
+  uri: string;
+  timestamp: string;
+  location: {
+    latitude: number;
+    longitude: number;
+    accuracy: number | null;
+  } | null;
+}
+
+export default function CameraScreen() {
   const colors = useColors();
-  const { user, isAuthenticated, loading: authLoading } = useAuth();
-  const [refreshing, setRefreshing] = useState(false);
+  const [facing, setFacing] = useState<CameraType>("back");
+  const [permission, requestPermission] = useCameraPermissions();
+  const [locationPermission, setLocationPermission] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<Location.LocationObject | null>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const cameraRef = useRef<CameraView>(null);
 
-  // Fetch active shift
-  const { data: activeShift, refetch: refetchActive } = trpc.shifts.getActive.useQuery(
-    undefined,
-    {
-      enabled: isAuthenticated,
-    }
-  );
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-  // Fetch shift history
-  const {
-    data: shiftHistory,
-    isLoading: historyLoading,
-    refetch: refetchHistory,
-  } = trpc.shifts.getHistory.useQuery(
-    { limit: 20 },
-    {
-      enabled: isAuthenticated,
-    }
-  );
+  // Request location permissions and start tracking
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === "granted") {
+        setLocationPermission(true);
+        const location = await Location.getCurrentPositionAsync({});
+        setCurrentLocation(location);
+        
+        // Update location every 10 seconds
+        const locationInterval = setInterval(async () => {
+          const loc = await Location.getCurrentPositionAsync({});
+          setCurrentLocation(loc);
+        }, 10000);
+        
+        return () => clearInterval(locationInterval);
+      }
+    })();
+  }, []);
 
-  // Dev login mutation
-  const devLoginMutation = trpc.auth.devLogin.useMutation({
-    onSuccess: () => {
-      // Refresh auth state
-      window.location.reload();
-    },
-  });
+  if (!permission) {
+    return (
+      <ScreenContainer className="items-center justify-center p-6">
+        <Text className="text-foreground text-center">Loading camera...</Text>
+      </ScreenContainer>
+    );
+  }
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([refetchActive(), refetchHistory()]);
-    setRefreshing(false);
-  };
+  if (!permission.granted) {
+    return (
+      <ScreenContainer className="items-center justify-center p-6">
+        <Text className="text-foreground text-center mb-4">
+          Camera permission is required to take photos
+        </Text>
+        <TouchableOpacity
+          onPress={requestPermission}
+          style={{ backgroundColor: colors.primary }}
+          className="px-6 py-3 rounded-full"
+        >
+          <Text className="text-background font-semibold">Grant Permission</Text>
+        </TouchableOpacity>
+      </ScreenContainer>
+    );
+  }
 
-  const handleStartShift = () => {
-    router.push("/shift/start" as any);
-  };
-
-  const handleViewActiveShift = () => {
-    if (activeShift) {
-      router.push("/shift/active" as any);
-    }
-  };
-
-  const handleViewReport = (shiftId: number, liveToken: string) => {
-    router.push(`/live/${liveToken}` as any);
-  };
-
-  const handleShareReport = async (shiftId: number, liveToken: string, siteName: string) => {
-    const reportUrl = `${window.location.origin}/live/${liveToken}`;
-    try {
-      await Share.share({
-        message: `View my shift report at ${siteName}: ${reportUrl}`,
-        url: reportUrl,
-      });
-    } catch (error) {
-      console.error("Error sharing:", error);
-    }
-  };
-
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
+  const formatTimestamp = () => {
+    const date = currentTime.toLocaleDateString("en-US", {
       year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
     });
-  };
-
-  const formatTime = (date: Date) => {
-    return new Date(date).toLocaleTimeString(undefined, {
+    const time = currentTime.toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
     });
+    return `${date} ${time}`;
   };
 
-  const formatDuration = (minutes?: number) => {
-    if (!minutes) return "N/A";
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
+  const formatLocation = () => {
+    if (!currentLocation) return "Location unavailable";
+    const { latitude, longitude } = currentLocation.coords;
+    return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
   };
 
-  if (authLoading) {
-    return (
-      <ScreenContainer className="items-center justify-center">
-        <ActivityIndicator size="large" color={colors.primary} />
-      </ScreenContainer>
-    );
-  }
+  const takePicture = async () => {
+    if (!cameraRef.current) return;
 
-  const handleDevLogin = async () => {
-    await devLoginMutation.mutateAsync({
-      email: "staff@example.com",
-      name: "Staff Member",
-    });
+    try {
+      if (Platform.OS !== "web") {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.8,
+      });
+
+      if (!photo) return;
+
+      // Save photo data
+      const photoData: PhotoData = {
+        id: Date.now().toString(),
+        uri: photo.uri,
+        timestamp: formatTimestamp(),
+        location: currentLocation
+          ? {
+              latitude: currentLocation.coords.latitude,
+              longitude: currentLocation.coords.longitude,
+              accuracy: currentLocation.coords.accuracy,
+            }
+          : null,
+      };
+
+      // Load existing photos
+      const existingPhotosJson = await AsyncStorage.getItem("photos");
+      const existingPhotos: PhotoData[] = existingPhotosJson
+        ? JSON.parse(existingPhotosJson)
+        : [];
+
+      // Add new photo
+      existingPhotos.unshift(photoData);
+
+      // Save back to storage
+      await AsyncStorage.setItem("photos", JSON.stringify(existingPhotos));
+
+      if (Platform.OS !== "web") {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+
+      Alert.alert("Photo Saved", "Your timestamped photo has been saved to the gallery");
+    } catch (error) {
+      console.error("Error taking picture:", error);
+      Alert.alert("Error", "Failed to take picture. Please try again.");
+    }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <ScreenContainer className="p-6 justify-center">
-        <View className="flex-1 items-center justify-center gap-6">
-          <View className="items-center gap-2">
-            <Text className="text-4xl font-bold text-foreground text-center">
-              Welcome to Timestamp Tracker
-            </Text>
-            <Text className="text-base text-muted text-center mt-2">
-              Track your shifts with timestamped photos and location data
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            className="bg-primary px-8 py-4 rounded-full"
-            onPress={handleDevLogin}
-            disabled={devLoginMutation.isPending}
-          >
-            {devLoginMutation.isPending ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Text className="text-white font-semibold text-lg">Sign In to Start</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </ScreenContainer>
-    );
-  }
+  const toggleCameraFacing = () => {
+    setFacing((current) => (current === "back" ? "front" : "back"));
+  };
 
   return (
-    <ScreenContainer className="p-6">
-      <FlatList
-        data={shiftHistory || []}
-        keyExtractor={(item) => item.id.toString()}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={colors.primary}
-          />
-        }
-        ListHeaderComponent={
-          <View className="gap-6 mb-6">
-            {/* Header */}
-            <View>
-              <Text className="text-3xl font-bold text-foreground">Timestamp Tracker</Text>
-              <Text className="text-base text-muted mt-1">
-                Welcome back, {user?.name || "User"}
-              </Text>
-            </View>
-
-            {/* Active Shift Card */}
-            {activeShift ? (
-              <TouchableOpacity
-                className="bg-success/10 border-2 border-success rounded-2xl p-6"
-                onPress={handleViewActiveShift}
-              >
-                <View className="flex-row items-center justify-between mb-3">
-                  <View className="bg-success px-3 py-1 rounded-full">
-                    <Text className="text-white font-semibold text-sm">ACTIVE SHIFT</Text>
-                  </View>
-                  <Text className="text-success font-semibold">Tap to view →</Text>
-                </View>
-
-                <Text className="text-xl font-bold text-foreground mb-1">
-                  {activeShift.siteName}
-                </Text>
-                <Text className="text-muted">
-                  Started at {formatTime(activeShift.startTimeUtc)}
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                className="bg-primary px-6 py-4 rounded-full"
-                onPress={handleStartShift}
-              >
-                <Text className="text-white font-semibold text-center text-lg">
-                  Start New Shift
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {/* History Header */}
-            <View className="flex-row items-center justify-between">
-              <Text className="text-xl font-bold text-foreground">Shift History</Text>
-              {shiftHistory && shiftHistory.length > 0 && (
-                <Text className="text-muted text-sm">{shiftHistory.length} shifts</Text>
-              )}
-            </View>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing}>
+        {/* Timestamp and Location Overlay */}
+        <View style={styles.overlayContainer}>
+          <View style={styles.infoBox}>
+            <Text style={styles.timestampText}>{formatTimestamp()}</Text>
+            <Text style={styles.locationText}>{formatLocation()}</Text>
           </View>
-        }
-        ListEmptyComponent={
-          historyLoading ? (
-            <View className="items-center py-12">
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text className="text-muted mt-4">Loading shift history...</Text>
-            </View>
-          ) : (
-            <View className="items-center py-12">
-              <Text className="text-6xl mb-4">📋</Text>
-              <Text className="text-xl font-semibold text-foreground mb-2">
-                No Shift History
-              </Text>
-              <Text className="text-muted text-center">
-                Your completed shifts will appear here
-              </Text>
-            </View>
-          )
-        }
-        renderItem={({ item }) => (
-          <View className="bg-surface rounded-2xl p-5 mb-4 border border-border">
-            {/* Shift Header */}
-            <View className="flex-row items-start justify-between mb-3">
-              <View className="flex-1">
-                <Text className="text-lg font-bold text-foreground mb-1">{item.siteName}</Text>
-                <Text className="text-sm text-muted">{formatDate(item.startTimeUtc)}</Text>
-              </View>
-              <View
-                className={`px-3 py-1 rounded-full ${
-                  item.status === "completed"
-                    ? "bg-success/20"
-                    : item.status === "cancelled"
-                      ? "bg-error/20"
-                      : "bg-muted/20"
-                }`}
-              >
-                <Text
-                  className={`text-xs font-semibold ${
-                    item.status === "completed"
-                      ? "text-success"
-                      : item.status === "cancelled"
-                        ? "text-error"
-                        : "text-muted"
-                  }`}
-                >
-                  {item.status.toUpperCase()}
-                </Text>
-              </View>
-            </View>
+        </View>
 
-            {/* Shift Details */}
-            <View className="flex-row gap-4 mb-4">
-              <View className="flex-1">
-                <Text className="text-xs text-muted mb-1">Start Time</Text>
-                <Text className="text-sm font-semibold text-foreground">
-                  {formatTime(item.startTimeUtc)}
-                </Text>
-              </View>
-              {item.endTimeUtc && (
-                <View className="flex-1">
-                  <Text className="text-xs text-muted mb-1">End Time</Text>
-                  <Text className="text-sm font-semibold text-foreground">
-                    {formatTime(item.endTimeUtc)}
-                  </Text>
-                </View>
-              )}
-              {item.durationMinutes && (
-                <View className="flex-1">
-                  <Text className="text-xs text-muted mb-1">Duration</Text>
-                  <Text className="text-sm font-semibold text-foreground">
-                    {formatDuration(item.durationMinutes)}
-                  </Text>
-                </View>
-              )}
-            </View>
+        {/* Camera Controls */}
+        <View style={styles.controlsContainer}>
+          {/* Flip Camera Button */}
+          <TouchableOpacity
+            style={[styles.controlButton, { backgroundColor: "rgba(0,0,0,0.5)" }]}
+            onPress={toggleCameraFacing}
+          >
+            <Text style={styles.controlButtonText}>Flip</Text>
+          </TouchableOpacity>
 
-            {/* Action Buttons */}
-            <View className="flex-row gap-3">
-              <TouchableOpacity
-                className="flex-1 bg-primary px-4 py-3 rounded-xl"
-                onPress={() => handleViewReport(item.id, item.liveToken)}
-              >
-                <Text className="text-white font-semibold text-center text-sm">
-                  View Report
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                className="flex-1 bg-surface border border-border px-4 py-3 rounded-xl"
-                onPress={() => handleShareReport(item.id, item.liveToken, item.siteName)}
-              >
-                <Text className="text-foreground font-semibold text-center text-sm">
-                  Share Link
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-        contentContainerStyle={{ flexGrow: 1 }}
-      />
-    </ScreenContainer>
+          {/* Capture Button */}
+          <TouchableOpacity
+            style={[styles.captureButton, { borderColor: colors.primary }]}
+            onPress={takePicture}
+          >
+            <View style={[styles.captureButtonInner, { backgroundColor: colors.primary }]} />
+          </TouchableOpacity>
+
+          {/* Placeholder for symmetry */}
+          <View style={styles.controlButton} />
+        </View>
+      </CameraView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  overlayContainer: {
+    position: "absolute",
+    top: 60,
+    left: 20,
+    right: 20,
+  },
+  infoBox: {
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    padding: 12,
+    borderRadius: 8,
+  },
+  timestampText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  locationText: {
+    color: "#CCCCCC",
+    fontSize: 14,
+  },
+  controlsContainer: {
+    position: "absolute",
+    bottom: 40,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    paddingHorizontal: 40,
+  },
+  controlButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  controlButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  captureButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 4,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "transparent",
+  },
+  captureButtonInner: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
+});
