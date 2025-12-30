@@ -171,11 +171,19 @@ export default function HomeScreen() {
     try {
       const location = await Location.getCurrentPositionAsync({});
       setCurrentLocation(location);
+      
+      // Get address for this location point
+      const address = await getAddressFromCoords(
+        location.coords.latitude,
+        location.coords.longitude
+      );
+      
       const point: LocationPoint = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
         timestamp: new Date().toISOString(),
         accuracy: location.coords.accuracy ?? undefined,
+        address: address,
       };
       const updated = await addLocationToShift(point);
       if (updated) setActiveShift(updated);
@@ -211,11 +219,18 @@ export default function HomeScreen() {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
 
+      // Get address for initial location
+      const initialAddress = await getAddressFromCoords(
+        location.coords.latitude,
+        location.coords.longitude
+      );
+
       const point: LocationPoint = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
         timestamp: new Date().toISOString(),
         accuracy: location.coords.accuracy ?? undefined,
+        address: initialAddress,
       };
 
       const shift = await startShift(staffName || "Staff", siteName, point);

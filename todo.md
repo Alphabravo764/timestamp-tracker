@@ -149,3 +149,9 @@
 - [x] Replace lat/long coordinates with postcodes/addresses in Location Timeline
 - [x] Improve map quality and detail (using encoded polyline, larger size)
 - [x] Show descriptive location names instead of raw coordinates
+
+
+## CRITICAL FIX - Location Addresses
+- [x] Reverse geocode location points to get addresses when recording
+- [x] Show addresses instead of lat/long in Location Timeline in PDF
+- [x] Fix Start/End Location showing "Unknown" - should show actual addresses
