@@ -25,7 +25,8 @@ import {
   getShiftDuration,
 } from "@/lib/shift-storage";
 import type { Shift, LocationPoint, ShiftPhoto } from "@/lib/shift-types";
-import { generatePDFReport, getStaticMapUrl } from "@/lib/pdf-generator";
+import { generatePDFReport } from "@/lib/pdf-generator";
+import { generateStaticMapUrlEncoded } from "@/lib/google-maps";
 import { savePhotoToLibrary } from "@/lib/photo-export";
 import { batchExportPhotos } from "@/lib/batch-export";
 import { addWatermarkToPhoto, formatWatermarkTimestamp } from "@/lib/watermark";
@@ -404,7 +405,7 @@ export default function HistoryScreen() {
   // Shift Detail View
   if (selectedShift) {
     const duration = formatDuration(getShiftDuration(selectedShift));
-    const mapUrl = getStaticMapUrl(selectedShift.locations);
+    const mapUrl = generateStaticMapUrlEncoded(selectedShift.locations, 600, 300);
 
     return (
       <ScreenContainer>

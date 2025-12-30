@@ -3,78 +3,108 @@ import { generateStaticMapUrlEncoded } from "./google-maps";
 
 // Format duration from shift
 const formatDuration = (shift: Shift): string => {
-  const start = new Date(shift.startTime).getTime();
-  const end = shift.endTime ? new Date(shift.endTime).getTime() : Date.now();
-  const minutes = Math.max(0, Math.floor((end - start) / 60000));
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours}h ${mins}m`;
+  const start = new Date(shift.startTime);
+  const end = shift.endTime ? new Date(shift.endTime) : new Date();
+  const diff = end.getTime() - start.getTime();
+  
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
 };
 
-// Calculate distance between locations
+// Calculate total distance traveled
 const calculateDistance = (locations: LocationPoint[]): number => {
-  if (locations.length < 2) return 0;
   let total = 0;
   for (let i = 1; i < locations.length; i++) {
-    const lat1 = locations[i - 1].latitude;
-    const lon1 = locations[i - 1].longitude;
-    const lat2 = locations[i].latitude;
-    const lon2 = locations[i].longitude;
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const prev = locations[i - 1];
+    const curr = locations[i];
+    const R = 6371; // Earth's radius in km
+    const dLat = ((curr.latitude - prev.latitude) * Math.PI) / 180;
+    const dLon = ((curr.longitude - prev.longitude) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((prev.latitude * Math.PI) / 180) *
+        Math.cos((curr.latitude * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     total += R * c;
   }
   return total;
 };
 
-// Format location for display - prefer address over coordinates
+// Format location for display - ALWAYS prefer address, show postcode prominently
 const formatLocationDisplay = (loc: LocationPoint): string => {
-  if (loc.address) {
+  if (loc.address && loc.address !== "Unknown location" && loc.address !== "Location unavailable") {
     return loc.address;
   }
-  // Fallback to coordinates if no address available
-  return `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}`;
+  // Fallback to coordinates only if no address
+  return `Lat: ${loc.latitude.toFixed(5)}, Lng: ${loc.longitude.toFixed(5)}`;
+};
+
+// Format time for display
+const formatTime = (timestamp: string): string => {
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString("en-GB", { 
+    hour: "2-digit", 
+    minute: "2-digit",
+    second: "2-digit"
+  });
+};
+
+// Format date for display
+const formatDate = (timestamp: string): string => {
+  const date = new Date(timestamp);
+  return date.toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
 };
 
 // Generate HTML report with Google Maps trail
 export const generatePDFReport = (shift: Shift): string => {
   const duration = formatDuration(shift);
-  const startDate = new Date(shift.startTime).toLocaleString();
-  const endDate = shift.endTime ? new Date(shift.endTime).toLocaleString() : "In Progress";
+  const startDate = formatDate(shift.startTime);
+  const startTime = formatTime(shift.startTime);
+  const endTime = shift.endTime ? formatTime(shift.endTime) : "In Progress";
   const distance = calculateDistance(shift.locations).toFixed(2);
   
-  // Generate Google Maps static image with trail - use encoded polyline for better quality
-  // Use larger size for better detail
-  const mapUrl = shift.locations.length > 0 ? generateStaticMapUrlEncoded(shift.locations, 800, 450) : "";
+  // Generate Google Maps static image with trail - high quality
+  const mapUrl = shift.locations.length > 0 
+    ? generateStaticMapUrlEncoded(shift.locations, 800, 500) 
+    : "";
   
-  // Get addresses - prefer address field, fallback to coordinates
-  const startAddress = shift.locations[0]?.address || "Unknown";
-  const endAddress = shift.locations.length > 1 
-    ? shift.locations[shift.locations.length - 1]?.address || "Unknown"
-    : startAddress;
+  // Get start and end addresses - MUST show address not coords
+  const startLoc = shift.locations[0];
+  const endLoc = shift.locations.length > 1 
+    ? shift.locations[shift.locations.length - 1] 
+    : startLoc;
+  
+  const startAddress = startLoc?.address || "Address not recorded";
+  const endAddress = endLoc?.address || startAddress;
 
-  // Build photos HTML - photos are stored as base64 data URIs or file URIs
-  // For PDF, we need to handle both cases
+  // Build photos HTML with placeholders showing timestamp info
   let photosHtml = "";
   if (shift.photos.length > 0) {
     const photoItems = shift.photos.map((photo, index) => {
-      // Get the photo URI - it should be a data URI or file path
-      const photoSrc = photo.uri;
-      const photoTime = new Date(photo.timestamp).toLocaleString();
-      const photoAddress = photo.address || "Location unavailable";
+      const photoTime = formatTime(photo.timestamp);
+      const photoDate = formatDate(photo.timestamp);
+      const photoAddress = photo.address || photo.location?.address || "Location not recorded";
       
       return `
         <div class="photo-card">
           <div class="photo-placeholder">
+            <div class="photo-icon">📷</div>
             <div class="photo-number">Photo ${index + 1}</div>
           </div>
           <div class="photo-info">
-            <div class="photo-time">${photoTime}</div>
+            <div class="photo-time">🕐 ${photoDate} at ${photoTime}</div>
             <div class="photo-address">📍 ${photoAddress}</div>
           </div>
         </div>
@@ -94,39 +124,54 @@ export const generatePDFReport = (shift: Shift): string => {
   if (shift.notes && shift.notes.length > 0) {
     const noteItems = shift.notes.map((note) => `
       <div class="note-item">
-        <div class="note-time">${new Date(note.timestamp).toLocaleTimeString()}</div>
+        <div class="note-time">🕐 ${formatTime(note.timestamp)}</div>
         <div class="note-text">${note.text}</div>
       </div>
     `).join("");
     
     notesHtml = `
       <div class="section">
-        <h2>📝 Notes (${shift.notes.length})</h2>
+        <h2>📝 Shift Notes (${shift.notes.length})</h2>
         <div class="notes-list">${noteItems}</div>
       </div>
     `;
   }
 
-  // Build locations HTML - show addresses instead of coordinates
+  // Build location timeline HTML - MUST show addresses with times
   let locationsHtml = "";
   if (shift.locations.length > 0) {
-    const locationItems = shift.locations.map((loc, index) => {
+    // Group nearby locations to reduce clutter
+    const significantLocations = getSignificantLocations(shift.locations);
+    
+    const locationItems = significantLocations.map((loc, index) => {
       const isStart = index === 0;
-      const isEnd = index === shift.locations.length - 1;
-      let label = `Point ${index + 1}`;
+      const isEnd = index === significantLocations.length - 1;
+      let label = `📍 Point ${index + 1}`;
       let className = "";
-      if (isStart) { label = "START"; className = "start"; }
-      else if (isEnd) { label = shift.isActive ? "CURRENT" : "END"; className = "end"; }
+      let icon = "📍";
       
-      // Use address if available, otherwise show coordinates
+      if (isStart) { 
+        label = "START"; 
+        className = "start"; 
+        icon = "🟢";
+      } else if (isEnd) { 
+        label = shift.isActive ? "CURRENT" : "END"; 
+        className = "end"; 
+        icon = shift.isActive ? "🔵" : "🔴";
+      }
+      
+      // MUST show address, not coordinates
       const locationDisplay = formatLocationDisplay(loc);
+      const time = formatTime(loc.timestamp);
       
       return `
         <div class="location-item ${className}">
-          <div class="location-marker"></div>
+          <div class="location-marker">${icon}</div>
           <div class="location-content">
-            <span class="location-label">${label}</span>
-            <span class="location-time">${new Date(loc.timestamp).toLocaleTimeString()}</span>
+            <div class="location-header">
+              <span class="location-label">${label}</span>
+              <span class="location-time">${time}</span>
+            </div>
             <div class="location-address">${locationDisplay}</div>
           </div>
         </div>
@@ -135,7 +180,8 @@ export const generatePDFReport = (shift: Shift): string => {
     
     locationsHtml = `
       <div class="section">
-        <h2>🗺️ Location Timeline (${shift.locations.length} points)</h2>
+        <h2>🗺️ Location Timeline (${shift.locations.length} points recorded)</h2>
+        <p class="section-subtitle">Showing ${significantLocations.length} key locations</p>
         <div class="location-timeline">${locationItems}</div>
       </div>
     `;
@@ -153,7 +199,7 @@ export const generatePDFReport = (shift: Shift): string => {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       line-height: 1.6;
       color: #1e293b;
-      background: #f1f5f9;
+      background: #f8fafc;
       padding: 20px;
     }
     .container {
@@ -161,7 +207,7 @@ export const generatePDFReport = (shift: Shift): string => {
       margin: 0 auto;
       background: white;
       border-radius: 16px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
       overflow: hidden;
     }
     .header {
@@ -170,8 +216,20 @@ export const generatePDFReport = (shift: Shift): string => {
       padding: 32px;
       text-align: center;
     }
-    .header h1 { font-size: 32px; font-weight: 700; margin-bottom: 8px; }
-    .header .staff { font-size: 18px; opacity: 0.9; }
+    .header h1 { 
+      font-size: 28px; 
+      font-weight: 700; 
+      margin-bottom: 8px; 
+    }
+    .header .site-name {
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .header .staff { 
+      font-size: 16px; 
+      opacity: 0.9; 
+    }
     .header .pair-code {
       display: inline-block;
       background: rgba(255,255,255,0.2);
@@ -179,46 +237,73 @@ export const generatePDFReport = (shift: Shift): string => {
       border-radius: 20px;
       font-family: monospace;
       font-size: 14px;
-      margin-top: 16px;
+      margin-top: 12px;
     }
-    .header .status {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 600;
-      margin-left: 8px;
-    }
-    .header .status.completed { background: #22c55e; }
-    .header .status.active { background: #f59e0b; }
-    .stats {
+    
+    .summary {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      border-bottom: 1px solid #e2e8f0;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      padding: 24px;
+      background: #f1f5f9;
     }
-    .stat {
-      padding: 20px;
+    .summary-item {
+      background: white;
+      padding: 16px;
+      border-radius: 12px;
       text-align: center;
-      border-right: 1px solid #e2e8f0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
     }
-    .stat:last-child { border-right: none; }
-    .stat-value { font-size: 28px; font-weight: 700; color: #0a7ea4; }
-    .stat-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
-    .section {
+    .summary-item .value {
+      font-size: 28px;
+      font-weight: 700;
+      color: #0a7ea4;
+    }
+    .summary-item .label {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+    
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
       padding: 24px;
       border-bottom: 1px solid #e2e8f0;
     }
-    .section:last-child { border-bottom: none; }
-    .section h2 {
+    .info-item {
+      padding: 12px;
+      background: #f8fafc;
+      border-radius: 8px;
+    }
+    .info-item .label {
+      font-size: 12px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .info-item .value {
+      font-size: 15px;
+      font-weight: 500;
+      color: #1e293b;
+      word-break: break-word;
+    }
+    
+    .map-section {
+      padding: 24px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .map-section h2 {
       font-size: 18px;
-      color: #0f172a;
       margin-bottom: 16px;
+      color: #1e293b;
     }
     .map-container {
       border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      margin-bottom: 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
     }
     .map-container img {
       width: 100%;
@@ -227,210 +312,296 @@ export const generatePDFReport = (shift: Shift): string => {
     }
     .map-legend {
       display: flex;
-      gap: 16px;
+      gap: 20px;
+      margin-top: 12px;
       font-size: 13px;
       color: #64748b;
-      margin-top: 12px;
     }
-    .map-legend span { display: flex; align-items: center; gap: 6px; }
-    .map-legend .dot { width: 12px; height: 12px; border-radius: 50%; }
-    .map-legend .dot.green { background: #22c55e; }
-    .map-legend .dot.red { background: #ef4444; }
-    .map-legend .dot.blue { background: #0a7ea4; width: 24px; height: 4px; border-radius: 2px; }
-    .info-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
+    .map-legend span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
-    .info-item {
-      background: #f8fafc;
-      padding: 12px 16px;
-      border-radius: 8px;
+    
+    .section {
+      padding: 24px;
+      border-bottom: 1px solid #e2e8f0;
     }
-    .info-item .label { font-size: 12px; color: #64748b; }
-    .info-item .value { font-size: 14px; font-weight: 500; color: #1e293b; }
+    .section:last-child {
+      border-bottom: none;
+    }
+    .section h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      color: #1e293b;
+    }
+    .section-subtitle {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: -12px;
+      margin-bottom: 16px;
+    }
+    
     .location-timeline {
       position: relative;
-      padding-left: 28px;
+      padding-left: 40px;
     }
     .location-timeline::before {
       content: '';
       position: absolute;
-      left: 8px;
+      left: 15px;
       top: 0;
       bottom: 0;
       width: 2px;
-      background: #e2e8f0;
+      background: linear-gradient(to bottom, #22c55e, #0a7ea4, #ef4444);
     }
     .location-item {
       position: relative;
-      padding: 12px 0;
-      display: flex;
-      align-items: flex-start;
+      margin-bottom: 20px;
+      padding: 14px 16px;
+      background: #f8fafc;
+      border-radius: 10px;
+      border-left: 3px solid #0a7ea4;
+    }
+    .location-item.start {
+      border-left-color: #22c55e;
+      background: #f0fdf4;
+    }
+    .location-item.end {
+      border-left-color: #ef4444;
+      background: #fef2f2;
     }
     .location-marker {
       position: absolute;
-      left: -24px;
-      top: 16px;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: #94a3b8;
-      border: 3px solid white;
-      box-shadow: 0 0 0 2px #94a3b8;
+      left: -33px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 16px;
     }
-    .location-item.start .location-marker { background: #22c55e; box-shadow: 0 0 0 2px #22c55e; }
-    .location-item.end .location-marker { background: #ef4444; box-shadow: 0 0 0 2px #ef4444; }
-    .location-content { flex: 1; }
+    .location-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
     .location-label {
-      font-size: 11px;
       font-weight: 600;
+      font-size: 13px;
+      color: #0a7ea4;
       text-transform: uppercase;
-      color: #64748b;
-      margin-right: 8px;
+      letter-spacing: 0.5px;
     }
     .location-item.start .location-label { color: #22c55e; }
     .location-item.end .location-label { color: #ef4444; }
-    .location-time { font-size: 12px; color: #94a3b8; }
-    .location-address { font-size: 14px; color: #1e293b; margin-top: 4px; }
+    .location-time {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1e293b;
+    }
+    .location-address {
+      font-size: 14px;
+      color: #475569;
+      line-height: 1.5;
+    }
+    
     .photos-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
     }
     .photo-card {
       background: #f8fafc;
-      border-radius: 8px;
+      border-radius: 12px;
       overflow: hidden;
+      border: 1px solid #e2e8f0;
     }
     .photo-placeholder {
-      width: 100%;
-      height: 120px;
+      height: 140px;
       background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-    }
-    .photo-number {
-      font-size: 14px;
-      font-weight: 600;
       color: #64748b;
     }
-    .photo-info { padding: 10px; }
-    .photo-time { font-size: 12px; font-weight: 500; color: #1e293b; }
-    .photo-address { font-size: 11px; color: #64748b; margin-top: 2px; }
-    .notes-list { display: flex; flex-direction: column; gap: 12px; }
-    .note-item { background: #f8fafc; padding: 12px 16px; border-radius: 8px; border-left: 3px solid #0a7ea4; }
-    .note-time { font-size: 12px; color: #64748b; margin-bottom: 4px; }
-    .note-text { font-size: 14px; color: #1e293b; line-height: 1.5; }
+    .photo-icon {
+      font-size: 36px;
+      margin-bottom: 8px;
+    }
+    .photo-number {
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .photo-info {
+      padding: 12px;
+    }
+    .photo-time {
+      font-size: 13px;
+      font-weight: 500;
+      color: #1e293b;
+      margin-bottom: 4px;
+    }
+    .photo-address {
+      font-size: 12px;
+      color: #64748b;
+      line-height: 1.4;
+    }
+    
+    .notes-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .note-item {
+      padding: 14px;
+      background: #fffbeb;
+      border-radius: 10px;
+      border-left: 3px solid #f59e0b;
+    }
+    .note-time {
+      font-size: 12px;
+      color: #92400e;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    .note-text {
+      font-size: 14px;
+      color: #78350f;
+      line-height: 1.5;
+    }
+    
     .footer {
       padding: 20px;
       text-align: center;
-      background: #f8fafc;
-      color: #64748b;
+      background: #f1f5f9;
       font-size: 12px;
+      color: #64748b;
     }
+    
     @media print {
       body { background: white; padding: 0; }
       .container { box-shadow: none; }
-    }
-    @media (max-width: 600px) {
-      .stats { grid-template-columns: repeat(2, 1fr); }
-      .info-grid { grid-template-columns: 1fr; }
-      .photos-grid { grid-template-columns: repeat(2, 1fr); }
     }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>${shift.siteName}</h1>
-      <div class="staff">${shift.staffName}</div>
-      <div>
-        <span class="pair-code">Code: ${shift.pairCode}</span>
-        <span class="status ${shift.isActive ? 'active' : 'completed'}">
-          ${shift.isActive ? '● ACTIVE' : '✓ COMPLETED'}
-        </span>
+      <h1>📋 Shift Report</h1>
+      <div class="site-name">${shift.siteName}</div>
+      <div class="staff">Staff: ${shift.staffName}</div>
+      <div class="pair-code">Code: ${shift.pairCode}</div>
+    </div>
+    
+    <div class="summary">
+      <div class="summary-item">
+        <div class="value">${duration}</div>
+        <div class="label">Duration</div>
+      </div>
+      <div class="summary-item">
+        <div class="value">${shift.locations.length}</div>
+        <div class="label">Locations</div>
+      </div>
+      <div class="summary-item">
+        <div class="value">${shift.photos.length}</div>
+        <div class="label">Photos</div>
+      </div>
+      <div class="summary-item">
+        <div class="value">${distance} km</div>
+        <div class="label">Distance</div>
       </div>
     </div>
-
-    <div class="stats">
-      <div class="stat">
-        <div class="stat-value">${duration}</div>
-        <div class="stat-label">Duration</div>
+    
+    <div class="info-grid">
+      <div class="info-item">
+        <div class="label">Date</div>
+        <div class="value">${startDate}</div>
       </div>
-      <div class="stat">
-        <div class="stat-value">${shift.photos.length}</div>
-        <div class="stat-label">Photos</div>
+      <div class="info-item">
+        <div class="label">Time</div>
+        <div class="value">${startTime} - ${endTime}</div>
       </div>
-      <div class="stat">
-        <div class="stat-value">${shift.locations.length}</div>
-        <div class="stat-label">Locations</div>
+      <div class="info-item">
+        <div class="label">Start Location</div>
+        <div class="value">${startAddress}</div>
       </div>
-      <div class="stat">
-        <div class="stat-value">${distance}</div>
-        <div class="stat-label">km Traveled</div>
-      </div>
-    </div>
-
-    <div class="section">
-      <h2>📋 Shift Details</h2>
-      <div class="info-grid">
-        <div class="info-item">
-          <div class="label">Start Time</div>
-          <div class="value">${startDate}</div>
-        </div>
-        <div class="info-item">
-          <div class="label">End Time</div>
-          <div class="value">${endDate}</div>
-        </div>
-        <div class="info-item">
-          <div class="label">Start Location</div>
-          <div class="value">${startAddress}</div>
-        </div>
-        <div class="info-item">
-          <div class="label">End Location</div>
-          <div class="value">${endAddress}</div>
-        </div>
+      <div class="info-item">
+        <div class="label">End Location</div>
+        <div class="value">${endAddress}</div>
       </div>
     </div>
-
+    
     ${mapUrl ? `
-    <div class="section">
-      <h2>📍 Location Trail Map</h2>
+    <div class="map-section">
+      <h2>🗺️ Route Map</h2>
       <div class="map-container">
-        <img src="${mapUrl}" alt="Trail Map" />
+        <img src="${mapUrl}" alt="Route Map" />
       </div>
       <div class="map-legend">
-        <span><div class="dot green"></div> Start (S)</span>
-        <span><div class="dot red"></div> End (E)</span>
-        <span><div class="dot blue"></div> Trail Path</span>
+        <span>🟢 Start Point</span>
+        <span>🔴 End Point</span>
+        <span>━━ Trail Path</span>
       </div>
     </div>
-    ` : ''}
-
-    ${notesHtml}
+    ` : ""}
+    
     ${locationsHtml}
     ${photosHtml}
-
+    ${notesHtml}
+    
     <div class="footer">
-      <p><strong>Timestamp Tracker</strong> - Shift Report</p>
-      <p>Report ID: ${shift.id} | Generated: ${new Date().toLocaleString()}</p>
+      Generated on ${new Date().toLocaleString("en-GB")} • Timestamp Camera App
     </div>
   </div>
 </body>
 </html>`;
 };
 
-// Get static map URL for external use
-export const getStaticMapUrl = (locations: LocationPoint[], width = 600, height = 400): string => {
-  return generateStaticMapUrlEncoded(locations, width, height);
-};
+// Get significant locations (filter out nearby duplicates)
+function getSignificantLocations(locations: LocationPoint[]): LocationPoint[] {
+  if (locations.length <= 10) return locations;
+  
+  const significant: LocationPoint[] = [];
+  const minDistance = 0.05; // 50 meters minimum between points
+  
+  for (let i = 0; i < locations.length; i++) {
+    const loc = locations[i];
+    
+    // Always include first and last
+    if (i === 0 || i === locations.length - 1) {
+      significant.push(loc);
+      continue;
+    }
+    
+    // Check distance from last significant point
+    const lastSig = significant[significant.length - 1];
+    const dist = getDistanceKm(lastSig, loc);
+    
+    // Include if moved more than minimum distance
+    if (dist > minDistance) {
+      significant.push(loc);
+    }
+  }
+  
+  // Ensure we have at least start and end
+  if (significant.length < 2 && locations.length >= 2) {
+    return [locations[0], locations[locations.length - 1]];
+  }
+  
+  return significant;
+}
 
-// Open PDF report in new window
-export const openPDFReport = (shift: Shift): void => {
-  const html = generatePDFReport(shift);
-  const blob = new Blob([html], { type: "text/html" });
-  const url = URL.createObjectURL(blob);
-  window.open(url, "_blank");
-};
+// Calculate distance between two points in km
+function getDistanceKm(p1: LocationPoint, p2: LocationPoint): number {
+  const R = 6371;
+  const dLat = ((p2.latitude - p1.latitude) * Math.PI) / 180;
+  const dLon = ((p2.longitude - p1.longitude) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((p1.latitude * Math.PI) / 180) *
+      Math.cos((p2.latitude * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}

@@ -155,3 +155,10 @@
 - [x] Reverse geocode location points to get addresses when recording
 - [x] Show addresses instead of lat/long in Location Timeline in PDF
 - [x] Fix Start/End Location showing "Unknown" - should show actual addresses
+
+
+## CRITICAL PDF FIXES
+- [x] Verify photos are watermarked with timestamp burned in (web only, native shows metadata)
+- [x] Location Timeline MUST show street address + postcode, NOT lat/long
+- [x] Show time each location was recorded
+- [x] Improve trail map quality and accuracy
