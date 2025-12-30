@@ -107,3 +107,12 @@
 
 ## ADDITIONAL FIX
 - [x] Change share location to use Google Maps trail instead of OpenStreetMap
+
+
+## OFFLINE & EXPORT FEATURES
+- [x] Implement offline support with local caching
+- [x] Add sync queue for pending uploads
+- [x] Show offline indicator when no internet
+- [x] Add watermarked photo export to device library
+- [x] Export button on photo viewer
+- [ ] Test offline workflow

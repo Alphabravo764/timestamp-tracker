@@ -26,6 +26,7 @@ import {
 } from "@/lib/shift-storage";
 import type { Shift, LocationPoint, ShiftPhoto } from "@/lib/shift-types";
 import { generatePDFReport, getStaticMapUrl } from "@/lib/pdf-generator";
+import { savePhotoToLibrary } from "@/lib/photo-export";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -179,6 +180,31 @@ export default function HistoryScreen() {
     }
   };
 
+  const exportPhotoWithWatermark = async (photo: ShiftPhoto) => {
+    if (!selectedShift) return;
+    
+    try {
+      if (Platform.OS !== "web") {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+      
+      const saved = await savePhotoToLibrary(photo, selectedShift.staffName, selectedShift.siteName);
+      
+      if (saved) {
+        if (Platform.OS === "web") {
+          alert("Photo downloaded with watermark!");
+        } else {
+          alert("Photo saved to your library with watermark!");
+        }
+      } else {
+        alert("Failed to save photo. Please check permissions.");
+      }
+    } catch (error) {
+      console.error("Export error:", error);
+      alert("Error exporting photo. Please try again.");
+    }
+  };
+
   const generateTextReport = async (shift: Shift) => {
     if (Platform.OS !== "web") {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -266,9 +292,14 @@ export default function HistoryScreen() {
               <TouchableOpacity onPress={() => setSelectedPhoto(null)}>
                 <Text style={[styles.modalClose, { color: colors.primary }]}>✕ Close</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => sharePhoto(selectedPhoto)}>
-                <Text style={[styles.modalShare, { color: colors.primary }]}>📤 Share</Text>
-              </TouchableOpacity>
+              <View style={styles.modalActions}>
+                <TouchableOpacity onPress={() => exportPhotoWithWatermark(selectedPhoto)}>
+                  <Text style={[styles.modalAction, { color: colors.primary }]}>💾 Export</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => sharePhoto(selectedPhoto)}>
+                  <Text style={[styles.modalAction, { color: colors.primary }]}>📤 Share</Text>
+                </TouchableOpacity>
+              </View>
             </View>
             
             <Image source={{ uri: selectedPhoto.uri }} style={styles.modalImage} resizeMode="contain" />
@@ -668,6 +699,14 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   modalClose: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  modalAction: {
     fontSize: 16,
     fontWeight: "600",
   },
