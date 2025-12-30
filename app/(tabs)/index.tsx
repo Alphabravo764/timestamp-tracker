@@ -29,6 +29,8 @@ import {
 } from "@/lib/shift-storage";
 import { addWatermarkToPhoto, formatWatermarkTimestamp } from "@/lib/watermark";
 import type { Shift, LocationPoint, ShiftPhoto } from "@/lib/shift-types";
+import { addNoteToShift, getShiftNotes } from "@/lib/shift-notes";
+import { batchExportPhotos } from "@/lib/batch-export";
 
 type AppState = "idle" | "startForm" | "active" | "camera" | "confirmEnd" | "gallery";
 
@@ -94,6 +96,8 @@ export default function HomeScreen() {
   const [copied, setCopied] = useState(false);
   const [lastPhoto, setLastPhoto] = useState<string | null>(null);
   const [selectedPhoto, setSelectedPhoto] = useState<ShiftPhoto | null>(null);
+  const [noteText, setNoteText] = useState("");
+  const [showNoteInput, setShowNoteInput] = useState(false);
   const cameraRef = useRef<CameraView>(null);
 
   // Update time every second
@@ -266,6 +270,93 @@ export default function HomeScreen() {
       });
     } catch (e) {
       console.error("Share error:", e);
+    }
+  };
+
+  const addNote = async () => {
+    if (!noteText.trim() || !activeShift) return;
+    
+    try {
+      if (Platform.OS !== "web") {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+      
+      const location = currentLocation ? {
+        latitude: currentLocation.coords.latitude,
+        longitude: currentLocation.coords.longitude,
+        timestamp: new Date().toISOString(),
+      } : undefined;
+      
+      const note = await addNoteToShift(noteText.trim(), location);
+      if (note) {
+        const updated = await getActiveShift();
+        if (updated) setActiveShift(updated);
+        setNoteText("");
+        setShowNoteInput(false);
+        alert("Note added!");
+      }
+    } catch (e) {
+      console.error("Add note error:", e);
+      alert("Failed to add note");
+    }
+  };
+
+  const shareCurrentReport = async () => {
+    if (!activeShift) return;
+    
+    try {
+      if (Platform.OS !== "web") {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+      
+      const duration = formatDuration(getShiftDuration(activeShift));
+      const startDate = new Date(activeShift.startTime).toLocaleString();
+      const notes = activeShift.notes || [];
+      
+      let report = `📋 SHIFT REPORT (In Progress)\n`;
+      report += `═══════════════════════════\n\n`;
+      report += `📍 Site: ${activeShift.siteName}\n`;
+      report += `👤 Staff: ${activeShift.staffName}\n`;
+      report += `🔑 Pair Code: ${activeShift.pairCode}\n\n`;
+      report += `⏰ TIMING\n`;
+      report += `───────────────────────────\n`;
+      report += `Start: ${startDate}\n`;
+      report += `Duration: ${duration} (ongoing)\n\n`;
+      report += `📊 STATISTICS\n`;
+      report += `───────────────────────────\n`;
+      report += `Location Points: ${activeShift.locations.length}\n`;
+      report += `Photos Taken: ${activeShift.photos.length}\n`;
+      report += `Notes: ${notes.length}\n\n`;
+      
+      if (notes.length > 0) {
+        report += `📝 NOTES\n`;
+        report += `───────────────────────────\n`;
+        notes.forEach((note, i) => {
+          const time = new Date(note.timestamp).toLocaleTimeString();
+          report += `${i + 1}. [${time}] ${note.text}\n`;
+        });
+        report += `\n`;
+      }
+      
+      report += `📍 CURRENT LOCATION\n`;
+      report += `───────────────────────────\n`;
+      report += `${currentAddress}\n`;
+      if (currentLocation) {
+        report += `${currentLocation.coords.latitude.toFixed(6)}, ${currentLocation.coords.longitude.toFixed(6)}\n`;
+      }
+      
+      // Add live viewer link
+      const baseUrl = Platform.OS === "web" ? window.location.origin : "https://timestamp-tracker.app";
+      const liveUrl = `${baseUrl}/live/${activeShift.pairCode}`;
+      report += `\n🔗 Live Tracking: ${liveUrl}`;
+      
+      await Share.share({
+        message: report,
+        title: "Shift Report",
+      });
+    } catch (e) {
+      console.error("Share report error:", e);
+      alert("Failed to share report");
     }
   };
 
@@ -729,6 +820,51 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* Notes Section */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.photoHeaderRow}>
+            <Text style={[styles.label, { color: colors.foreground }]}>📝 Notes ({(activeShift.notes || []).length})</Text>
+            <TouchableOpacity onPress={() => setShowNoteInput(!showNoteInput)}>
+              <Text style={[styles.viewAllText, { color: colors.primary }]}>{showNoteInput ? "Cancel" : "+ Add Note"}</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {showNoteInput && (
+            <View style={styles.noteInputContainer}>
+              <TextInput
+                style={[styles.noteInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+                placeholder="Enter note..."
+                placeholderTextColor={colors.muted}
+                value={noteText}
+                onChangeText={setNoteText}
+                multiline
+                numberOfLines={3}
+                returnKeyType="done"
+              />
+              <TouchableOpacity
+                style={[styles.addNoteBtn, { backgroundColor: colors.primary, opacity: noteText.trim() ? 1 : 0.5 }]}
+                onPress={addNote}
+                disabled={!noteText.trim()}
+              >
+                <Text style={styles.addNoteBtnText}>Add Note</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          
+          {(activeShift.notes || []).length > 0 && (
+            <View style={styles.notesList}>
+              {(activeShift.notes || []).slice(-3).reverse().map((note) => (
+                <View key={note.id} style={[styles.noteItem, { borderColor: colors.border }]}>
+                  <Text style={[styles.noteTime, { color: colors.muted }]}>
+                    {new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                  <Text style={[styles.noteText, { color: colors.foreground }]}>{note.text}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
         {/* Photo Thumbnails */}
         {activeShift.photos.length > 0 && (
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -763,12 +899,19 @@ export default function HomeScreen() {
           <Text style={styles.primaryBtnText}>📷 Take Photo</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[styles.secondaryBtn, { borderColor: colors.primary }]}
+          onPress={shareCurrentReport}
+        >
+          <Text style={[styles.secondaryBtnText, { color: colors.primary }]}>📋 Share Report</Text>
+        </TouchableOpacity>
+
         {activeShift.photos.length > 0 && (
           <TouchableOpacity
-            style={[styles.secondaryBtn, { borderColor: colors.primary }]}
+            style={[styles.secondaryBtn, { borderColor: colors.border }]}
             onPress={() => setAppState("gallery")}
           >
-            <Text style={[styles.secondaryBtnText, { color: colors.primary }]}>🖼️ View All Photos</Text>
+            <Text style={[styles.secondaryBtnText, { color: colors.muted }]}>🖼️ View All Photos</Text>
           </TouchableOpacity>
         )}
 
@@ -864,4 +1007,13 @@ const styles = StyleSheet.create({
   modalTime: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
   modalAddress: { fontSize: 14, marginBottom: 4 },
   modalCoords: { fontSize: 12, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  // Note styles
+  noteInputContainer: { marginTop: 8 },
+  noteInput: { borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 14, minHeight: 80, textAlignVertical: "top" },
+  addNoteBtn: { marginTop: 8, padding: 12, borderRadius: 8, alignItems: "center" },
+  addNoteBtnText: { color: "#FFF", fontWeight: "600", fontSize: 14 },
+  notesList: { marginTop: 12 },
+  noteItem: { borderTopWidth: 1, paddingTop: 8, marginTop: 8 },
+  noteTime: { fontSize: 11, marginBottom: 2 },
+  noteText: { fontSize: 14, lineHeight: 20 },
 });

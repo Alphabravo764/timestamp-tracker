@@ -69,6 +69,24 @@ export const generatePDFReport = (shift: Shift): string => {
     `;
   }
 
+  // Build notes HTML
+  let notesHtml = "";
+  if (shift.notes && shift.notes.length > 0) {
+    const noteItems = shift.notes.map((note) => `
+      <div class="note-item">
+        <div class="note-time">${new Date(note.timestamp).toLocaleTimeString()}</div>
+        <div class="note-text">${note.text}</div>
+      </div>
+    `).join("");
+    
+    notesHtml = `
+      <div class="section">
+        <h2>📝 Notes (${shift.notes.length})</h2>
+        <div class="notes-list">${noteItems}</div>
+      </div>
+    `;
+  }
+
   // Build locations HTML
   let locationsHtml = "";
   if (shift.locations.length > 0) {
@@ -272,6 +290,10 @@ export const generatePDFReport = (shift: Shift): string => {
     .photo-info { padding: 10px; }
     .photo-time { font-size: 12px; font-weight: 500; color: #1e293b; }
     .photo-address { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .notes-list { display: flex; flex-direction: column; gap: 12px; }
+    .note-item { background: #f8fafc; padding: 12px 16px; border-radius: 8px; border-left: 3px solid #0a7ea4; }
+    .note-time { font-size: 12px; color: #64748b; margin-bottom: 4px; }
+    .note-text { font-size: 14px; color: #1e293b; line-height: 1.5; }
     .footer {
       padding: 20px;
       text-align: center;
@@ -358,6 +380,7 @@ export const generatePDFReport = (shift: Shift): string => {
     </div>
     ` : ''}
 
+    ${notesHtml}
     ${locationsHtml}
     ${photosHtml}
 

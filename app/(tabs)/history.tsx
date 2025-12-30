@@ -27,6 +27,7 @@ import {
 import type { Shift, LocationPoint, ShiftPhoto } from "@/lib/shift-types";
 import { generatePDFReport, getStaticMapUrl } from "@/lib/pdf-generator";
 import { savePhotoToLibrary } from "@/lib/photo-export";
+import { batchExportPhotos } from "@/lib/batch-export";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -202,6 +203,29 @@ export default function HistoryScreen() {
     } catch (error) {
       console.error("Export error:", error);
       alert("Error exporting photo. Please try again.");
+    }
+  };
+
+  const exportAllPhotos = async () => {
+    if (!selectedShift || selectedShift.photos.length === 0) return;
+    
+    try {
+      if (Platform.OS !== "web") {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+      
+      alert(`Exporting ${selectedShift.photos.length} photos...`);
+      
+      const result = await batchExportPhotos(
+        selectedShift.photos,
+        selectedShift.staffName,
+        selectedShift.siteName
+      );
+      
+      alert(result.message);
+    } catch (error) {
+      console.error("Batch export error:", error);
+      alert("Error exporting photos. Please try again.");
     }
   };
 
@@ -460,6 +484,15 @@ export default function HistoryScreen() {
           >
             <Text style={styles.actionButtonText}>🗺️ View Trail on Map</Text>
           </TouchableOpacity>
+
+          {selectedShift.photos.length > 0 && (
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: "#f59e0b" }]}
+              onPress={exportAllPhotos}
+            >
+              <Text style={styles.actionButtonText}>📦 Export All Photos</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.error }]}

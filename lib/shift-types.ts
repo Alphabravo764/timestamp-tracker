@@ -15,6 +15,20 @@ export interface ShiftPhoto {
   note?: string;
 }
 
+export interface ShiftNote {
+  id: string;
+  timestamp: string;
+  text: string;
+  location?: LocationPoint;
+}
+
+export interface GeofenceArea {
+  latitude: number;
+  longitude: number;
+  radiusMeters: number;
+  name?: string;
+}
+
 export interface Shift {
   id: string;
   staffName: string;
@@ -25,6 +39,9 @@ export interface Shift {
   isActive: boolean;
   locations: LocationPoint[];
   photos: ShiftPhoto[];
+  notes?: ShiftNote[];
+  geofence?: GeofenceArea;
+  geofenceAlerts?: string[];
 }
 
 export interface PairedStaff {

@@ -356,6 +356,23 @@ export default function LiveViewerScreen() {
           )}
         </View>
 
+        {/* Notes */}
+        {(shift.notes || []).length > 0 && (
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.cardTitle, { color: colors.foreground }]}>
+              📝 Notes ({(shift.notes || []).length})
+            </Text>
+            {(shift.notes || []).map((note) => (
+              <View key={note.id} style={[styles.noteItem, { borderColor: colors.border }]}>
+                <Text style={[styles.noteTime, { color: colors.muted }]}>
+                  {new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+                <Text style={[styles.noteText, { color: colors.foreground }]}>{note.text}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         {/* Photos */}
         {shift.photos.length > 0 && (
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -517,4 +534,8 @@ const styles = StyleSheet.create({
   modalTime: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
   modalAddress: { fontSize: 14, marginBottom: 4 },
   modalCoords: { fontSize: 12, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  // Note styles
+  noteItem: { borderTopWidth: 1, paddingTop: 8, marginTop: 8 },
+  noteTime: { fontSize: 11, marginBottom: 2 },
+  noteText: { fontSize: 14, lineHeight: 20 },
 });

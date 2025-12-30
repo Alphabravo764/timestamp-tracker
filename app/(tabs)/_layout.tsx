@@ -45,8 +45,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="tracking"
         options={{
-          title: "Share",
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="location.fill" color={color} />,
+          href: null, // Hidden - functionality moved to Shift tab
         }}
       />
       <Tabs.Screen

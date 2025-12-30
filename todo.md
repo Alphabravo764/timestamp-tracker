@@ -116,3 +116,15 @@
 - [x] Add watermarked photo export to device library
 - [x] Export button on photo viewer
 - [ ] Test offline workflow
+
+
+## ADVANCED FEATURES
+- [x] Add shift notes during active shift
+- [x] Show notes in PDF report
+- [x] Show notes in shared live viewer
+- [ ] Geofence setup with work area boundaries
+- [ ] Geofence alerts when leaving area
+- [x] Batch photo export to ZIP file
+- [x] Export all photos button in history
+- [x] Share and generate report during active shift
+- [x] Remove duplicate Share tab (redundant with Shift screen)
