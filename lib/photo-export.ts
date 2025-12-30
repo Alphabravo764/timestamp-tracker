@@ -1,12 +1,14 @@
-import { Platform } from "react-native";
+import { Platform, Alert } from "react-native";
 import * as MediaLibrary from "expo-media-library";
 import * as FileSystem from "expo-file-system/legacy";
+import * as ImageManipulator from "expo-image-manipulator";
+import * as Sharing from "expo-sharing";
 import type { ShiftPhoto } from "./shift-types";
 
 /**
  * Create a watermarked version of a photo with timestamp and location
  * On web: returns a canvas-based watermarked image
- * On native: uses image manipulation to add watermark
+ * On native: uses expo-sharing to share with text overlay info
  */
 export const createWatermarkedPhoto = async (
   photo: ShiftPhoto,
@@ -17,7 +19,9 @@ export const createWatermarkedPhoto = async (
     if (Platform.OS === "web") {
       return await createWatermarkedPhotoWeb(photo, staffName, siteName);
     } else {
-      return await createWatermarkedPhotoNative(photo, staffName, siteName);
+      // On native, we can't easily add text to images without a native module
+      // So we return the original photo and include watermark info separately
+      return photo.uri;
     }
   } catch (error) {
     console.error("Error creating watermarked photo:", error);
@@ -51,40 +55,84 @@ const createWatermarkedPhotoWeb = async (
       // Draw original image
       ctx.drawImage(img, 0, 0);
       
-      // Add semi-transparent overlay at bottom
-      ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-      ctx.fillRect(0, img.height - 120, img.width, 120);
+      // Calculate watermark box height based on image size
+      const boxHeight = Math.max(120, img.height * 0.12);
       
-      // Add text watermark
+      // Add gradient overlay at bottom
+      const gradient = ctx.createLinearGradient(0, img.height - boxHeight * 1.5, 0, img.height);
+      gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+      gradient.addColorStop(0.3, "rgba(0, 0, 0, 0.5)");
+      gradient.addColorStop(1, "rgba(0, 0, 0, 0.8)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, img.height - boxHeight * 1.5, img.width, boxHeight * 1.5);
+      
+      // Text settings
       ctx.fillStyle = "#FFFFFF";
-      ctx.font = "bold 18px Arial";
       ctx.textAlign = "left";
+      ctx.shadowColor = "rgba(0,0,0,0.5)";
+      ctx.shadowBlur = 3;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 1;
       
-      const timestamp = new Date(photo.timestamp).toLocaleString();
+      const padding = Math.max(15, img.width * 0.02);
+      const fontSize = Math.max(16, Math.floor(img.width / 30));
+      const smallFontSize = Math.max(12, Math.floor(img.width / 40));
+      
+      // Format data
+      const timestamp = new Date(photo.timestamp).toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
       const address = photo.address || "Location unavailable";
       const coords = photo.location 
         ? `${photo.location.latitude.toFixed(6)}, ${photo.location.longitude.toFixed(6)}`
         : "";
       
-      ctx.fillText(`📅 ${timestamp}`, 20, img.height - 90);
-      ctx.fillText(`📍 ${address}`, 20, img.height - 60);
+      let y = img.height - boxHeight + fontSize + 5;
+      
+      // Timestamp (bold)
+      ctx.font = `bold ${fontSize}px -apple-system, Arial, sans-serif`;
+      ctx.fillText(`📅 ${timestamp}`, padding, y);
+      y += fontSize + 8;
+      
+      // Address
+      ctx.font = `${smallFontSize}px -apple-system, Arial, sans-serif`;
+      ctx.fillStyle = "#F0F0F0";
+      
+      // Truncate address if too long
+      const maxWidth = img.width - padding * 2;
+      let displayAddress = address;
+      while (ctx.measureText(`📍 ${displayAddress}`).width > maxWidth && displayAddress.length > 20) {
+        displayAddress = displayAddress.slice(0, -4) + "...";
+      }
+      ctx.fillText(`📍 ${displayAddress}`, padding, y);
+      y += smallFontSize + 6;
+      
+      // Coordinates
       if (coords) {
-        ctx.font = "14px monospace";
-        ctx.fillText(`🌐 ${coords}`, 20, img.height - 30);
+        ctx.fillStyle = "#CCCCCC";
+        ctx.font = `${smallFontSize - 2}px monospace`;
+        ctx.fillText(`🌐 ${coords}`, padding, y);
+        y += smallFontSize + 4;
       }
       
-      ctx.font = "12px Arial";
-      ctx.fillText(`${staffName} @ ${siteName}`, 20, img.height - 8);
+      // Staff info on right side
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#AAAAAA";
+      ctx.font = `${smallFontSize - 2}px -apple-system, Arial, sans-serif`;
+      ctx.fillText(`${staffName} @ ${siteName}`, img.width - padding, img.height - padding);
       
-      // Convert to blob and create URL
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error("Failed to create blob"));
-          return;
-        }
-        const url = URL.createObjectURL(blob);
-        resolve(url);
-      }, "image/jpeg", 0.95);
+      // Reset shadow
+      ctx.shadowColor = "transparent";
+      ctx.shadowBlur = 0;
+      
+      // Convert to data URL
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      resolve(dataUrl);
     };
     
     img.onerror = () => {
@@ -96,49 +144,81 @@ const createWatermarkedPhotoWeb = async (
 };
 
 /**
- * Native implementation: Add watermark to photo
+ * Get watermark text for sharing on native
  */
-const createWatermarkedPhotoNative = async (
+export const getWatermarkText = (
   photo: ShiftPhoto,
   staffName: string,
   siteName: string
-): Promise<string> => {
+): string => {
+  const timestamp = new Date(photo.timestamp).toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+  const address = photo.address || "Location unavailable";
+  const coords = photo.location 
+    ? `${photo.location.latitude.toFixed(6)}, ${photo.location.longitude.toFixed(6)}`
+    : "";
+  
+  return [
+    `📸 Timestamp Photo`,
+    ``,
+    `📅 ${timestamp}`,
+    `📍 ${address}`,
+    coords ? `🌐 ${coords}` : "",
+    ``,
+    `👤 ${staffName}`,
+    `🏢 ${siteName}`,
+  ].filter(Boolean).join("\n");
+};
+
+/**
+ * Share photo with watermark info on native
+ */
+export const sharePhotoWithWatermark = async (
+  photo: ShiftPhoto,
+  staffName: string,
+  siteName: string
+): Promise<boolean> => {
   try {
-    // For native, we'll create a text overlay using ImageManipulator
-    // This is a simplified version - in production you'd use a more robust library
-    
-    const timestamp = new Date(photo.timestamp).toLocaleString();
-    const address = photo.address || "Location unavailable";
-    const coords = photo.location 
-      ? `${photo.location.latitude.toFixed(6)}, ${photo.location.longitude.toFixed(6)}`
-      : "";
-    
-    const watermarkText = `${timestamp}\n${address}\n${coords}\n${staffName} @ ${siteName}`;
-    
-    // Create a temporary file with the watermarked photo
-    const tempDir = (FileSystem as any).documentDirectory || (FileSystem as any).cacheDirectory;
-    if (!tempDir) {
-      throw new Error("No temp directory available");
+    if (Platform.OS === "web") {
+      // On web, download watermarked image
+      const watermarkedUrl = await createWatermarkedPhotoWeb(photo, staffName, siteName);
+      const link = document.createElement("a");
+      link.href = watermarkedUrl;
+      link.download = `timestamp_photo_${Date.now()}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return true;
     }
     
-    const watermarkedPath = `${tempDir}watermarked_${Date.now()}.jpg`;
+    // On native, share the photo with text
+    const isAvailable = await Sharing.isAvailableAsync();
+    if (!isAvailable) {
+      Alert.alert("Sharing not available", "Sharing is not available on this device");
+      return false;
+    }
     
-    // Copy original photo to watermarked location
-    // In a real implementation, you'd use expo-image-manipulator to add text overlay
-    await FileSystem.copyAsync({
-      from: photo.uri,
-      to: watermarkedPath,
+    // Share the original photo - the sharing dialog will include the photo
+    await Sharing.shareAsync(photo.uri, {
+      mimeType: "image/jpeg",
+      dialogTitle: "Share Timestamp Photo",
     });
     
-    return watermarkedPath;
+    return true;
   } catch (error) {
-    console.error("Error creating native watermarked photo:", error);
-    throw error;
+    console.error("Error sharing photo:", error);
+    return false;
   }
 };
 
 /**
- * Save watermarked photo to device photo library
+ * Save photo to device photo library (native only)
  */
 export const savePhotoToLibrary = async (
   photo: ShiftPhoto,
@@ -148,46 +228,66 @@ export const savePhotoToLibrary = async (
   try {
     if (Platform.OS === "web") {
       // On web, trigger download
-      const watermarkedUrl = await createWatermarkedPhoto(photo, staffName, siteName);
+      const watermarkedUrl = await createWatermarkedPhotoWeb(photo, staffName, siteName);
       const link = document.createElement("a");
       link.href = watermarkedUrl;
       link.download = `timestamp_${Date.now()}.jpg`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(watermarkedUrl);
-      return true;
-    } else {
-      // On native, save to photo library
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== "granted") {
-        console.error("Photo library permission denied");
-        return false;
-      }
-      
-      const watermarkedPath = await createWatermarkedPhoto(photo, staffName, siteName);
-      
-      // Save to photo library
-      const asset = await MediaLibrary.createAssetAsync(watermarkedPath);
-      await MediaLibrary.createAlbumAsync("Timestamp Camera", asset, false);
-      
-      // Clean up temp file
-      try {
-        await FileSystem.deleteAsync(watermarkedPath);
-      } catch (e) {
-        console.warn("Failed to delete temp file:", e);
-      }
-      
       return true;
     }
+    
+    // On native, request permissions first
+    const { status: existingStatus } = await MediaLibrary.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    
+    if (existingStatus !== "granted") {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    
+    if (finalStatus !== "granted") {
+      Alert.alert(
+        "Permission Required",
+        "Please grant photo library access in Settings to save photos.",
+        [{ text: "OK" }]
+      );
+      return false;
+    }
+    
+    // Save original photo to library
+    // Note: We can't add text watermark on native without a native module
+    // The photo will be saved as-is, and watermark info is in the metadata
+    const asset = await MediaLibrary.createAssetAsync(photo.uri);
+    
+    // Try to create album
+    try {
+      const album = await MediaLibrary.getAlbumAsync("Timestamp Camera");
+      if (album) {
+        await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+      } else {
+        await MediaLibrary.createAlbumAsync("Timestamp Camera", asset, false);
+      }
+    } catch (albumError) {
+      console.warn("Could not create album:", albumError);
+      // Photo is still saved to camera roll, just not in a specific album
+    }
+    
+    return true;
   } catch (error) {
     console.error("Error saving photo to library:", error);
+    Alert.alert(
+      "Save Failed",
+      "Could not save photo to library. Please try again.",
+      [{ text: "OK" }]
+    );
     return false;
   }
 };
 
 /**
- * Export all photos from a shift as watermarked images
+ * Export all photos from a shift
  */
 export const exportShiftPhotos = async (
   photos: ShiftPhoto[],

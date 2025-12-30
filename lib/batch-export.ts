@@ -1,7 +1,7 @@
-import { Platform } from "react-native";
+import { Platform, Alert } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import type { ShiftPhoto } from "./shift-types";
-import { savePhotoToLibrary } from "./photo-export";
 
 /**
  * Create a ZIP file from multiple photos (web implementation)
@@ -106,9 +106,9 @@ export const downloadPhotoZip = async (
 };
 
 /**
- * Export all photos individually (fallback for native)
+ * Share photos one by one on native (using expo-sharing)
  */
-export const exportAllPhotosIndividual = async (
+export const sharePhotosIndividual = async (
   photos: ShiftPhoto[],
   staffName: string,
   siteName: string
@@ -116,17 +116,32 @@ export const exportAllPhotosIndividual = async (
   let success = 0;
   let failed = 0;
 
-  for (const photo of photos) {
+  // Check if sharing is available
+  const isAvailable = await Sharing.isAvailableAsync();
+  if (!isAvailable) {
+    Alert.alert("Sharing not available", "Sharing is not available on this device");
+    return { success: 0, failed: photos.length };
+  }
+
+  // Share first photo only (sharing multiple files sequentially is poor UX)
+  if (photos.length > 0) {
     try {
-      const saved = await savePhotoToLibrary(photo, staffName, siteName);
-      if (saved) {
-        success++;
-      } else {
-        failed++;
+      await Sharing.shareAsync(photos[0].uri, {
+        mimeType: "image/jpeg",
+        dialogTitle: `Share ${photos.length} Timestamp Photos`,
+      });
+      success = 1;
+      
+      if (photos.length > 1) {
+        Alert.alert(
+          "Note",
+          `Shared 1 photo. On mobile, please share photos individually for best results.`,
+          [{ text: "OK" }]
+        );
       }
     } catch (error) {
-      console.error("Error exporting photo:", error);
-      failed++;
+      console.error("Error sharing photo:", error);
+      failed = 1;
     }
   }
 
@@ -155,7 +170,7 @@ export const batchExportPhotos = async (
         if (downloaded) {
           return {
             success: true,
-            message: `Downloaded ${photos.length} watermarked photos as ZIP`,
+            message: `Downloaded ${photos.length} photos as ZIP`,
           };
         }
       }
@@ -163,15 +178,22 @@ export const batchExportPhotos = async (
       // Fallback: download individual photos
       return {
         success: true,
-        message: `Downloading ${photos.length} watermarked photos individually`,
+        message: `Downloading ${photos.length} photos individually`,
       };
     } else {
-      // Native: export individually
-      const result = await exportAllPhotosIndividual(photos, staffName, siteName);
-      return {
-        success: result.success > 0,
-        message: `Exported ${result.success} photos, ${result.failed} failed`,
-      };
+      // Native: use sharing
+      const result = await sharePhotosIndividual(photos, staffName, siteName);
+      if (result.success > 0) {
+        return {
+          success: true,
+          message: `Shared ${result.success} photo(s)`,
+        };
+      } else {
+        return {
+          success: false,
+          message: "Could not share photos",
+        };
+      }
     }
   } catch (error) {
     console.error("Error in batch export:", error);

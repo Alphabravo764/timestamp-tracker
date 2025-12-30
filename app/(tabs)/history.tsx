@@ -200,16 +200,15 @@ export default function HistoryScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       
-      // Generate watermarked image
-      const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
-        timestamp: formatWatermarkTimestamp(new Date(photo.timestamp)),
-        address: photo.address || "Location unavailable",
-        latitude: photo.location?.latitude || 0,
-        longitude: photo.location?.longitude || 0,
-      });
-      
       if (Platform.OS === "web") {
-        // On web, download the watermarked image
+        // On web, generate and download watermarked image
+        const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
+          timestamp: formatWatermarkTimestamp(new Date(photo.timestamp)),
+          address: photo.address || "Location unavailable",
+          latitude: photo.location?.latitude || 0,
+          longitude: photo.location?.longitude || 0,
+        });
+        
         const link = document.createElement("a");
         link.href = watermarkedUri;
         link.download = `timestamp_photo_${Date.now()}.jpg`;
@@ -218,14 +217,16 @@ export default function HistoryScreen() {
         document.body.removeChild(link);
         alert("Watermarked photo downloaded!");
       } else {
-        // On mobile, share with the image URL
-        const photoTime = new Date(photo.timestamp).toLocaleString();
-        const message = `📷 Timestamp Photo\n\n📅 ${photoTime}\n📍 ${photo.address || "Location unavailable"}\n${photo.location ? `🌐 ${photo.location.latitude.toFixed(6)}, ${photo.location.longitude.toFixed(6)}` : ""}\n\nFrom: ${selectedShift?.siteName || "Timestamp Camera"}`;
+        // On mobile, use expo-sharing to share the actual photo file
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (!isAvailable) {
+          alert("Sharing is not available on this device");
+          return;
+        }
         
-        await Share.share({
-          message,
-          url: watermarkedUri, // iOS will share the image
-          title: "Timestamp Photo",
+        await Sharing.shareAsync(photo.uri, {
+          mimeType: "image/jpeg",
+          dialogTitle: "Share Timestamp Photo",
         });
       }
     } catch (e) {
@@ -242,16 +243,34 @@ export default function HistoryScreen() {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       
-      const saved = await savePhotoToLibrary(photo, selectedShift.staffName, selectedShift.siteName);
-      
-      if (saved) {
-        if (Platform.OS === "web") {
-          alert("Photo downloaded with watermark!");
-        } else {
-          alert("Photo saved to your library with watermark!");
-        }
+      if (Platform.OS === "web") {
+        // On web, download watermarked image
+        const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
+          timestamp: formatWatermarkTimestamp(new Date(photo.timestamp)),
+          address: photo.address || "Location unavailable",
+          latitude: photo.location?.latitude || 0,
+          longitude: photo.location?.longitude || 0,
+        });
+        
+        const link = document.createElement("a");
+        link.href = watermarkedUri;
+        link.download = `timestamp_photo_${Date.now()}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        alert("Photo downloaded with watermark!");
       } else {
-        alert("Failed to save photo. Please check permissions.");
+        // On mobile, use expo-sharing
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (!isAvailable) {
+          alert("Sharing is not available on this device");
+          return;
+        }
+        
+        await Sharing.shareAsync(photo.uri, {
+          mimeType: "image/jpeg",
+          dialogTitle: "Save Timestamp Photo",
+        });
       }
     } catch (error) {
       console.error("Export error:", error);

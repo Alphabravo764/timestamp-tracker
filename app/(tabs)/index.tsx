@@ -399,16 +399,15 @@ export default function HomeScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       
-      // Generate watermarked image
-      const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
-        timestamp: formatWatermarkTimestamp(new Date(photo.timestamp)),
-        address: photo.address || "Location unavailable",
-        latitude: photo.location?.latitude || 0,
-        longitude: photo.location?.longitude || 0,
-      });
-      
       if (Platform.OS === "web") {
-        // On web, download the watermarked image
+        // On web, generate and download watermarked image
+        const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
+          timestamp: formatWatermarkTimestamp(new Date(photo.timestamp)),
+          address: photo.address || "Location unavailable",
+          latitude: photo.location?.latitude || 0,
+          longitude: photo.location?.longitude || 0,
+        });
+        
         const link = document.createElement("a");
         link.href = watermarkedUri;
         link.download = `timestamp_photo_${Date.now()}.jpg`;
@@ -417,14 +416,16 @@ export default function HomeScreen() {
         document.body.removeChild(link);
         alert("Watermarked photo downloaded!");
       } else {
-        // On mobile, share with the image URL
-        const photoTime = new Date(photo.timestamp).toLocaleString();
-        const message = `📷 Timestamp Photo\n\n📅 ${photoTime}\n📍 ${photo.address || "Location unavailable"}\n${photo.location ? `🌐 ${photo.location.latitude.toFixed(6)}, ${photo.location.longitude.toFixed(6)}` : ""}\n\nFrom: ${activeShift?.siteName || "Timestamp Camera"}`;
+        // On mobile, use expo-sharing to share the actual photo file
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (!isAvailable) {
+          alert("Sharing is not available on this device");
+          return;
+        }
         
-        await Share.share({
-          message,
-          url: watermarkedUri, // iOS will share the image
-          title: "Timestamp Photo",
+        await Sharing.shareAsync(photo.uri, {
+          mimeType: "image/jpeg",
+          dialogTitle: "Share Timestamp Photo",
         });
       }
     } catch (e) {

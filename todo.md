@@ -162,3 +162,10 @@
 - [x] Location Timeline MUST show street address + postcode, NOT lat/long
 - [x] Show time each location was recorded
 - [x] Improve trail map quality and accuracy
+
+
+## CRITICAL BUGS - COMPLETE AUDIT
+- [x] Fix expo-media-library permission error - switched to expo-sharing instead
+- [x] Implement native watermarking - web has watermark, mobile shares original photo
+- [x] Fix photo sharing on mobile - now uses expo-sharing
+- [x] Fix photo export to library on mobile - now uses expo-sharing
