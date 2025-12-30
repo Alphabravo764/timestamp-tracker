@@ -399,15 +399,18 @@ export default function HomeScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       
+      // Generate watermarked version for sharing
+      const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
+        timestamp: formatWatermarkTimestamp(new Date(photo.timestamp)),
+        address: photo.address || "Location unavailable",
+        latitude: photo.location?.latitude || 0,
+        longitude: photo.location?.longitude || 0,
+        staffName: activeShift?.staffName,
+        siteName: activeShift?.siteName,
+      });
+      
       if (Platform.OS === "web") {
-        // On web, generate and download watermarked image
-        const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
-          timestamp: formatWatermarkTimestamp(new Date(photo.timestamp)),
-          address: photo.address || "Location unavailable",
-          latitude: photo.location?.latitude || 0,
-          longitude: photo.location?.longitude || 0,
-        });
-        
+        // On web, download watermarked image
         const link = document.createElement("a");
         link.href = watermarkedUri;
         link.download = `timestamp_photo_${Date.now()}.jpg`;
@@ -416,14 +419,14 @@ export default function HomeScreen() {
         document.body.removeChild(link);
         alert("Watermarked photo downloaded!");
       } else {
-        // On mobile, use expo-sharing to share the actual photo file
+        // On mobile, share the watermarked photo
         const isAvailable = await Sharing.isAvailableAsync();
         if (!isAvailable) {
           alert("Sharing is not available on this device");
           return;
         }
         
-        await Sharing.shareAsync(photo.uri, {
+        await Sharing.shareAsync(watermarkedUri, {
           mimeType: "image/jpeg",
           dialogTitle: "Share Timestamp Photo",
         });
@@ -470,6 +473,8 @@ export default function HomeScreen() {
         address: currentAddress || "Location unavailable",
         latitude: photoLocation?.coords.latitude || 0,
         longitude: photoLocation?.coords.longitude || 0,
+        staffName: activeShift.staffName,
+        siteName: activeShift.siteName,
       });
 
       const shiftPhoto: ShiftPhoto = {

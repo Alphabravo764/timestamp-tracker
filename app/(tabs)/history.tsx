@@ -200,15 +200,18 @@ export default function HistoryScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       
+      // Generate watermarked version for sharing
+      const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
+        timestamp: formatWatermarkTimestamp(new Date(photo.timestamp)),
+        address: photo.address || "Location unavailable",
+        latitude: photo.location?.latitude || 0,
+        longitude: photo.location?.longitude || 0,
+        staffName: selectedShift?.staffName,
+        siteName: selectedShift?.siteName,
+      });
+      
       if (Platform.OS === "web") {
-        // On web, generate and download watermarked image
-        const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
-          timestamp: formatWatermarkTimestamp(new Date(photo.timestamp)),
-          address: photo.address || "Location unavailable",
-          latitude: photo.location?.latitude || 0,
-          longitude: photo.location?.longitude || 0,
-        });
-        
+        // On web, download watermarked image
         const link = document.createElement("a");
         link.href = watermarkedUri;
         link.download = `timestamp_photo_${Date.now()}.jpg`;
@@ -217,14 +220,14 @@ export default function HistoryScreen() {
         document.body.removeChild(link);
         alert("Watermarked photo downloaded!");
       } else {
-        // On mobile, use expo-sharing to share the actual photo file
+        // On mobile, share the watermarked photo
         const isAvailable = await Sharing.isAvailableAsync();
         if (!isAvailable) {
           alert("Sharing is not available on this device");
           return;
         }
         
-        await Sharing.shareAsync(photo.uri, {
+        await Sharing.shareAsync(watermarkedUri, {
           mimeType: "image/jpeg",
           dialogTitle: "Share Timestamp Photo",
         });
@@ -243,15 +246,18 @@ export default function HistoryScreen() {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       
+      // Generate watermarked version
+      const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
+        timestamp: formatWatermarkTimestamp(new Date(photo.timestamp)),
+        address: photo.address || "Location unavailable",
+        latitude: photo.location?.latitude || 0,
+        longitude: photo.location?.longitude || 0,
+        staffName: selectedShift.staffName,
+        siteName: selectedShift.siteName,
+      });
+      
       if (Platform.OS === "web") {
         // On web, download watermarked image
-        const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
-          timestamp: formatWatermarkTimestamp(new Date(photo.timestamp)),
-          address: photo.address || "Location unavailable",
-          latitude: photo.location?.latitude || 0,
-          longitude: photo.location?.longitude || 0,
-        });
-        
         const link = document.createElement("a");
         link.href = watermarkedUri;
         link.download = `timestamp_photo_${Date.now()}.jpg`;
@@ -260,14 +266,14 @@ export default function HistoryScreen() {
         document.body.removeChild(link);
         alert("Photo downloaded with watermark!");
       } else {
-        // On mobile, use expo-sharing
+        // On mobile, share the watermarked photo
         const isAvailable = await Sharing.isAvailableAsync();
         if (!isAvailable) {
           alert("Sharing is not available on this device");
           return;
         }
         
-        await Sharing.shareAsync(photo.uri, {
+        await Sharing.shareAsync(watermarkedUri, {
           mimeType: "image/jpeg",
           dialogTitle: "Save Timestamp Photo",
         });

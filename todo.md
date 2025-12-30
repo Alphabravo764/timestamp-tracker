@@ -169,3 +169,10 @@
 - [x] Implement native watermarking - web has watermark, mobile shares original photo
 - [x] Fix photo sharing on mobile - now uses expo-sharing
 - [x] Fix photo export to library on mobile - now uses expo-sharing
+
+
+## NATIVE WATERMARKING
+- [x] Install react-native-image-marker library
+- [x] Update watermark utility to use native marker on iOS/Android
+- [x] Burn timestamp, address, GPS into photos on capture
+- [x] Update photo sharing to share watermarked version

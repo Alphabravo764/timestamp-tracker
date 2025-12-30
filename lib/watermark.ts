@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import Marker, { Position, TextBackgroundType, ImageFormat } from "react-native-image-marker";
 
 export interface WatermarkOptions {
   timestamp: string;
@@ -9,7 +10,7 @@ export interface WatermarkOptions {
   siteName?: string;
 }
 
-// Create watermark by drawing text on canvas
+// Create watermark by drawing text on photo
 export const addWatermarkToPhoto = async (
   photoUri: string,
   options: WatermarkOptions
@@ -20,13 +21,74 @@ export const addWatermarkToPhoto = async (
       return await addWatermarkCanvas(photoUri, options);
     }
     
-    // On native iOS/Android, we need to use a different approach
-    // Since expo-image-manipulator doesn't support text overlay,
-    // we'll create a composite image using canvas via react-native-webview
-    // For now, store the watermark data with the photo and apply it when sharing/exporting
-    return photoUri;
+    // On native iOS/Android, use react-native-image-marker
+    return await addWatermarkNative(photoUri, options);
   } catch (error) {
     console.error("Watermark error:", error);
+    return photoUri;
+  }
+};
+
+// Native watermark using react-native-image-marker
+const addWatermarkNative = async (
+  photoUri: string,
+  options: WatermarkOptions
+): Promise<string> => {
+  try {
+    // Build watermark text with all info
+    const watermarkLines = [
+      options.timestamp,
+      `📍 ${options.address || "Location unavailable"}`,
+      `🌐 ${options.latitude.toFixed(6)}, ${options.longitude.toFixed(6)}`,
+    ];
+    
+    if (options.siteName) {
+      watermarkLines.push(`🏢 ${options.siteName}`);
+    }
+    if (options.staffName) {
+      watermarkLines.push(`👤 ${options.staffName}`);
+    }
+    
+    const watermarkText = watermarkLines.join("\n");
+    
+    // Use react-native-image-marker to add text watermark
+    const result = await Marker.markText({
+      backgroundImage: {
+        src: photoUri,
+      },
+      watermarkTexts: [
+        {
+          text: watermarkText,
+          position: {
+            position: Position.bottomLeft,
+          },
+          style: {
+            color: "#FFFFFF",
+            fontSize: 14,
+            fontName: "Arial",
+            textBackgroundStyle: {
+              type: TextBackgroundType.none,
+              paddingX: 10,
+              paddingY: 10,
+              color: "rgba(0,0,0,0.6)",
+            },
+            shadowStyle: {
+              dx: 1,
+              dy: 1,
+              radius: 2,
+              color: "#000000",
+            },
+          },
+        },
+      ],
+      quality: 92,
+      saveFormat: ImageFormat.jpg,
+    });
+    
+    return result;
+  } catch (error) {
+    console.error("Native watermark error:", error);
+    // Return original photo if watermarking fails
     return photoUri;
   }
 };
@@ -37,15 +99,7 @@ export const generateWatermarkedImage = async (
   options: WatermarkOptions
 ): Promise<string> => {
   // This function creates a watermarked version for sharing
-  // It works by creating an HTML canvas and rendering to image
-  
-  if (Platform.OS === "web") {
-    return await addWatermarkCanvas(photoUri, options);
-  }
-  
-  // For native, we return the original URI
-  // The watermark info is displayed separately when sharing
-  return photoUri;
+  return await addWatermarkToPhoto(photoUri, options);
 };
 
 // Web canvas watermark - creates actual burned-in watermark
