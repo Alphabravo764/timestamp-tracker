@@ -28,6 +28,7 @@ import type { Shift, LocationPoint, ShiftPhoto } from "@/lib/shift-types";
 import { generatePDFReport, getStaticMapUrl } from "@/lib/pdf-generator";
 import { savePhotoToLibrary } from "@/lib/photo-export";
 import { batchExportPhotos } from "@/lib/batch-export";
+import { addWatermarkToPhoto, formatWatermarkTimestamp } from "@/lib/watermark";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -165,19 +166,41 @@ export default function HistoryScreen() {
 
   const sharePhoto = async (photo: ShiftPhoto) => {
     try {
-      const photoTime = new Date(photo.timestamp).toLocaleString();
-      const message = `📷 Timestamp Photo\n\n📅 ${photoTime}\n📍 ${photo.address || "Location unavailable"}\n${photo.location ? `🌐 ${photo.location.latitude.toFixed(6)}, ${photo.location.longitude.toFixed(6)}` : ""}\n\nFrom: ${selectedShift?.siteName || "Timestamp Camera"}`;
-      
-      await Share.share({
-        message,
-        title: "Timestamp Photo",
-      });
-      
       if (Platform.OS !== "web") {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
+      
+      // Generate watermarked image
+      const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
+        timestamp: formatWatermarkTimestamp(new Date(photo.timestamp)),
+        address: photo.address || "Location unavailable",
+        latitude: photo.location?.latitude || 0,
+        longitude: photo.location?.longitude || 0,
+      });
+      
+      if (Platform.OS === "web") {
+        // On web, download the watermarked image
+        const link = document.createElement("a");
+        link.href = watermarkedUri;
+        link.download = `timestamp_photo_${Date.now()}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        alert("Watermarked photo downloaded!");
+      } else {
+        // On mobile, share with the image URL
+        const photoTime = new Date(photo.timestamp).toLocaleString();
+        const message = `📷 Timestamp Photo\n\n📅 ${photoTime}\n📍 ${photo.address || "Location unavailable"}\n${photo.location ? `🌐 ${photo.location.latitude.toFixed(6)}, ${photo.location.longitude.toFixed(6)}` : ""}\n\nFrom: ${selectedShift?.siteName || "Timestamp Camera"}`;
+        
+        await Share.share({
+          message,
+          url: watermarkedUri, // iOS will share the image
+          title: "Timestamp Photo",
+        });
+      }
     } catch (e) {
       console.error("Share photo error:", e);
+      alert("Failed to share photo");
     }
   };
 

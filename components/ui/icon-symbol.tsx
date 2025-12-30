@@ -24,6 +24,7 @@ const MAPPING = {
   "square.and.arrow.up": "share",
   "clock.fill": "history",
   "eye.fill": "visibility",
+  "gearshape.fill": "settings",
 } as IconMapping;
 
 /**

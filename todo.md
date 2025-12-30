@@ -128,3 +128,14 @@
 - [x] Export all photos button in history
 - [x] Share and generate report during active shift
 - [x] Remove duplicate Share tab (redundant with Shift screen)
+
+
+## TEMPLATES & SETTINGS
+- [x] Create shift templates storage
+- [x] Add template selection UI on start shift form
+- [x] Save new templates from shift data
+- [x] Add Settings tab with dark mode toggle
+- [x] Persist dark mode preference
+- [x] Fix report sharing during shift to use PDF instead of text
+- [x] Update Watcher view to use Google Maps with trail instead of OpenStreetMap
+- [x] Fix photo sharing to share actual watermarked image instead of text

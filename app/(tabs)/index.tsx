@@ -31,6 +31,8 @@ import { addWatermarkToPhoto, formatWatermarkTimestamp } from "@/lib/watermark";
 import type { Shift, LocationPoint, ShiftPhoto } from "@/lib/shift-types";
 import { addNoteToShift, getShiftNotes } from "@/lib/shift-notes";
 import { batchExportPhotos } from "@/lib/batch-export";
+import { getTemplates, saveTemplate, useTemplate, type ShiftTemplate } from "@/lib/shift-templates";
+import { generatePDFReport } from "@/lib/pdf-generator";
 
 type AppState = "idle" | "startForm" | "active" | "camera" | "confirmEnd" | "gallery";
 
@@ -98,6 +100,7 @@ export default function HomeScreen() {
   const [selectedPhoto, setSelectedPhoto] = useState<ShiftPhoto | null>(null);
   const [noteText, setNoteText] = useState("");
   const [showNoteInput, setShowNoteInput] = useState(false);
+  const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
   const cameraRef = useRef<CameraView>(null);
 
   // Update time every second
@@ -111,8 +114,14 @@ export default function HomeScreen() {
     useCallback(() => {
       loadActiveShift();
       requestLocationPermission();
+      loadTemplates();
     }, [])
   );
+
+  const loadTemplates = async () => {
+    const loaded = await getTemplates();
+    setTemplates(loaded);
+  };
 
   // Track location during active shift
   useEffect(() => {
@@ -210,6 +219,13 @@ export default function HomeScreen() {
       const shift = await startShift(staffName || "Staff", siteName, point);
       setActiveShift(shift);
       setAppState("active");
+      
+      // Save as template for quick access
+      if (siteName.trim()) {
+        await saveTemplate(siteName.trim(), staffName.trim() || "Staff");
+        loadTemplates();
+      }
+      
       setSiteName("");
       setStaffName("");
     } catch (e) {
@@ -309,72 +325,54 @@ export default function HomeScreen() {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       
-      const duration = formatDuration(getShiftDuration(activeShift));
-      const startDate = new Date(activeShift.startTime).toLocaleString();
-      const notes = activeShift.notes || [];
-      
-      let report = `📋 SHIFT REPORT (In Progress)\n`;
-      report += `═══════════════════════════\n\n`;
-      report += `📍 Site: ${activeShift.siteName}\n`;
-      report += `👤 Staff: ${activeShift.staffName}\n`;
-      report += `🔑 Pair Code: ${activeShift.pairCode}\n\n`;
-      report += `⏰ TIMING\n`;
-      report += `───────────────────────────\n`;
-      report += `Start: ${startDate}\n`;
-      report += `Duration: ${duration} (ongoing)\n\n`;
-      report += `📊 STATISTICS\n`;
-      report += `───────────────────────────\n`;
-      report += `Location Points: ${activeShift.locations.length}\n`;
-      report += `Photos Taken: ${activeShift.photos.length}\n`;
-      report += `Notes: ${notes.length}\n\n`;
-      
-      if (notes.length > 0) {
-        report += `📝 NOTES\n`;
-        report += `───────────────────────────\n`;
-        notes.forEach((note, i) => {
-          const time = new Date(note.timestamp).toLocaleTimeString();
-          report += `${i + 1}. [${time}] ${note.text}\n`;
-        });
-        report += `\n`;
-      }
-      
-      report += `📍 CURRENT LOCATION\n`;
-      report += `───────────────────────────\n`;
-      report += `${currentAddress}\n`;
-      if (currentLocation) {
-        report += `${currentLocation.coords.latitude.toFixed(6)}, ${currentLocation.coords.longitude.toFixed(6)}\n`;
-      }
-      
-      // Add live viewer link
-      const baseUrl = Platform.OS === "web" ? window.location.origin : "https://timestamp-tracker.app";
-      const liveUrl = `${baseUrl}/live/${activeShift.pairCode}`;
-      report += `\n🔗 Live Tracking: ${liveUrl}`;
-      
-      await Share.share({
-        message: report,
-        title: "Shift Report",
-      });
+      // Generate and open PDF report
+      const html = generatePDFReport(activeShift);
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
     } catch (e) {
       console.error("Share report error:", e);
-      alert("Failed to share report");
+      alert("Failed to generate report");
     }
   };
 
   const sharePhoto = async (photo: ShiftPhoto) => {
     try {
-      const photoTime = new Date(photo.timestamp).toLocaleString();
-      const message = `📷 Timestamp Photo\n\n📅 ${photoTime}\n📍 ${photo.address || "Location unavailable"}\n${photo.location ? `🌐 ${photo.location.latitude.toFixed(6)}, ${photo.location.longitude.toFixed(6)}` : ""}\n\nFrom: ${activeShift?.siteName || "Timestamp Camera"}`;
-      
-      await Share.share({
-        message,
-        title: "Timestamp Photo",
-      });
-      
       if (Platform.OS !== "web") {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
+      
+      // Generate watermarked image
+      const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
+        timestamp: formatWatermarkTimestamp(new Date(photo.timestamp)),
+        address: photo.address || "Location unavailable",
+        latitude: photo.location?.latitude || 0,
+        longitude: photo.location?.longitude || 0,
+      });
+      
+      if (Platform.OS === "web") {
+        // On web, download the watermarked image
+        const link = document.createElement("a");
+        link.href = watermarkedUri;
+        link.download = `timestamp_photo_${Date.now()}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        alert("Watermarked photo downloaded!");
+      } else {
+        // On mobile, share with the image URL
+        const photoTime = new Date(photo.timestamp).toLocaleString();
+        const message = `📷 Timestamp Photo\n\n📅 ${photoTime}\n📍 ${photo.address || "Location unavailable"}\n${photo.location ? `🌐 ${photo.location.latitude.toFixed(6)}, ${photo.location.longitude.toFixed(6)}` : ""}\n\nFrom: ${activeShift?.siteName || "Timestamp Camera"}`;
+        
+        await Share.share({
+          message,
+          url: watermarkedUri, // iOS will share the image
+          title: "Timestamp Photo",
+        });
+      }
     } catch (e) {
       console.error("Share photo error:", e);
+      alert("Failed to share photo");
     }
   };
 
@@ -524,11 +522,39 @@ export default function HomeScreen() {
   }
 
   // ========== START FORM ==========
+  const selectTemplate = async (template: ShiftTemplate) => {
+    setSiteName(template.siteName);
+    setStaffName(template.staffName);
+    await useTemplate(template.id);
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
   if (appState === "startForm") {
     return (
       <ScreenContainer className="p-6">
         <ScrollView showsVerticalScrollIndicator={false}>
           <Text style={[styles.title, { color: colors.foreground }]}>Start New Shift</Text>
+          
+          {/* Quick Templates */}
+          {templates.length > 0 && (
+            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.label, { color: colors.foreground }]}>⚡ Quick Start</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.templatesScroll}>
+                {templates.slice(0, 5).map((template) => (
+                  <TouchableOpacity
+                    key={template.id}
+                    style={[styles.templateChip, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "30" }]}
+                    onPress={() => selectTemplate(template)}
+                  >
+                    <Text style={[styles.templateSite, { color: colors.primary }]}>{template.siteName}</Text>
+                    <Text style={[styles.templateStaff, { color: colors.muted }]}>{template.staffName}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
           
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.label, { color: colors.foreground }]}>Site Name *</Text>
@@ -1016,4 +1042,9 @@ const styles = StyleSheet.create({
   noteItem: { borderTopWidth: 1, paddingTop: 8, marginTop: 8 },
   noteTime: { fontSize: 11, marginBottom: 2 },
   noteText: { fontSize: 14, lineHeight: 20 },
+  // Template styles
+  templatesScroll: { marginTop: 8 },
+  templateChip: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, borderWidth: 1, marginRight: 10, minWidth: 120 },
+  templateSite: { fontSize: 14, fontWeight: "600", marginBottom: 2 },
+  templateStaff: { fontSize: 12 },
 });

@@ -16,6 +16,7 @@ import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getActiveShift } from "@/lib/shift-storage";
 import type { Shift } from "@/lib/shift-types";
+import { generateStaticMapUrl } from "@/lib/google-maps";
 
 interface WatchedStaff {
   pairCode: string;
@@ -118,8 +119,35 @@ export default function WatcherScreen() {
       return;
     }
 
-    const lastLoc = staff.shift.locations[staff.shift.locations.length - 1];
-    const url = `https://www.openstreetmap.org/?mlat=${lastLoc.latitude}&mlon=${lastLoc.longitude}&zoom=16`;
+    // Open live viewer page with Google Maps trail
+    const baseUrl = Platform.OS === "web" ? window.location.origin : "https://timestamp-tracker.app";
+    const liveUrl = `${baseUrl}/live/${staff.pairCode}`;
+    Linking.openURL(liveUrl);
+  };
+
+  const viewTrailMap = (staff: WatchedStaff) => {
+    if (!staff.shift || staff.shift.locations.length === 0) {
+      alert("No location data available.");
+      return;
+    }
+    
+    // Generate Google Maps directions URL with trail
+    const locs = staff.shift.locations;
+    const start = locs[0];
+    const end = locs[locs.length - 1];
+    
+    // Use Google Maps directions for trail visualization
+    let url = `https://www.google.com/maps/dir/?api=1`;
+    url += `&origin=${start.latitude},${start.longitude}`;
+    url += `&destination=${end.latitude},${end.longitude}`;
+    url += `&travelmode=walking`;
+    
+    // Add waypoints if more than 2 locations (max 10 for URL)
+    if (locs.length > 2) {
+      const waypoints = locs.slice(1, -1).slice(0, 8).map(l => `${l.latitude},${l.longitude}`).join("|");
+      url += `&waypoints=${encodeURIComponent(waypoints)}`;
+    }
+    
     Linking.openURL(url);
   };
 
@@ -165,13 +193,20 @@ export default function WatcherScreen() {
             onPress={() => viewOnMap(item)}
             disabled={!hasShift}
           >
-            <Text style={styles.actionBtnText}>View on Map</Text>
+            <Text style={styles.actionBtnText}>📱 Live View</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: hasShift ? colors.success : colors.muted }]}
+            onPress={() => viewTrailMap(item)}
+            disabled={!hasShift}
+          >
+            <Text style={styles.actionBtnText}>🗺️ Trail</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: colors.error }]}
             onPress={() => removeStaff(item.pairCode)}
           >
-            <Text style={styles.actionBtnText}>Remove</Text>
+            <Text style={styles.actionBtnText}>🗑️</Text>
           </TouchableOpacity>
         </View>
       </View>
