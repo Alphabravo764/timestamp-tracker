@@ -4,6 +4,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import * as db from "./db";
+import { generateShiftPdf } from "./pdf-generator";
 
 export const appRouter = router({
   // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -232,6 +233,39 @@ export const appRouter = router({
       .input(z.object({ shiftId: z.number() }))
       .query(async ({ input }) => {
         return await db.getShiftPhotos(input.shiftId);
+      }),
+  }),
+
+  // PDF report routes
+  reports: router({
+    // Generate PDF for a shift
+    generate: protectedProcedure
+      .input(z.object({ shiftId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const shift = await db.getShiftById(input.shiftId);
+        if (!shift) {
+          throw new Error("Shift not found");
+        }
+        if (shift.userId !== ctx.user.id) {
+          throw new Error("Unauthorized");
+        }
+
+        // Check if PDF already exists
+        const existingPdf = await db.getShiftPdfReport(input.shiftId);
+        if (existingPdf) {
+          return { pdfUrl: existingPdf.pdfUrl };
+        }
+
+        // Generate new PDF
+        const pdfUrl = await generateShiftPdf(input.shiftId);
+        return { pdfUrl };
+      }),
+
+    // Get PDF for a shift (public access with token)
+    get: publicProcedure
+      .input(z.object({ shiftId: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getShiftPdfReport(input.shiftId);
       }),
   }),
 

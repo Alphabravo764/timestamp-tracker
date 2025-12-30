@@ -132,3 +132,64 @@
 - [x] Pair code generation and display
 - [x] App logo and branding
 - [x] Permission handling for camera and location
+
+
+## New Features to Implement
+
+### Shift Ending Flow
+- [ ] End shift confirmation screen
+- [ ] Mandatory final photo capture
+- [ ] Final photo upload with location
+- [ ] Shift completion summary screen
+- [ ] Update shift status to completed
+- [ ] Stop location tracking on shift end
+
+### PDF Report Generation
+- [ ] Server-side PDF generation endpoint
+- [ ] PDF template with shift details
+- [ ] Include all photos with timestamps
+- [ ] Add location timeline/map to PDF
+- [ ] Generate integrity hash for verification
+- [ ] Store PDF URL in database
+- [ ] Download PDF functionality
+
+### Live Viewer Page
+- [ ] Public viewer route (/live/[token])
+- [ ] Real-time location display on map
+- [ ] Show shift status and elapsed time
+- [ ] Display photo feed during active shift
+- [ ] Transition to static report after shift ends
+- [ ] PDF download button on static report
+- [ ] Auto-refresh for live updates
+
+
+## Progress Update
+
+### Shift Ending Flow (Completed)
+- [x] End shift confirmation screen
+- [x] Mandatory final photo capture
+- [x] Final photo upload with location
+- [x] Shift completion summary screen
+- [x] Update shift status to completed
+- [x] Navigation from active shift to end flow
+
+
+### PDF Report Generation (Completed)
+- [x] Server-side PDF generation endpoint
+- [x] PDF template with shift details
+- [x] Include all photos with timestamps
+- [x] Add location timeline to PDF
+- [x] Generate integrity hash for verification
+- [x] Store PDF URL in database
+- [x] Download PDF functionality in app
+
+### Live Viewer Page (Completed)
+- [x] Public viewer route (/live/[token])
+- [x] Real-time location display
+- [x] Show shift status and elapsed time
+- [x] Display photo feed during active shift
+- [x] Transition to static report after shift ends
+- [x] PDF download button on static report
+- [x] Auto-refresh for live updates (5s interval)
+- [x] Pull-to-refresh functionality
+- [x] Google Maps integration for location viewing

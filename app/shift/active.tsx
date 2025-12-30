@@ -198,6 +198,8 @@ export default function ActiveShiftScreen() {
   };
 
   const handleEndShift = () => {
+    if (!activeShift) return;
+    
     Alert.alert(
       "End Shift",
       "Are you sure you want to end your shift? You'll need to take a final photo.",
@@ -207,8 +209,7 @@ export default function ActiveShiftScreen() {
           text: "End Shift",
           style: "destructive",
           onPress: () => {
-            // Navigate to end shift confirmation
-            Alert.alert("Feature Coming Soon", "End shift with final photo will be implemented");
+            router.push(`/shift/end?shiftId=${activeShift.id}` as any);
           },
         },
       ]
