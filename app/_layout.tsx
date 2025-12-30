@@ -87,6 +87,12 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="oauth/callback" />
+            <Stack.Screen name="shift/start" />
+            <Stack.Screen name="shift/active" />
+            <Stack.Screen name="shift/end" />
+            <Stack.Screen name="shift/complete" />
+            <Stack.Screen name="live/[token]" />
+            <Stack.Screen name="dev/theme-lab" />
           </Stack>
           <StatusBar style="auto" />
         </QueryClientProvider>
