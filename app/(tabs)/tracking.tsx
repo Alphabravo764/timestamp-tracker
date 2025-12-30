@@ -8,6 +8,8 @@ import {
   Platform,
   Alert,
   Switch,
+  ScrollView,
+  Clipboard,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
@@ -17,6 +19,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface TrackingSession {
   id: string;
+  staffName: string;
+  pairCode: string;
   startTime: string;
   isActive: boolean;
   locations: {
@@ -26,16 +30,23 @@ interface TrackingSession {
   }[];
 }
 
+// Generate 6-digit pair code
+const generatePairCode = () => {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+};
+
 export default function TrackingScreen() {
   const colors = useColors();
   const [isTracking, setIsTracking] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<Location.LocationObject | null>(null);
   const [session, setSession] = useState<TrackingSession | null>(null);
   const [locationCount, setLocationCount] = useState(0);
+  const [staffName, setStaffName] = useState("Staff Member");
 
   useEffect(() => {
     loadSession();
     getCurrentLocation();
+    loadStaffName();
   }, []);
 
   useEffect(() => {
@@ -51,7 +62,16 @@ export default function TrackingScreen() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isTracking]);
+  }, [isTracking, session]);
+
+  const loadStaffName = async () => {
+    try {
+      const name = await AsyncStorage.getItem("staffName");
+      if (name) setStaffName(name);
+    } catch (error) {
+      console.error("Error loading staff name:", error);
+    }
+  };
 
   const getCurrentLocation = async () => {
     try {
@@ -121,8 +141,11 @@ export default function TrackingScreen() {
       const location = await Location.getCurrentPositionAsync({});
       setCurrentLocation(location);
 
+      const pairCode = generatePairCode();
       const newSession: TrackingSession = {
         id: Date.now().toString(),
+        staffName: staffName,
+        pairCode: pairCode,
         startTime: new Date().toISOString(),
         isActive: true,
         locations: [
@@ -139,7 +162,10 @@ export default function TrackingScreen() {
       setLocationCount(1);
       setIsTracking(true);
 
-      Alert.alert("Tracking Started", "Your location is now being tracked. Share the link to let others see your live location.");
+      Alert.alert(
+        "Tracking Started",
+        `Your pair code is: ${pairCode}\n\nShare this code with watchers so they can track your location.`
+      );
     } else {
       // Stop tracking
       if (session) {
@@ -153,9 +179,20 @@ export default function TrackingScreen() {
     }
   };
 
-  const shareLocation = async () => {
-    if (!currentLocation) {
-      Alert.alert("No Location", "Unable to get current location.");
+  const copyPairCode = async () => {
+    if (!session?.pairCode) return;
+    
+    if (Platform.OS !== "web") {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    
+    Clipboard.setString(session.pairCode);
+    Alert.alert("Copied!", "Pair code copied to clipboard");
+  };
+
+  const shareLiveLink = async () => {
+    if (!session || !currentLocation) {
+      Alert.alert("No Active Session", "Start tracking first to share your live location.");
       return;
     }
 
@@ -166,13 +203,26 @@ export default function TrackingScreen() {
     const { latitude, longitude } = currentLocation.coords;
     const timestamp = new Date().toLocaleString();
     
-    // Create a shareable message with coordinates
-    const message = `📍 My Current Location\n\nLatitude: ${latitude.toFixed(6)}\nLongitude: ${longitude.toFixed(6)}\nTime: ${timestamp}\n\nView on map: https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}&zoom=16`;
+    // Create shareable message with pair code and current location
+    const message = `📍 Live Location Tracking
+
+Staff: ${session.staffName}
+Pair Code: ${session.pairCode}
+Started: ${new Date(session.startTime).toLocaleString()}
+
+Current Location:
+Lat: ${latitude.toFixed(6)}
+Lng: ${longitude.toFixed(6)}
+Updated: ${timestamp}
+
+View on map: https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}&zoom=16
+
+Use pair code "${session.pairCode}" to track this staff member in the app.`;
 
     try {
       await Share.share({
         message,
-        title: "My Location",
+        title: "Live Location Tracking",
       });
     } catch (error) {
       console.error("Error sharing:", error);
@@ -185,12 +235,35 @@ export default function TrackingScreen() {
     return `${Math.abs(value).toFixed(6)}° ${direction}`;
   };
 
+  const formatDuration = () => {
+    if (!session?.startTime) return "0:00";
+    const start = new Date(session.startTime).getTime();
+    const now = Date.now();
+    const diff = Math.floor((now - start) / 1000);
+    const hours = Math.floor(diff / 3600);
+    const minutes = Math.floor((diff % 3600) / 60);
+    return `${hours}:${minutes.toString().padStart(2, "0")}`;
+  };
+
   return (
-    <ScreenContainer className="p-6">
-      <View className="flex-1">
+    <ScreenContainer>
+      <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
         {/* Header */}
         <Text className="text-3xl font-bold text-foreground mb-2">Live Tracking</Text>
-        <Text className="text-muted mb-6">Share your real-time location with others</Text>
+        <Text className="text-muted mb-6">Share your real-time location with watchers</Text>
+
+        {/* Pair Code Card (shown when tracking) */}
+        {isTracking && session && (
+          <View
+            style={[styles.pairCodeCard, { backgroundColor: colors.primary }]}
+          >
+            <Text style={styles.pairCodeLabel}>Your Pair Code</Text>
+            <TouchableOpacity onPress={copyPairCode}>
+              <Text style={styles.pairCodeValue}>{session.pairCode}</Text>
+            </TouchableOpacity>
+            <Text style={styles.pairCodeHint}>Tap to copy • Share with watchers</Text>
+          </View>
+        )}
 
         {/* Current Location Card */}
         <View
@@ -219,19 +292,19 @@ export default function TrackingScreen() {
           )}
         </View>
 
-        {/* Tracking Toggle */}
+        {/* Tracking Status Card */}
         <View
           style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
         >
           <View style={styles.toggleRow}>
-            <View>
-              <Text style={[styles.cardTitle, { color: colors.foreground }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.cardTitle, { color: colors.foreground, marginBottom: 4 }]}>
                 {isTracking ? "Tracking Active" : "Start Tracking"}
               </Text>
               <Text style={[styles.toggleSubtext, { color: colors.muted }]}>
                 {isTracking
-                  ? `${locationCount} location points recorded`
-                  : "Enable to record your location history"}
+                  ? `${locationCount} points • Duration: ${formatDuration()}`
+                  : "Enable to start recording your location"}
               </Text>
             </View>
             <Switch
@@ -243,12 +316,16 @@ export default function TrackingScreen() {
           </View>
         </View>
 
-        {/* Share Button */}
+        {/* Share Live Link Button */}
         <TouchableOpacity
-          style={[styles.shareButton, { backgroundColor: colors.primary }]}
-          onPress={shareLocation}
+          style={[
+            styles.shareButton,
+            { backgroundColor: isTracking ? colors.primary : colors.muted },
+          ]}
+          onPress={shareLiveLink}
+          disabled={!isTracking}
         >
-          <Text style={styles.shareButtonText}>Share Current Location</Text>
+          <Text style={styles.shareButtonText}>Share Live Location Link</Text>
         </TouchableOpacity>
 
         {/* Refresh Button */}
@@ -260,12 +337,53 @@ export default function TrackingScreen() {
             Refresh Location
           </Text>
         </TouchableOpacity>
-      </View>
+
+        {/* Session Info */}
+        {session && (
+          <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.infoTitle, { color: colors.foreground }]}>Session Info</Text>
+            <Text style={[styles.infoText, { color: colors.muted }]}>
+              Started: {new Date(session.startTime).toLocaleString()}
+            </Text>
+            <Text style={[styles.infoText, { color: colors.muted }]}>
+              Status: {session.isActive ? "Active" : "Ended"}
+            </Text>
+            <Text style={[styles.infoText, { color: colors.muted }]}>
+              Total Points: {session.locations.length}
+            </Text>
+          </View>
+        )}
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  pairCodeCard: {
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 16,
+    alignItems: "center",
+  },
+  pairCodeLabel: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  pairCodeValue: {
+    color: "#FFFFFF",
+    fontSize: 36,
+    fontWeight: "bold",
+    letterSpacing: 4,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  pairCodeHint: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 12,
+    marginTop: 8,
+  },
   card: {
     padding: 16,
     borderRadius: 12,
@@ -297,7 +415,6 @@ const styles = StyleSheet.create({
   },
   toggleSubtext: {
     fontSize: 13,
-    marginTop: 4,
   },
   shareButton: {
     padding: 16,
@@ -315,9 +432,24 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     borderWidth: 2,
+    marginBottom: 16,
   },
   refreshButtonText: {
     fontSize: 16,
     fontWeight: "600",
+  },
+  infoCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 13,
+    marginBottom: 4,
   },
 });

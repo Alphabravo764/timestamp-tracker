@@ -1,53 +1,49 @@
 # Timestamp Camera App - TODO
 
-## Core Features
+## Core Requirements
+1. Staff can START a shift (begin tracking location)
+2. During shift: take timestamped photos with location
+3. Location tracked continuously during shift (trail)
+4. Staff can END the shift
+5. Generate PDF report showing:
+   - All photos with timestamps and locations
+   - Trail/path map showing where staff has been
+   - Shift summary (start time, end time, duration)
+6. Shareable link with pair code for watchers
+7. Watchers can view multiple staff at same time
 
-### Camera with Timestamp Overlay
-- [ ] Main camera screen with live preview
-- [ ] Timestamp overlay (date + time) on camera view
-- [ ] Location overlay (coordinates) on camera view
-- [ ] Capture button with haptic feedback
-- [ ] Photo preview after capture
-- [ ] Save photo to local storage
+## Implementation
 
-### Photo History
-- [ ] Gallery view showing all captured photos
-- [ ] Display timestamp and location for each photo
-- [ ] Tap to view full-screen photo
-- [ ] Delete photo functionality
-- [ ] Pull-to-refresh
+### Shift Workflow
+- [ ] Start shift button on home screen
+- [ ] Active shift indicator
+- [ ] Location tracking during active shift (every 30 sec)
+- [ ] End shift button
+- [ ] Shift stored locally with all data
 
-### Live Location Sharing
-- [ ] Toggle to enable/disable live location tracking
-- [ ] Generate shareable link when tracking is enabled
-- [ ] Share link via native share sheet
-- [ ] Public viewer page showing real-time location on map
-- [ ] Auto-update location every 30 seconds when tracking
+### Camera Integration
+- [ ] Camera only available during active shift
+- [ ] Photos linked to current shift
+- [ ] Timestamp and location burned into photo metadata
 
-### Report Generation
-- [ ] Generate PDF report from selected date range
-- [ ] Include all photos with timestamps and locations
-- [ ] Show location map with photo markers
-- [ ] Download/share PDF report
+### Shift History & Reports
+- [ ] List of completed shifts
+- [ ] View shift details (photos, trail, duration)
+- [ ] Generate PDF report with trail map
+- [ ] Share report
 
-## Implementation Status
+### Watcher/Pairing
+- [ ] Generate pair code when shift starts
+- [ ] Watcher can add staff by pair code
+- [ ] View all paired staff locations
+- [ ] Remove staff from watch list
 
-### Phase 1: Core Camera (DONE)
-- [x] Remove complex shift management
-- [x] Simplify to single camera tab
-- [x] Add timestamp/location overlay to camera
-- [x] Implement photo capture and local storage
-
-### Phase 2: Photo History (DONE)
-- [x] Build gallery view
-- [x] Add photo metadata display
-- [x] Implement delete functionality
-
-### Phase 3: Live Sharing (DONE)
-- [x] Background location tracking toggle
-- [x] Shareable link generation (OpenStreetMap)
-- [x] Location history recording
-
-### Phase 4: Reports
-- [ ] PDF generation with photos
-- [ ] Location map visualization
+## Progress
+- [x] Basic camera with timestamp overlay
+- [x] Gallery view
+- [x] Tracking tab with pair code
+- [x] Watcher tab for multi-staff
+- [x] Shift workflow (start/end)
+- [x] Photos linked to shifts
+- [x] Shift history screen
+- [x] Report generation (text format, shareable)

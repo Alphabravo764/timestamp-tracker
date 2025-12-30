@@ -22,6 +22,8 @@ const MAPPING = {
   "photo.fill": "photo-library",
   "location.fill": "location-on",
   "square.and.arrow.up": "share",
+  "clock.fill": "history",
+  "eye.fill": "visibility",
 } as IconMapping;
 
 /**
