@@ -16,7 +16,7 @@ const env = {
   appSlug: "timestamp-tracker",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "",
+  logoUrl: "https://files.manuscdn.com/user_upload_by_module/session_file/114062511/cTzQijrSkXICtmDS.png",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
@@ -45,7 +45,16 @@ const config: ExpoConfig = {
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
     package: env.androidPackage,
-    permissions: ["POST_NOTIFICATIONS"],
+    permissions: [
+      "POST_NOTIFICATIONS",
+      "ACCESS_FINE_LOCATION",
+      "ACCESS_COARSE_LOCATION",
+      "ACCESS_BACKGROUND_LOCATION",
+      "CAMERA",
+      "READ_MEDIA_IMAGES",
+      "WRITE_EXTERNAL_STORAGE",
+      "READ_EXTERNAL_STORAGE"
+    ],
     intentFilters: [
       {
         action: "VIEW",
@@ -67,6 +76,30 @@ const config: ExpoConfig = {
   },
   plugins: [
     "expo-router",
+    [
+      "expo-camera",
+      {
+        cameraPermission: "Allow $(PRODUCT_NAME) to access your camera to take timestamp photos.",
+      },
+    ],
+    [
+      "expo-location",
+      {
+        locationAlwaysAndWhenInUsePermission: "Allow $(PRODUCT_NAME) to track your location during shifts.",
+        locationAlwaysPermission: "Allow $(PRODUCT_NAME) to track your location in the background during active shifts.",
+        locationWhenInUsePermission: "Allow $(PRODUCT_NAME) to access your location.",
+        isAndroidBackgroundLocationEnabled: true,
+        isAndroidForegroundServiceEnabled: true,
+      },
+    ],
+    [
+      "expo-media-library",
+      {
+        photosPermission: "Allow $(PRODUCT_NAME) to save timestamp photos to your library.",
+        savePhotosPermission: "Allow $(PRODUCT_NAME) to save photos.",
+        isAccessMediaLocationEnabled: true,
+      },
+    ],
     [
       "expo-audio",
       {
