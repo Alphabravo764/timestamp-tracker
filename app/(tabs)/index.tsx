@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,8 +8,11 @@ import {
   Alert,
   TextInput,
   ScrollView,
+  Share,
+  Clipboard,
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
+import { useFocusEffect } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import * as Location from "expo-location";
@@ -33,37 +36,33 @@ export default function HomeScreen() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [siteName, setSiteName] = useState("");
   const [staffName, setStaffName] = useState("");
-  const [isStarting, setIsStarting] = useState(false);
+  const [showStartForm, setShowStartForm] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
   const [facing, setFacing] = useState<CameraType>("back");
+  const [isLoading, setIsLoading] = useState(false);
   const cameraRef = useRef<CameraView>(null);
 
   // Update time every second
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Load active shift on mount
-  useEffect(() => {
-    loadActiveShift();
-    requestLocationPermission();
-  }, []);
+  // Load active shift on focus
+  useFocusEffect(
+    useCallback(() => {
+      loadActiveShift();
+      requestLocationPermission();
+    }, [])
+  );
 
   // Track location during active shift
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
-
     if (activeShift?.isActive) {
-      interval = setInterval(async () => {
-        await trackLocation();
-      }, 30000); // Every 30 seconds
+      interval = setInterval(() => trackLocation(), 30000);
     }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
+    return () => { if (interval) clearInterval(interval); };
   }, [activeShift?.isActive]);
 
   const loadActiveShift = async () => {
@@ -72,10 +71,14 @@ export default function HomeScreen() {
   };
 
   const requestLocationPermission = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status === "granted") {
-      const location = await Location.getCurrentPositionAsync({});
-      setCurrentLocation(location);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === "granted") {
+        const location = await Location.getCurrentPositionAsync({});
+        setCurrentLocation(location);
+      }
+    } catch (e) {
+      console.error("Location error:", e);
     }
   };
 
@@ -83,6 +86,45 @@ export default function HomeScreen() {
     try {
       const location = await Location.getCurrentPositionAsync({});
       setCurrentLocation(location);
+      const point: LocationPoint = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        timestamp: new Date().toISOString(),
+        accuracy: location.coords.accuracy ?? undefined,
+      };
+      const updated = await addLocationToShift(point);
+      if (updated) setActiveShift(updated);
+    } catch (e) {
+      console.error("Track error:", e);
+    }
+  };
+
+  const handleStartShift = async () => {
+    if (!siteName.trim()) {
+      Alert.alert("Required", "Please enter the site name.");
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      let location = currentLocation;
+      if (!location) {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === "granted") {
+          location = await Location.getCurrentPositionAsync({});
+          setCurrentLocation(location);
+        }
+      }
+      
+      if (!location) {
+        Alert.alert("Location Required", "Please enable location services.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (Platform.OS !== "web") {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
 
       const point: LocationPoint = {
         latitude: location.coords.latitude,
@@ -91,79 +133,78 @@ export default function HomeScreen() {
         accuracy: location.coords.accuracy ?? undefined,
       };
 
-      const updated = await addLocationToShift(point);
-      if (updated) setActiveShift(updated);
-    } catch (error) {
-      console.error("Error tracking location:", error);
+      const shift = await startShift(staffName || "Staff", siteName, point);
+      setActiveShift(shift);
+      setShowStartForm(false);
+      setSiteName("");
+      setStaffName("");
+    } catch (e) {
+      console.error("Start shift error:", e);
+      Alert.alert("Error", "Failed to start shift");
     }
+    setIsLoading(false);
   };
 
-  const handleStartShift = async () => {
-    if (!siteName.trim()) {
-      Alert.alert("Site Name Required", "Please enter the site name to start your shift.");
-      return;
-    }
-
-    if (!currentLocation) {
-      Alert.alert("Location Required", "Please enable location services to start your shift.");
-      return;
-    }
-
-    if (Platform.OS !== "web") {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-
-    const point: LocationPoint = {
-      latitude: currentLocation.coords.latitude,
-      longitude: currentLocation.coords.longitude,
-      timestamp: new Date().toISOString(),
-      accuracy: currentLocation.coords.accuracy ?? undefined,
-    };
-
-    const shift = await startShift(staffName || "Staff Member", siteName, point);
-    setActiveShift(shift);
-    setIsStarting(false);
-
-    Alert.alert(
-      "Shift Started",
-      `Your pair code is: ${shift.pairCode}\n\nShare this code with watchers to let them track your location.`
-    );
-  };
-
-  const handleEndShift = async () => {
-    Alert.alert("End Shift", "Are you sure you want to end your shift?", [
+  const handleEndShift = () => {
+    Alert.alert("End Shift?", "This will stop tracking and save your shift.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "End Shift",
         style: "destructive",
         onPress: async () => {
-          if (Platform.OS !== "web") {
-            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setIsLoading(true);
+          try {
+            if (Platform.OS !== "web") {
+              await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
+            const completed = await endShift();
+            setActiveShift(null);
+            setShowCamera(false);
+            
+            if (completed) {
+              const duration = formatDuration(getShiftDuration(completed));
+              Alert.alert(
+                "Shift Completed!",
+                `Duration: ${duration}\nPhotos: ${completed.photos.length}\nLocations: ${completed.locations.length}\n\nGo to History tab to view report.`
+              );
+            }
+          } catch (e) {
+            console.error("End shift error:", e);
+            Alert.alert("Error", "Failed to end shift");
           }
-
-          const completedShift = await endShift();
-          setActiveShift(null);
-
-          if (completedShift) {
-            const duration = formatDuration(getShiftDuration(completedShift));
-            Alert.alert(
-              "Shift Completed",
-              `Duration: ${duration}\nPhotos: ${completedShift.photos.length}\nLocations: ${completedShift.locations.length}\n\nView your shift history to generate a report.`
-            );
-          }
+          setIsLoading(false);
         },
       },
     ]);
   };
 
+  const copyPairCode = () => {
+    if (activeShift?.pairCode) {
+      Clipboard.setString(activeShift.pairCode);
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+      Alert.alert("Copied!", `Pair code ${activeShift.pairCode} copied to clipboard`);
+    }
+  };
+
+  const sharePairCode = async () => {
+    if (!activeShift) return;
+    try {
+      await Share.share({
+        message: `Track my location!\n\nPair Code: ${activeShift.pairCode}\nSite: ${activeShift.siteName}\nStaff: ${activeShift.staffName}\n\nUse this code in the Timestamp Tracker app to see my live location.`,
+      });
+    } catch (e) {
+      console.error("Share error:", e);
+    }
+  };
+
   const takePicture = async () => {
     if (!cameraRef.current || !activeShift) return;
-
     try {
       if (Platform.OS !== "web") {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
-
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
       if (!photo) return;
 
@@ -171,339 +212,293 @@ export default function HomeScreen() {
         id: Date.now().toString(),
         uri: photo.uri,
         timestamp: new Date().toISOString(),
-        location: currentLocation
-          ? {
-              latitude: currentLocation.coords.latitude,
-              longitude: currentLocation.coords.longitude,
-              timestamp: new Date().toISOString(),
-              accuracy: currentLocation.coords.accuracy ?? undefined,
-            }
-          : null,
+        location: currentLocation ? {
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+          timestamp: new Date().toISOString(),
+          accuracy: currentLocation.coords.accuracy ?? undefined,
+        } : null,
       };
 
       const updated = await addPhotoToShift(shiftPhoto);
       if (updated) setActiveShift(updated);
-
+      
       if (Platform.OS !== "web") {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-
-      Alert.alert("Photo Saved", `Photo ${updated?.photos.length || 1} added to shift`);
-    } catch (error) {
-      console.error("Error taking picture:", error);
-      Alert.alert("Error", "Failed to take picture");
+      Alert.alert("Photo Saved!", `Photo #${updated?.photos.length || 1} added`);
+    } catch (e) {
+      console.error("Photo error:", e);
+      Alert.alert("Error", "Failed to take photo");
     }
   };
 
-  const formatTimestamp = () => {
-    return currentTime.toLocaleString("en-US", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
+  const formatTime = () => currentTime.toLocaleTimeString("en-US", { hour12: false });
+  const formatDate = () => currentTime.toLocaleDateString();
+  const formatCoords = () => {
+    if (!currentLocation) return "Getting location...";
+    return `${currentLocation.coords.latitude.toFixed(6)}, ${currentLocation.coords.longitude.toFixed(6)}`;
   };
 
-  const formatLocation = () => {
-    if (!currentLocation) return "Location unavailable";
-    const { latitude, longitude } = currentLocation.coords;
-    return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-  };
-
-  // Start Shift Form
-  if (isStarting) {
+  // ========== START FORM ==========
+  if (showStartForm) {
     return (
       <ScreenContainer className="p-6">
         <ScrollView showsVerticalScrollIndicator={false}>
-          <Text className="text-3xl font-bold text-foreground mb-2">Start Shift</Text>
-          <Text className="text-muted mb-6">Enter details to begin your shift</Text>
-
-          <View style={[styles.inputCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.inputLabel, { color: colors.foreground }]}>Site Name *</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>Start New Shift</Text>
+          
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.label, { color: colors.foreground }]}>Site Name *</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-              placeholder="e.g., Main Office Building"
+              placeholder="Enter site name"
               placeholderTextColor={colors.muted}
               value={siteName}
               onChangeText={setSiteName}
+              autoFocus
             />
-
-            <Text style={[styles.inputLabel, { color: colors.foreground, marginTop: 16 }]}>Your Name (Optional)</Text>
+            
+            <Text style={[styles.label, { color: colors.foreground, marginTop: 16 }]}>Your Name</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-              placeholder="e.g., John Smith"
+              placeholder="Optional"
               placeholderTextColor={colors.muted}
               value={staffName}
               onChangeText={setStaffName}
             />
           </View>
 
-          <View style={[styles.locationCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.cardTitle, { color: colors.foreground }]}>Current Location</Text>
-            <Text style={[styles.locationText, { color: colors.muted }]}>{formatLocation()}</Text>
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.label, { color: colors.foreground }]}>Current Location</Text>
+            <Text style={[styles.coords, { color: colors.muted }]}>{formatCoords()}</Text>
           </View>
 
           <TouchableOpacity
-            style={[styles.startButton, { backgroundColor: colors.primary }]}
+            style={[styles.primaryBtn, { backgroundColor: colors.primary, opacity: isLoading ? 0.7 : 1 }]}
             onPress={handleStartShift}
+            disabled={isLoading}
           >
-            <Text style={styles.startButtonText}>Start Shift</Text>
+            <Text style={styles.primaryBtnText}>{isLoading ? "Starting..." : "Start Shift"}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.cancelButton, { borderColor: colors.border }]}
-            onPress={() => setIsStarting(false)}
+            style={[styles.secondaryBtn, { borderColor: colors.border }]}
+            onPress={() => setShowStartForm(false)}
           >
-            <Text style={[styles.cancelButtonText, { color: colors.muted }]}>Cancel</Text>
+            <Text style={[styles.secondaryBtnText, { color: colors.muted }]}>Cancel</Text>
           </TouchableOpacity>
         </ScrollView>
       </ScreenContainer>
     );
   }
 
-  // No Active Shift - Show Start Button
+  // ========== CAMERA VIEW ==========
+  if (showCamera && activeShift) {
+    if (!permission?.granted) {
+      return (
+        <ScreenContainer className="items-center justify-center p-6">
+          <Text style={{ color: colors.foreground, textAlign: "center", marginBottom: 16 }}>
+            Camera permission required
+          </Text>
+          <TouchableOpacity
+            style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
+            onPress={requestPermission}
+          >
+            <Text style={styles.primaryBtnText}>Grant Permission</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.secondaryBtn, { borderColor: colors.border, marginTop: 12 }]}
+            onPress={() => setShowCamera(false)}
+          >
+            <Text style={[styles.secondaryBtnText, { color: colors.muted }]}>Back</Text>
+          </TouchableOpacity>
+        </ScreenContainer>
+      );
+    }
+
+    return (
+      <View style={{ flex: 1 }}>
+        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing}>
+          {/* Top overlay */}
+          <View style={styles.cameraTop}>
+            <TouchableOpacity
+              style={[styles.backBtn, { backgroundColor: "rgba(0,0,0,0.6)" }]}
+              onPress={() => setShowCamera(false)}
+            >
+              <Text style={{ color: "#FFF", fontWeight: "600" }}>← Back</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Info overlay */}
+          <View style={styles.cameraInfo}>
+            <View style={styles.infoBox}>
+              <Text style={styles.infoTime}>{formatTime()}</Text>
+              <Text style={styles.infoDate}>{formatDate()}</Text>
+              <Text style={styles.infoCoords}>{formatCoords()}</Text>
+            </View>
+          </View>
+
+          {/* Bottom controls */}
+          <View style={styles.cameraControls}>
+            <TouchableOpacity
+              style={[styles.flipBtn, { backgroundColor: "rgba(255,255,255,0.3)" }]}
+              onPress={() => setFacing(f => f === "back" ? "front" : "back")}
+            >
+              <Text style={{ color: "#FFF", fontSize: 12 }}>Flip</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.captureBtn} onPress={takePicture}>
+              <View style={styles.captureBtnInner} />
+            </TouchableOpacity>
+
+            <View style={{ width: 50 }} />
+          </View>
+        </CameraView>
+      </View>
+    );
+  }
+
+  // ========== NO ACTIVE SHIFT ==========
   if (!activeShift) {
     return (
       <ScreenContainer className="p-6">
-        <View className="flex-1 justify-center items-center">
-          <Text className="text-3xl font-bold text-foreground mb-2 text-center">Timestamp Camera</Text>
-          <Text className="text-muted mb-8 text-center">Start a shift to begin tracking and taking photos</Text>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <Text style={[styles.heroTitle, { color: colors.foreground }]}>Timestamp Camera</Text>
+          <Text style={[styles.heroSubtitle, { color: colors.muted }]}>
+            Start a shift to begin tracking
+          </Text>
 
           <TouchableOpacity
-            style={[styles.bigStartButton, { backgroundColor: colors.primary }]}
-            onPress={() => setIsStarting(true)}
+            style={[styles.bigBtn, { backgroundColor: colors.primary }]}
+            onPress={() => setShowStartForm(true)}
           >
-            <Text style={styles.bigStartButtonText}>Start Shift</Text>
+            <Text style={styles.bigBtnText}>Start Shift</Text>
           </TouchableOpacity>
 
-          <Text className="text-muted mt-6 text-center text-sm">
-            Your location will be tracked during the shift.{"\n"}
-            Photos will include timestamp and GPS coordinates.
+          <Text style={[styles.hint, { color: colors.muted }]}>
+            Location tracked every 30 seconds{"\n"}
+            Photos include timestamp & GPS
           </Text>
         </View>
       </ScreenContainer>
     );
   }
 
-  // Active Shift - Show Camera
-  if (!permission?.granted) {
-    return (
-      <ScreenContainer className="items-center justify-center p-6">
-        <Text className="text-foreground text-center mb-4">Camera permission is required to take photos</Text>
-        <TouchableOpacity
-          onPress={requestPermission}
-          style={{ backgroundColor: colors.primary }}
-          className="px-6 py-3 rounded-full"
-        >
-          <Text className="text-background font-semibold">Grant Permission</Text>
-        </TouchableOpacity>
-      </ScreenContainer>
-    );
-  }
+  // ========== ACTIVE SHIFT DASHBOARD ==========
+  const duration = formatDuration(getShiftDuration(activeShift));
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing}>
-        {/* Shift Info Banner */}
-        <View style={[styles.shiftBanner, { backgroundColor: colors.primary }]}>
-          <Text style={styles.shiftBannerText}>
-            {activeShift.siteName} • Code: {activeShift.pairCode}
-          </Text>
+    <ScreenContainer>
+      <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={[styles.statusBadge, { backgroundColor: colors.success }]}>
+            <Text style={styles.statusText}>● ACTIVE</Text>
+          </View>
+          <Text style={[styles.duration, { color: colors.foreground }]}>{duration}</Text>
         </View>
 
-        {/* Timestamp and Location Overlay */}
-        <View style={styles.overlayContainer}>
-          <View style={styles.infoBox}>
-            <Text style={styles.timestampText}>{formatTimestamp()}</Text>
-            <Text style={styles.locationText}>{formatLocation()}</Text>
-            <Text style={styles.statsText}>
-              📍 {activeShift.locations.length} locations • 📷 {activeShift.photos.length} photos
-            </Text>
+        {/* Site Info */}
+        <Text style={[styles.siteName, { color: colors.foreground }]}>{activeShift.siteName}</Text>
+        <Text style={[styles.staffName, { color: colors.muted }]}>{activeShift.staffName}</Text>
+
+        {/* Pair Code Card - PROMINENT */}
+        <View style={[styles.pairCodeCard, { backgroundColor: colors.primary }]}>
+          <Text style={styles.pairCodeLabel}>PAIR CODE</Text>
+          <TouchableOpacity onPress={copyPairCode}>
+            <Text style={styles.pairCodeValue}>{activeShift.pairCode}</Text>
+          </TouchableOpacity>
+          <Text style={styles.pairCodeHint}>Tap to copy • Share with watchers</Text>
+          
+          <TouchableOpacity style={styles.shareBtn} onPress={sharePairCode}>
+            <Text style={styles.shareBtnText}>Share Code</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Stats */}
+        <View style={styles.statsRow}>
+          <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.statValue, { color: colors.foreground }]}>{activeShift.photos.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.muted }]}>Photos</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.statValue, { color: colors.foreground }]}>{activeShift.locations.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.muted }]}>Locations</Text>
           </View>
         </View>
 
-        {/* Camera Controls */}
-        <View style={styles.controlsContainer}>
-          {/* End Shift Button */}
-          <TouchableOpacity
-            style={[styles.endShiftButton, { backgroundColor: colors.error }]}
-            onPress={handleEndShift}
-          >
-            <Text style={styles.endShiftButtonText}>End</Text>
-          </TouchableOpacity>
-
-          {/* Capture Button */}
-          <TouchableOpacity
-            style={[styles.captureButton, { borderColor: "#FFFFFF" }]}
-            onPress={takePicture}
-          >
-            <View style={[styles.captureButtonInner, { backgroundColor: "#FFFFFF" }]} />
-          </TouchableOpacity>
-
-          {/* Flip Camera */}
-          <TouchableOpacity
-            style={[styles.flipButton, { backgroundColor: "rgba(0,0,0,0.5)" }]}
-            onPress={() => setFacing(facing === "back" ? "front" : "back")}
-          >
-            <Text style={styles.flipButtonText}>Flip</Text>
-          </TouchableOpacity>
+        {/* Current Location */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.label, { color: colors.foreground }]}>Current Location</Text>
+          <Text style={[styles.coords, { color: colors.muted }]}>{formatCoords()}</Text>
+          <Text style={[styles.timestamp, { color: colors.muted }]}>{formatTime()} • {formatDate()}</Text>
         </View>
-      </CameraView>
-    </View>
+
+        {/* Action Buttons */}
+        <TouchableOpacity
+          style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
+          onPress={() => setShowCamera(true)}
+        >
+          <Text style={styles.primaryBtnText}>📷 Take Photo</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.dangerBtn, { backgroundColor: colors.error }]}
+          onPress={handleEndShift}
+          disabled={isLoading}
+        >
+          <Text style={styles.dangerBtnText}>{isLoading ? "Ending..." : "End Shift"}</Text>
+        </TouchableOpacity>
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  inputCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  input: {
-    height: 48,
-    borderRadius: 8,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    fontSize: 16,
-  },
-  locationCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 24,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  locationText: {
-    fontSize: 14,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
-  startButton: {
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  startButtonText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  cancelButton: {
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    borderWidth: 1,
-  },
-  cancelButtonText: {
-    fontSize: 16,
-  },
-  bigStartButton: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  bigStartButtonText: {
-    color: "#FFFFFF",
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-  shiftBanner: {
-    position: "absolute",
-    top: 50,
-    left: 20,
-    right: 20,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  shiftBannerText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  overlayContainer: {
-    position: "absolute",
-    top: 110,
-    left: 20,
-    right: 20,
-  },
-  infoBox: {
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    padding: 12,
-    borderRadius: 8,
-  },
-  timestampText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  statsText: {
-    color: "#AAAAAA",
-    fontSize: 12,
-    marginTop: 4,
-  },
-  controlsContainer: {
-    position: "absolute",
-    bottom: 40,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingHorizontal: 40,
-  },
-  endShiftButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  endShiftButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  captureButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 4,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "transparent",
-  },
-  captureButtonInner: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-  },
-  flipButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  flipButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-  },
+  title: { fontSize: 28, fontWeight: "bold", marginBottom: 24 },
+  card: { padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 16 },
+  label: { fontSize: 14, fontWeight: "600", marginBottom: 8 },
+  input: { height: 48, borderRadius: 8, borderWidth: 1, paddingHorizontal: 16, fontSize: 16 },
+  coords: { fontSize: 14, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  timestamp: { fontSize: 12, marginTop: 4 },
+  primaryBtn: { padding: 16, borderRadius: 12, alignItems: "center", marginBottom: 12 },
+  primaryBtnText: { color: "#FFF", fontSize: 18, fontWeight: "600" },
+  secondaryBtn: { padding: 16, borderRadius: 12, alignItems: "center", borderWidth: 1 },
+  secondaryBtnText: { fontSize: 16 },
+  dangerBtn: { padding: 16, borderRadius: 12, alignItems: "center" },
+  dangerBtnText: { color: "#FFF", fontSize: 18, fontWeight: "600" },
+  heroTitle: { fontSize: 32, fontWeight: "bold", marginBottom: 8, textAlign: "center" },
+  heroSubtitle: { fontSize: 16, marginBottom: 32, textAlign: "center" },
+  bigBtn: { width: 180, height: 180, borderRadius: 90, justifyContent: "center", alignItems: "center" },
+  bigBtnText: { color: "#FFF", fontSize: 22, fontWeight: "bold" },
+  hint: { marginTop: 24, textAlign: "center", fontSize: 14, lineHeight: 22 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
+  statusText: { color: "#FFF", fontSize: 12, fontWeight: "bold" },
+  duration: { fontSize: 18, fontWeight: "600" },
+  siteName: { fontSize: 28, fontWeight: "bold", marginBottom: 4 },
+  staffName: { fontSize: 16, marginBottom: 20 },
+  pairCodeCard: { padding: 24, borderRadius: 16, alignItems: "center", marginBottom: 20 },
+  pairCodeLabel: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600", letterSpacing: 1 },
+  pairCodeValue: { color: "#FFF", fontSize: 42, fontWeight: "bold", letterSpacing: 6, marginVertical: 8, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  pairCodeHint: { color: "rgba(255,255,255,0.7)", fontSize: 12, marginBottom: 16 },
+  shareBtn: { backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20 },
+  shareBtnText: { color: "#FFF", fontWeight: "600" },
+  statsRow: { flexDirection: "row", gap: 12, marginBottom: 16 },
+  statCard: { flex: 1, padding: 16, borderRadius: 12, borderWidth: 1, alignItems: "center" },
+  statValue: { fontSize: 28, fontWeight: "bold" },
+  statLabel: { fontSize: 12, marginTop: 4 },
+  cameraTop: { position: "absolute", top: 50, left: 20, right: 20 },
+  backBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, alignSelf: "flex-start" },
+  cameraInfo: { position: "absolute", top: 100, left: 20, right: 20 },
+  infoBox: { backgroundColor: "rgba(0,0,0,0.7)", padding: 12, borderRadius: 8 },
+  infoTime: { color: "#FFF", fontSize: 24, fontWeight: "bold" },
+  infoDate: { color: "#CCC", fontSize: 14, marginBottom: 4 },
+  infoCoords: { color: "#AAA", fontSize: 12, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  cameraControls: { position: "absolute", bottom: 50, left: 0, right: 0, flexDirection: "row", justifyContent: "space-around", alignItems: "center", paddingHorizontal: 50 },
+  flipBtn: { width: 50, height: 50, borderRadius: 25, justifyContent: "center", alignItems: "center" },
+  captureBtn: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, borderColor: "#FFF", justifyContent: "center", alignItems: "center" },
+  captureBtnInner: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FFF" },
 });

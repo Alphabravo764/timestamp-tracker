@@ -47,3 +47,12 @@
 - [x] Photos linked to shifts
 - [x] Shift history screen
 - [x] Report generation (text format, shareable)
+
+
+## BUGS TO FIX (URGENT)
+- [x] End shift not working - FIXED
+- [x] Pair code not visible/accessible - FIXED (prominent card)
+- [x] Flow is confusing and unprofessional - FIXED (cleaner states)
+- [x] Need clearer UI for active shift state - FIXED (dashboard view)
+- [x] Need visible pair code during shift - FIXED (big pair code card)
+- [x] Need working end shift button - FIXED (red button)
