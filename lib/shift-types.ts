@@ -3,6 +3,7 @@ export interface LocationPoint {
   longitude: number;
   timestamp: string;
   accuracy?: number;
+  address?: string;
 }
 
 export interface ShiftPhoto {
@@ -10,6 +11,7 @@ export interface ShiftPhoto {
   uri: string;
   timestamp: string;
   location: LocationPoint | null;
+  address?: string;
   note?: string;
 }
 

@@ -22,12 +22,53 @@ import {
   formatDuration,
   getShiftDuration,
 } from "@/lib/shift-storage";
-import type { Shift } from "@/lib/shift-types";
+import type { Shift, LocationPoint } from "@/lib/shift-types";
+
+// Generate trail map URL that shows all points
+const getTrailMapUrl = (locations: LocationPoint[]): string => {
+  if (locations.length === 0) return "";
+  if (locations.length === 1) {
+    const loc = locations[0];
+    return `https://www.openstreetmap.org/?mlat=${loc.latitude}&mlon=${loc.longitude}&zoom=17`;
+  }
+  // Create bounding box for all locations
+  const lats = locations.map(l => l.latitude);
+  const lngs = locations.map(l => l.longitude);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+  const padding = 0.001;
+  return `https://www.openstreetmap.org/?bbox=${minLng - padding},${minLat - padding},${maxLng + padding},${maxLat + padding}&layer=mapnik`;
+};
+
+// Reverse geocoding using Nominatim
+const getAddressFromCoords = async (lat: number, lng: number): Promise<string> => {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      { headers: { "User-Agent": "TimestampCamera/1.0" } }
+    );
+    const data = await response.json();
+    if (data.address) {
+      const { road, house_number, postcode, city, town, village } = data.address;
+      const street = house_number ? `${house_number} ${road}` : road;
+      const area = city || town || village || "";
+      const parts = [street, area, postcode].filter(Boolean);
+      return parts.join(", ") || "Unknown location";
+    }
+    return "Unknown location";
+  } catch (e) {
+    return "Location unavailable";
+  }
+};
 
 export default function HistoryScreen() {
   const colors = useColors();
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
+  const [startAddress, setStartAddress] = useState<string>("");
+  const [endAddress, setEndAddress] = useState<string>("");
 
   useFocusEffect(
     useCallback(() => {
@@ -40,32 +81,56 @@ export default function HistoryScreen() {
     setShifts(history);
   };
 
+  const loadAddresses = async (shift: Shift) => {
+    if (shift.locations.length > 0) {
+      const first = shift.locations[0];
+      const last = shift.locations[shift.locations.length - 1];
+      
+      const startAddr = first.address || await getAddressFromCoords(first.latitude, first.longitude);
+      const endAddr = last.address || await getAddressFromCoords(last.latitude, last.longitude);
+      
+      setStartAddress(startAddr);
+      setEndAddress(endAddr);
+    }
+  };
+
+  const handleSelectShift = async (shift: Shift) => {
+    setSelectedShift(shift);
+    setStartAddress("Loading...");
+    setEndAddress("Loading...");
+    await loadAddresses(shift);
+  };
+
   const handleDeleteShift = (shiftId: string) => {
-    Alert.alert("Delete Shift", "Are you sure you want to delete this shift record?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          await deleteShift(shiftId);
-          await loadShifts();
+    if (Platform.OS === "web") {
+      if (confirm("Are you sure you want to delete this shift record?")) {
+        deleteShift(shiftId).then(() => {
+          loadShifts();
           setSelectedShift(null);
+        });
+      }
+    } else {
+      Alert.alert("Delete Shift", "Are you sure you want to delete this shift record?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            await deleteShift(shiftId);
+            await loadShifts();
+            setSelectedShift(null);
+          },
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   const viewTrailOnMap = (shift: Shift) => {
     if (shift.locations.length === 0) {
-      Alert.alert("No Location Data", "This shift has no location data.");
+      alert("No location data for this shift.");
       return;
     }
-
-    // Get center of all locations
-    const avgLat = shift.locations.reduce((sum, l) => sum + l.latitude, 0) / shift.locations.length;
-    const avgLng = shift.locations.reduce((sum, l) => sum + l.longitude, 0) / shift.locations.length;
-
-    const url = `https://www.openstreetmap.org/?mlat=${avgLat}&mlon=${avgLng}&zoom=15`;
+    const url = getTrailMapUrl(shift.locations);
     Linking.openURL(url);
   };
 
@@ -98,19 +163,20 @@ export default function HistoryScreen() {
       report += `🗺️ LOCATION TRAIL\n`;
       report += `───────────────────────────\n`;
       
-      // Show first, middle, and last locations
       const first = shift.locations[0];
       const last = shift.locations[shift.locations.length - 1];
       
-      report += `Start: ${first.latitude.toFixed(6)}, ${first.longitude.toFixed(6)}\n`;
-      report += `  Time: ${new Date(first.timestamp).toLocaleTimeString()}\n`;
-      report += `End: ${last.latitude.toFixed(6)}, ${last.longitude.toFixed(6)}\n`;
-      report += `  Time: ${new Date(last.timestamp).toLocaleTimeString()}\n\n`;
+      report += `START LOCATION:\n`;
+      report += `  📍 ${startAddress || `${first.latitude.toFixed(6)}, ${first.longitude.toFixed(6)}`}\n`;
+      report += `  🕐 ${new Date(first.timestamp).toLocaleTimeString()}\n\n`;
+      
+      report += `END LOCATION:\n`;
+      report += `  📍 ${endAddress || `${last.latitude.toFixed(6)}, ${last.longitude.toFixed(6)}`}\n`;
+      report += `  🕐 ${new Date(last.timestamp).toLocaleTimeString()}\n\n`;
 
-      // Map link
-      const avgLat = shift.locations.reduce((sum, l) => sum + l.latitude, 0) / shift.locations.length;
-      const avgLng = shift.locations.reduce((sum, l) => sum + l.longitude, 0) / shift.locations.length;
-      report += `View Trail: https://www.openstreetmap.org/?mlat=${avgLat}&mlon=${avgLng}&zoom=15\n\n`;
+      // Trail map link
+      report += `VIEW TRAIL MAP:\n`;
+      report += `${getTrailMapUrl(shift.locations)}\n\n`;
     }
 
     if (shift.photos.length > 0) {
@@ -118,7 +184,9 @@ export default function HistoryScreen() {
       report += `───────────────────────────\n`;
       shift.photos.forEach((photo, index) => {
         report += `${index + 1}. ${new Date(photo.timestamp).toLocaleString()}\n`;
-        if (photo.location) {
+        if (photo.address) {
+          report += `   📍 ${photo.address}\n`;
+        } else if (photo.location) {
           report += `   📍 ${photo.location.latitude.toFixed(6)}, ${photo.location.longitude.toFixed(6)}\n`;
         }
       });
@@ -126,6 +194,7 @@ export default function HistoryScreen() {
 
     report += `\n═══════════════════════════\n`;
     report += `Generated: ${new Date().toLocaleString()}\n`;
+    report += `Timestamp Camera App\n`;
 
     try {
       await Share.share({
@@ -172,7 +241,7 @@ export default function HistoryScreen() {
 
           {/* Time Info */}
           <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.infoTitle, { color: colors.foreground }]}>Shift Time</Text>
+            <Text style={[styles.infoTitle, { color: colors.foreground }]}>⏰ Shift Time</Text>
             <Text style={[styles.infoText, { color: colors.muted }]}>
               Start: {new Date(selectedShift.startTime).toLocaleString()}
             </Text>
@@ -181,10 +250,39 @@ export default function HistoryScreen() {
             </Text>
           </View>
 
+          {/* Location Trail */}
+          {selectedShift.locations.length > 0 && (
+            <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.infoTitle, { color: colors.foreground }]}>🗺️ Location Trail</Text>
+              
+              <View style={styles.locationItem}>
+                <Text style={[styles.locationLabel, { color: colors.success }]}>START</Text>
+                <Text style={[styles.locationAddress, { color: colors.foreground }]}>{startAddress}</Text>
+                <Text style={[styles.locationTime, { color: colors.muted }]}>
+                  {new Date(selectedShift.locations[0].timestamp).toLocaleTimeString()}
+                </Text>
+              </View>
+              
+              {selectedShift.locations.length > 1 && (
+                <View style={styles.locationItem}>
+                  <Text style={[styles.locationLabel, { color: colors.error }]}>END</Text>
+                  <Text style={[styles.locationAddress, { color: colors.foreground }]}>{endAddress}</Text>
+                  <Text style={[styles.locationTime, { color: colors.muted }]}>
+                    {new Date(selectedShift.locations[selectedShift.locations.length - 1].timestamp).toLocaleTimeString()}
+                  </Text>
+                </View>
+              )}
+              
+              <Text style={[styles.locationCount, { color: colors.muted }]}>
+                {selectedShift.locations.length} location points recorded
+              </Text>
+            </View>
+          )}
+
           {/* Photos */}
           {selectedShift.photos.length > 0 && (
             <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.infoTitle, { color: colors.foreground }]}>Photos ({selectedShift.photos.length})</Text>
+              <Text style={[styles.infoTitle, { color: colors.foreground }]}>📷 Photos ({selectedShift.photos.length})</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
                 {selectedShift.photos.map((photo) => (
                   <View key={photo.id} style={styles.photoContainer}>
@@ -192,6 +290,11 @@ export default function HistoryScreen() {
                     <Text style={[styles.photoTime, { color: colors.muted }]}>
                       {new Date(photo.timestamp).toLocaleTimeString()}
                     </Text>
+                    {photo.address && (
+                      <Text style={[styles.photoAddress, { color: colors.muted }]} numberOfLines={1}>
+                        {photo.address.split(",")[0]}
+                      </Text>
+                    )}
                   </View>
                 ))}
               </ScrollView>
@@ -203,21 +306,21 @@ export default function HistoryScreen() {
             style={[styles.actionButton, { backgroundColor: colors.primary }]}
             onPress={() => generateReport(selectedShift)}
           >
-            <Text style={styles.actionButtonText}>Generate & Share Report</Text>
+            <Text style={styles.actionButtonText}>📤 Generate & Share Report</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.success }]}
             onPress={() => viewTrailOnMap(selectedShift)}
           >
-            <Text style={styles.actionButtonText}>View Trail on Map</Text>
+            <Text style={styles.actionButtonText}>🗺️ View Trail on Map</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.error }]}
             onPress={() => handleDeleteShift(selectedShift.id)}
           >
-            <Text style={styles.actionButtonText}>Delete Shift</Text>
+            <Text style={styles.actionButtonText}>🗑️ Delete Shift</Text>
           </TouchableOpacity>
 
           <View style={{ height: 40 }} />
@@ -230,17 +333,18 @@ export default function HistoryScreen() {
   const renderShiftItem = ({ item }: { item: Shift }) => {
     const duration = formatDuration(getShiftDuration(item));
     const date = new Date(item.startTime).toLocaleDateString();
+    const time = new Date(item.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     return (
       <TouchableOpacity
         style={[styles.shiftCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-        onPress={() => setSelectedShift(item)}
+        onPress={() => handleSelectShift(item)}
       >
         <View style={styles.shiftHeader}>
           <Text style={[styles.shiftSite, { color: colors.foreground }]}>{item.siteName}</Text>
           <Text style={[styles.shiftDate, { color: colors.muted }]}>{date}</Text>
         </View>
-        <Text style={[styles.shiftStaff, { color: colors.muted }]}>{item.staffName}</Text>
+        <Text style={[styles.shiftStaff, { color: colors.muted }]}>{item.staffName} • {time}</Text>
         <View style={styles.shiftStats}>
           <Text style={[styles.shiftStat, { color: colors.muted }]}>⏱️ {duration}</Text>
           <Text style={[styles.shiftStat, { color: colors.muted }]}>📷 {item.photos.length}</Text>
@@ -347,11 +451,35 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: "600",
-    marginBottom: 8,
+    marginBottom: 12,
   },
   infoText: {
     fontSize: 14,
     marginBottom: 4,
+  },
+  locationItem: {
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.1)",
+  },
+  locationLabel: {
+    fontSize: 12,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  locationAddress: {
+    fontSize: 15,
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  locationTime: {
+    fontSize: 12,
+  },
+  locationCount: {
+    fontSize: 12,
+    fontStyle: "italic",
+    marginTop: 4,
   },
   photoScroll: {
     marginTop: 8,
@@ -359,6 +487,7 @@ const styles = StyleSheet.create({
   photoContainer: {
     marginRight: 12,
     alignItems: "center",
+    width: 90,
   },
   photoThumbnail: {
     width: 80,
@@ -368,6 +497,10 @@ const styles = StyleSheet.create({
   photoTime: {
     fontSize: 11,
     marginTop: 4,
+  },
+  photoAddress: {
+    fontSize: 10,
+    textAlign: "center",
   },
   actionButton: {
     padding: 16,

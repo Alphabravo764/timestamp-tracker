@@ -61,3 +61,9 @@
 ## BUGS REPORTED BY USER
 - [x] End shift not working - FIXED (added confirm screen, web-compatible alerts)
 - [x] Watch tab stuck on "Waiting for location data" - FIXED (simplified approach, manual refresh)
+
+
+## NEW BUGS & FEATURES
+- [x] Photo capture error - FIXED (added base64, better error handling)
+- [x] Add reverse geocoding - DONE (using Nominatim API, shows street name + postcode)
+- [x] Add trail visualization - DONE (bounding box URL shows all points on OpenStreetMap)

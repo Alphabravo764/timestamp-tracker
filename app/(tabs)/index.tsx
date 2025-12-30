@@ -8,6 +8,7 @@ import {
   TextInput,
   ScrollView,
   Share,
+  Image,
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import { useFocusEffect } from "expo-router";
@@ -28,11 +29,53 @@ import type { Shift, LocationPoint, ShiftPhoto } from "@/lib/shift-types";
 
 type AppState = "idle" | "startForm" | "active" | "camera" | "confirmEnd";
 
+// Reverse geocoding using Nominatim (free, no API key)
+const getAddressFromCoords = async (lat: number, lng: number): Promise<string> => {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      { headers: { "User-Agent": "TimestampCamera/1.0" } }
+    );
+    const data = await response.json();
+    if (data.address) {
+      const { road, house_number, postcode, city, town, village } = data.address;
+      const street = house_number ? `${house_number} ${road}` : road;
+      const area = city || town || village || "";
+      const parts = [street, area, postcode].filter(Boolean);
+      return parts.join(", ") || data.display_name?.split(",").slice(0, 3).join(",") || "Unknown location";
+    }
+    return "Unknown location";
+  } catch (e) {
+    console.error("Geocoding error:", e);
+    return "Location unavailable";
+  }
+};
+
+// Generate trail map URL using OpenStreetMap
+const getTrailMapUrl = (locations: LocationPoint[]): string => {
+  if (locations.length === 0) return "";
+  if (locations.length === 1) {
+    const loc = locations[0];
+    return `https://www.openstreetmap.org/?mlat=${loc.latitude}&mlon=${loc.longitude}&zoom=16`;
+  }
+  // For multiple points, create a bounding box view
+  const lats = locations.map(l => l.latitude);
+  const lngs = locations.map(l => l.longitude);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+  // Add some padding
+  const padding = 0.002;
+  return `https://www.openstreetmap.org/?bbox=${minLng - padding},${minLat - padding},${maxLng + padding},${maxLat + padding}&layer=mapnik`;
+};
+
 export default function HomeScreen() {
   const colors = useColors();
   const [permission, requestPermission] = useCameraPermissions();
   const [activeShift, setActiveShift] = useState<Shift | null>(null);
   const [currentLocation, setCurrentLocation] = useState<Location.LocationObject | null>(null);
+  const [currentAddress, setCurrentAddress] = useState<string>("Getting address...");
   const [currentTime, setCurrentTime] = useState(new Date());
   const [siteName, setSiteName] = useState("");
   const [staffName, setStaffName] = useState("");
@@ -40,6 +83,7 @@ export default function HomeScreen() {
   const [facing, setFacing] = useState<CameraType>("back");
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [lastPhoto, setLastPhoto] = useState<string | null>(null);
   const cameraRef = useRef<CameraView>(null);
 
   // Update time every second
@@ -65,6 +109,16 @@ export default function HomeScreen() {
     }
     return () => { if (interval) clearInterval(interval); };
   }, [activeShift?.isActive, appState]);
+
+  // Update address when location changes
+  useEffect(() => {
+    if (currentLocation) {
+      getAddressFromCoords(
+        currentLocation.coords.latitude,
+        currentLocation.coords.longitude
+      ).then(setCurrentAddress);
+    }
+  }, [currentLocation?.coords.latitude, currentLocation?.coords.longitude]);
 
   const loadActiveShift = async () => {
     const shift = await getActiveShift();
@@ -191,9 +245,10 @@ export default function HomeScreen() {
 
   const sharePairCode = async () => {
     if (!activeShift) return;
+    const trailUrl = getTrailMapUrl(activeShift.locations);
     try {
       await Share.share({
-        message: `Track my location!\n\nPair Code: ${activeShift.pairCode}\nSite: ${activeShift.siteName}\nStaff: ${activeShift.staffName}\n\nUse this code in the Timestamp Tracker app.`,
+        message: `📍 Live Location Tracking\n\nStaff: ${activeShift.staffName}\nSite: ${activeShift.siteName}\nPair Code: ${activeShift.pairCode}\n\nCurrent Location:\n${currentAddress}\n\nView Trail Map:\n${trailUrl}\n\nUse pair code in Timestamp Tracker app to monitor.`,
       });
     } catch (e) {
       console.error("Share error:", e);
@@ -201,45 +256,69 @@ export default function HomeScreen() {
   };
 
   const takePicture = async () => {
-    if (!cameraRef.current || !activeShift) return;
+    if (!cameraRef.current || !activeShift) {
+      alert("Camera not ready");
+      return;
+    }
+    
     try {
       if (Platform.OS !== "web") {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
-      if (!photo) return;
+      
+      // Take picture with base64 for web compatibility
+      const photo = await cameraRef.current.takePictureAsync({ 
+        quality: 0.7,
+        base64: true,
+        skipProcessing: true,
+      });
+      
+      if (!photo || !photo.uri) {
+        alert("Failed to capture photo. Please try again.");
+        return;
+      }
+
+      // Get fresh location for photo
+      let photoLocation = currentLocation;
+      try {
+        photoLocation = await Location.getCurrentPositionAsync({});
+        setCurrentLocation(photoLocation);
+      } catch (e) {
+        console.log("Using cached location for photo");
+      }
 
       const shiftPhoto: ShiftPhoto = {
         id: Date.now().toString(),
         uri: photo.uri,
         timestamp: new Date().toISOString(),
-        location: currentLocation ? {
-          latitude: currentLocation.coords.latitude,
-          longitude: currentLocation.coords.longitude,
+        location: photoLocation ? {
+          latitude: photoLocation.coords.latitude,
+          longitude: photoLocation.coords.longitude,
           timestamp: new Date().toISOString(),
-          accuracy: currentLocation.coords.accuracy ?? undefined,
+          accuracy: photoLocation.coords.accuracy ?? undefined,
         } : null,
+        address: currentAddress,
       };
 
       const updated = await addPhotoToShift(shiftPhoto);
-      if (updated) setActiveShift(updated);
+      if (updated) {
+        setActiveShift(updated);
+        setLastPhoto(photo.uri);
+      }
       
       if (Platform.OS !== "web") {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      alert(`Photo #${updated?.photos.length || 1} saved!`);
-    } catch (e) {
+      
+      alert(`✓ Photo #${updated?.photos.length || 1} saved!\n\n${currentAddress}`);
+    } catch (e: any) {
       console.error("Photo error:", e);
-      alert("Failed to take photo");
+      alert(`Camera error: ${e.message || "Unknown error"}. Try flipping the camera or restarting the app.`);
     }
   };
 
   const formatTime = () => currentTime.toLocaleTimeString("en-US", { hour12: false });
   const formatDate = () => currentTime.toLocaleDateString();
-  const formatCoords = () => {
-    if (!currentLocation) return "Getting location...";
-    return `${currentLocation.coords.latitude.toFixed(6)}, ${currentLocation.coords.longitude.toFixed(6)}`;
-  };
 
   // ========== IDLE STATE ==========
   if (appState === "idle") {
@@ -278,7 +357,7 @@ export default function HomeScreen() {
             <Text style={[styles.label, { color: colors.foreground }]}>Site Name *</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-              placeholder="Enter site name"
+              placeholder="e.g., Main Office, Warehouse A"
               placeholderTextColor={colors.muted}
               value={siteName}
               onChangeText={setSiteName}
@@ -297,7 +376,12 @@ export default function HomeScreen() {
 
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.label, { color: colors.foreground }]}>Current Location</Text>
-            <Text style={[styles.coords, { color: colors.muted }]}>{formatCoords()}</Text>
+            <Text style={[styles.address, { color: colors.foreground }]}>{currentAddress}</Text>
+            {currentLocation && (
+              <Text style={[styles.coords, { color: colors.muted }]}>
+                {currentLocation.coords.latitude.toFixed(6)}, {currentLocation.coords.longitude.toFixed(6)}
+              </Text>
+            )}
           </View>
 
           <TouchableOpacity
@@ -353,8 +437,11 @@ export default function HomeScreen() {
     if (!permission?.granted) {
       return (
         <ScreenContainer className="items-center justify-center p-6">
-          <Text style={{ color: colors.foreground, textAlign: "center", marginBottom: 16 }}>
+          <Text style={{ color: colors.foreground, textAlign: "center", marginBottom: 16, fontSize: 18 }}>
             Camera permission required
+          </Text>
+          <Text style={{ color: colors.muted, textAlign: "center", marginBottom: 24 }}>
+            Please allow camera access to take timestamped photos
           </Text>
           <TouchableOpacity
             style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
@@ -373,31 +460,51 @@ export default function HomeScreen() {
     }
 
     return (
-      <View style={{ flex: 1 }}>
-        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing}>
+      <View style={{ flex: 1, backgroundColor: "#000" }}>
+        <CameraView 
+          ref={cameraRef} 
+          style={StyleSheet.absoluteFill} 
+          facing={facing}
+          onCameraReady={() => console.log("Camera ready")}
+        >
+          {/* Top bar with back button */}
           <View style={styles.cameraTop}>
             <TouchableOpacity
               style={[styles.backBtn, { backgroundColor: "rgba(0,0,0,0.6)" }]}
               onPress={() => setAppState("active")}
             >
-              <Text style={{ color: "#FFF", fontWeight: "600" }}>← Back</Text>
+              <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 16 }}>← Back</Text>
             </TouchableOpacity>
           </View>
 
+          {/* Timestamp overlay */}
           <View style={styles.cameraInfo}>
             <View style={styles.infoBox}>
               <Text style={styles.infoTime}>{formatTime()}</Text>
               <Text style={styles.infoDate}>{formatDate()}</Text>
-              <Text style={styles.infoCoords}>{formatCoords()}</Text>
+              <Text style={styles.infoAddress}>{currentAddress}</Text>
+              {currentLocation && (
+                <Text style={styles.infoCoords}>
+                  {currentLocation.coords.latitude.toFixed(6)}, {currentLocation.coords.longitude.toFixed(6)}
+                </Text>
+              )}
             </View>
           </View>
 
+          {/* Last photo preview */}
+          {lastPhoto && (
+            <View style={styles.lastPhotoContainer}>
+              <Image source={{ uri: lastPhoto }} style={styles.lastPhotoThumb} />
+            </View>
+          )}
+
+          {/* Camera controls */}
           <View style={styles.cameraControls}>
             <TouchableOpacity
               style={[styles.flipBtn, { backgroundColor: "rgba(255,255,255,0.3)" }]}
               onPress={() => setFacing(f => f === "back" ? "front" : "back")}
             >
-              <Text style={{ color: "#FFF", fontSize: 12 }}>Flip</Text>
+              <Text style={{ color: "#FFF", fontSize: 14 }}>🔄</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.captureBtn} onPress={takePicture}>
@@ -445,11 +552,23 @@ export default function HomeScreen() {
           <TouchableOpacity onPress={copyPairCode}>
             <Text style={styles.pairCodeValue}>{activeShift.pairCode}</Text>
           </TouchableOpacity>
-          <Text style={styles.pairCodeHint}>{copied ? "Copied!" : "Tap to copy"}</Text>
+          <Text style={styles.pairCodeHint}>{copied ? "✓ Copied!" : "Tap to copy"}</Text>
           
           <TouchableOpacity style={styles.shareBtn} onPress={sharePairCode}>
-            <Text style={styles.shareBtnText}>Share Code</Text>
+            <Text style={styles.shareBtnText}>📤 Share Location & Code</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Current Location */}
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.label, { color: colors.foreground }]}>📍 Current Location</Text>
+          <Text style={[styles.address, { color: colors.foreground }]}>{currentAddress}</Text>
+          {currentLocation && (
+            <Text style={[styles.coords, { color: colors.muted }]}>
+              {currentLocation.coords.latitude.toFixed(6)}, {currentLocation.coords.longitude.toFixed(6)}
+            </Text>
+          )}
+          <Text style={[styles.timestamp, { color: colors.muted }]}>{formatTime()} • {formatDate()}</Text>
         </View>
 
         {/* Stats */}
@@ -462,13 +581,6 @@ export default function HomeScreen() {
             <Text style={[styles.statValue, { color: colors.foreground }]}>{activeShift.locations.length}</Text>
             <Text style={[styles.statLabel, { color: colors.muted }]}>Locations</Text>
           </View>
-        </View>
-
-        {/* Current Location */}
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.label, { color: colors.foreground }]}>Current Location</Text>
-          <Text style={[styles.coords, { color: colors.muted }]}>{formatCoords()}</Text>
-          <Text style={[styles.timestamp, { color: colors.muted }]}>{formatTime()} • {formatDate()}</Text>
         </View>
 
         {/* Action Buttons */}
@@ -497,8 +609,9 @@ const styles = StyleSheet.create({
   card: { padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 16 },
   label: { fontSize: 14, fontWeight: "600", marginBottom: 8 },
   input: { height: 48, borderRadius: 8, borderWidth: 1, paddingHorizontal: 16, fontSize: 16 },
-  coords: { fontSize: 14, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
-  timestamp: { fontSize: 12, marginTop: 4 },
+  address: { fontSize: 16, fontWeight: "500", marginBottom: 4 },
+  coords: { fontSize: 12, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  timestamp: { fontSize: 12, marginTop: 8 },
   primaryBtn: { padding: 16, borderRadius: 12, alignItems: "center", marginBottom: 12 },
   primaryBtnText: { color: "#FFF", fontSize: 18, fontWeight: "600" },
   secondaryBtn: { padding: 16, borderRadius: 12, alignItems: "center", borderWidth: 1 },
@@ -520,20 +633,23 @@ const styles = StyleSheet.create({
   pairCodeLabel: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600", letterSpacing: 1 },
   pairCodeValue: { color: "#FFF", fontSize: 42, fontWeight: "bold", letterSpacing: 6, marginVertical: 8, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
   pairCodeHint: { color: "rgba(255,255,255,0.7)", fontSize: 12, marginBottom: 16 },
-  shareBtn: { backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20 },
-  shareBtnText: { color: "#FFF", fontWeight: "600" },
+  shareBtn: { backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 20 },
+  shareBtnText: { color: "#FFF", fontWeight: "600", fontSize: 15 },
   statsRow: { flexDirection: "row", gap: 12, marginBottom: 16 },
   statCard: { flex: 1, padding: 16, borderRadius: 12, borderWidth: 1, alignItems: "center" },
   statValue: { fontSize: 28, fontWeight: "bold" },
   statLabel: { fontSize: 12, marginTop: 4 },
-  cameraTop: { position: "absolute", top: 50, left: 20, right: 20 },
+  cameraTop: { position: "absolute", top: 50, left: 20, right: 20, zIndex: 10 },
   backBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, alignSelf: "flex-start" },
-  cameraInfo: { position: "absolute", top: 100, left: 20, right: 20 },
+  cameraInfo: { position: "absolute", top: 100, left: 20, right: 20, zIndex: 10 },
   infoBox: { backgroundColor: "rgba(0,0,0,0.7)", padding: 12, borderRadius: 8 },
-  infoTime: { color: "#FFF", fontSize: 24, fontWeight: "bold" },
-  infoDate: { color: "#CCC", fontSize: 14, marginBottom: 4 },
-  infoCoords: { color: "#AAA", fontSize: 12, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
-  cameraControls: { position: "absolute", bottom: 50, left: 0, right: 0, flexDirection: "row", justifyContent: "space-around", alignItems: "center", paddingHorizontal: 50 },
+  infoTime: { color: "#FFF", fontSize: 28, fontWeight: "bold" },
+  infoDate: { color: "#CCC", fontSize: 14, marginBottom: 8 },
+  infoAddress: { color: "#FFF", fontSize: 14, fontWeight: "500", marginBottom: 4 },
+  infoCoords: { color: "#AAA", fontSize: 11, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  lastPhotoContainer: { position: "absolute", bottom: 140, left: 20, zIndex: 10 },
+  lastPhotoThumb: { width: 60, height: 60, borderRadius: 8, borderWidth: 2, borderColor: "#FFF" },
+  cameraControls: { position: "absolute", bottom: 50, left: 0, right: 0, flexDirection: "row", justifyContent: "space-around", alignItems: "center", paddingHorizontal: 50, zIndex: 10 },
   flipBtn: { width: 50, height: 50, borderRadius: 25, justifyContent: "center", alignItems: "center" },
   captureBtn: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, borderColor: "#FFF", justifyContent: "center", alignItems: "center" },
   captureBtnInner: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FFF" },
