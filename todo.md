@@ -56,3 +56,8 @@
 - [x] Need clearer UI for active shift state - FIXED (dashboard view)
 - [x] Need visible pair code during shift - FIXED (big pair code card)
 - [x] Need working end shift button - FIXED (red button)
+
+
+## BUGS REPORTED BY USER
+- [x] End shift not working - FIXED (added confirm screen, web-compatible alerts)
+- [x] Watch tab stuck on "Waiting for location data" - FIXED (simplified approach, manual refresh)

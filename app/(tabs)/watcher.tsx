@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,58 +6,79 @@ import {
   StyleSheet,
   TextInput,
   FlatList,
-  Alert,
   Platform,
   Linking,
 } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getActiveShift } from "@/lib/shift-storage";
+import type { Shift } from "@/lib/shift-types";
 
-interface PairedStaff {
+interface WatchedStaff {
   pairCode: string;
-  staffName: string;
   addedAt: string;
-  lastLocation?: {
-    latitude: number;
-    longitude: number;
-    timestamp: string;
-  };
+  shift?: Shift | null;
 }
 
 export default function WatcherScreen() {
   const colors = useColors();
   const [pairCode, setPairCode] = useState("");
-  const [pairedStaff, setPairedStaff] = useState<PairedStaff[]>([]);
+  const [watchedStaff, setWatchedStaff] = useState<WatchedStaff[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadPairedStaff();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadWatchedStaff();
+    }, [])
+  );
 
-  const loadPairedStaff = async () => {
+  const loadWatchedStaff = async () => {
     try {
-      const staffJson = await AsyncStorage.getItem("pairedStaff");
-      if (staffJson) {
-        const staff: PairedStaff[] = JSON.parse(staffJson);
-        setPairedStaff(staff);
+      const json = await AsyncStorage.getItem("watchedStaff");
+      if (json) {
+        const staff: WatchedStaff[] = JSON.parse(json);
+        // Try to find active shift for each
+        await refreshStaffData(staff);
       }
-    } catch (error) {
-      console.error("Error loading paired staff:", error);
+    } catch (e) {
+      console.error("Load error:", e);
     }
   };
 
+  const refreshStaffData = async (staff: WatchedStaff[]) => {
+    setIsRefreshing(true);
+    try {
+      // Get active shift from local storage
+      const activeShift = await getActiveShift();
+      
+      // Update each staff with shift data if pair code matches
+      const updated = staff.map(s => {
+        if (activeShift && activeShift.pairCode === s.pairCode) {
+          return { ...s, shift: activeShift };
+        }
+        return { ...s, shift: null };
+      });
+      
+      setWatchedStaff(updated);
+      await AsyncStorage.setItem("watchedStaff", JSON.stringify(updated));
+    } catch (e) {
+      console.error("Refresh error:", e);
+    }
+    setIsRefreshing(false);
+  };
+
   const addStaff = async () => {
-    if (!pairCode.trim()) {
-      Alert.alert("Enter Code", "Please enter a pair code to add staff.");
+    const code = pairCode.trim().toUpperCase();
+    if (!code) {
+      alert("Please enter a pair code.");
       return;
     }
-
-    const code = pairCode.trim().toUpperCase();
     
-    // Check if already paired
-    if (pairedStaff.some((s) => s.pairCode === code)) {
-      Alert.alert("Already Paired", "This staff member is already in your list.");
+    if (watchedStaff.some(s => s.pairCode === code)) {
+      alert("This code is already in your list.");
       return;
     }
 
@@ -65,133 +86,111 @@ export default function WatcherScreen() {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
 
-    const newStaff: PairedStaff = {
+    const newStaff: WatchedStaff = {
       pairCode: code,
-      staffName: `Staff ${code}`,
       addedAt: new Date().toISOString(),
     };
 
-    const updatedList = [...pairedStaff, newStaff];
-    await AsyncStorage.setItem("pairedStaff", JSON.stringify(updatedList));
-    setPairedStaff(updatedList);
+    const updated = [...watchedStaff, newStaff];
+    setWatchedStaff(updated);
+    await AsyncStorage.setItem("watchedStaff", JSON.stringify(updated));
     setPairCode("");
-
-    Alert.alert("Staff Added", `Staff with code ${code} has been added to your watch list.`);
+    
+    // Try to find matching shift
+    await refreshStaffData(updated);
+    
+    alert(`Staff with code ${code} added.`);
   };
 
   const removeStaff = async (code: string) => {
-    Alert.alert("Remove Staff", "Are you sure you want to remove this staff member?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove",
-        style: "destructive",
-        onPress: async () => {
-          if (Platform.OS !== "web") {
-            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }
-          
-          const updatedList = pairedStaff.filter((s) => s.pairCode !== code);
-          await AsyncStorage.setItem("pairedStaff", JSON.stringify(updatedList));
-          setPairedStaff(updatedList);
-        },
-      },
-    ]);
-  };
-
-  const viewOnMap = (staff: PairedStaff) => {
-    if (!staff.lastLocation) {
-      Alert.alert("No Location", "No location data available for this staff member yet.");
-      return;
+    if (Platform.OS !== "web") {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-
-    const { latitude, longitude } = staff.lastLocation;
-    const url = `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}&zoom=16`;
-    Linking.openURL(url);
-  };
-
-  const viewAllOnMap = () => {
-    const staffWithLocation = pairedStaff.filter((s) => s.lastLocation);
     
-    if (staffWithLocation.length === 0) {
-      Alert.alert("No Locations", "No staff members have location data yet.");
+    const updated = watchedStaff.filter(s => s.pairCode !== code);
+    setWatchedStaff(updated);
+    await AsyncStorage.setItem("watchedStaff", JSON.stringify(updated));
+  };
+
+  const viewOnMap = (staff: WatchedStaff) => {
+    if (!staff.shift || staff.shift.locations.length === 0) {
+      alert("No location data available for this staff member.");
       return;
     }
 
-    // Calculate center of all locations
-    const avgLat =
-      staffWithLocation.reduce((sum, s) => sum + (s.lastLocation?.latitude || 0), 0) /
-      staffWithLocation.length;
-    const avgLng =
-      staffWithLocation.reduce((sum, s) => sum + (s.lastLocation?.longitude || 0), 0) /
-      staffWithLocation.length;
-
-    const url = `https://www.openstreetmap.org/?mlat=${avgLat}&mlon=${avgLng}&zoom=14`;
+    const lastLoc = staff.shift.locations[staff.shift.locations.length - 1];
+    const url = `https://www.openstreetmap.org/?mlat=${lastLoc.latitude}&mlon=${lastLoc.longitude}&zoom=16`;
     Linking.openURL(url);
   };
 
-  const renderStaffItem = ({ item }: { item: PairedStaff }) => (
-    <View style={[styles.staffCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <View style={styles.staffHeader}>
-        <View style={styles.staffInfo}>
-          <Text style={[styles.staffName, { color: colors.foreground }]}>{item.staffName}</Text>
-          <Text style={[styles.staffCode, { color: colors.muted }]}>Code: {item.pairCode}</Text>
+  const renderStaffItem = ({ item }: { item: WatchedStaff }) => {
+    const hasShift = item.shift && item.shift.isActive;
+    const lastLoc = item.shift?.locations?.[item.shift.locations.length - 1];
+    
+    return (
+      <View style={[styles.staffCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={styles.staffHeader}>
+          <View style={styles.staffInfo}>
+            <Text style={[styles.staffCode, { color: colors.foreground }]}>Code: {item.pairCode}</Text>
+            {hasShift && (
+              <Text style={[styles.staffSite, { color: colors.muted }]}>
+                {item.shift?.siteName} • {item.shift?.staffName}
+              </Text>
+            )}
+          </View>
+          <View style={[styles.statusDot, { backgroundColor: hasShift ? colors.success : colors.muted }]} />
         </View>
-        <View style={[styles.statusDot, { backgroundColor: item.lastLocation ? colors.success : colors.muted }]} />
-      </View>
-      
-      {item.lastLocation ? (
-        <View style={styles.locationInfo}>
-          <Text style={[styles.locationText, { color: colors.muted }]}>
-            {item.lastLocation.latitude.toFixed(6)}, {item.lastLocation.longitude.toFixed(6)}
+        
+        {hasShift && lastLoc ? (
+          <View style={styles.locationInfo}>
+            <Text style={[styles.locationText, { color: colors.muted }]}>
+              {lastLoc.latitude.toFixed(6)}, {lastLoc.longitude.toFixed(6)}
+            </Text>
+            <Text style={[styles.timestampText, { color: colors.muted }]}>
+              {new Date(lastLoc.timestamp).toLocaleString()}
+            </Text>
+            <Text style={[styles.statsText, { color: colors.muted }]}>
+              📍 {item.shift?.locations.length} locations • 📷 {item.shift?.photos.length} photos
+            </Text>
+          </View>
+        ) : (
+          <Text style={[styles.noDataText, { color: colors.muted }]}>
+            {hasShift ? "No location data yet" : "No active shift found"}
           </Text>
-          <Text style={[styles.timestampText, { color: colors.muted }]}>
-            Updated: {new Date(item.lastLocation.timestamp).toLocaleTimeString()}
-          </Text>
-        </View>
-      ) : (
-        <Text style={[styles.noLocationText, { color: colors.muted }]}>
-          Waiting for location data...
-        </Text>
-      )}
+        )}
 
-      <View style={styles.staffActions}>
-        <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: colors.primary }]}
-          onPress={() => viewOnMap(item)}
-        >
-          <Text style={styles.actionButtonText}>View on Map</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: colors.error }]}
-          onPress={() => removeStaff(item.pairCode)}
-        >
-          <Text style={styles.actionButtonText}>Remove</Text>
-        </TouchableOpacity>
+        <View style={styles.staffActions}>
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: hasShift ? colors.primary : colors.muted }]}
+            onPress={() => viewOnMap(item)}
+            disabled={!hasShift}
+          >
+            <Text style={styles.actionBtnText}>View on Map</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: colors.error }]}
+            onPress={() => removeStaff(item.pairCode)}
+          >
+            <Text style={styles.actionBtnText}>Remove</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <ScreenContainer className="flex-1">
       <View className="p-6">
-        {/* Header */}
-        <Text className="text-3xl font-bold text-foreground mb-2">Watcher</Text>
-        <Text className="text-muted mb-6">Monitor multiple staff members in real-time</Text>
+        <Text className="text-3xl font-bold text-foreground mb-2">Watch Staff</Text>
+        <Text className="text-muted mb-6">Monitor staff members by their pair code</Text>
 
-        {/* Add Staff Input */}
+        {/* Add Staff */}
         <View style={[styles.inputCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.inputLabel, { color: colors.foreground }]}>Add Staff by Pair Code</Text>
           <View style={styles.inputRow}>
             <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: colors.background,
-                  borderColor: colors.border,
-                  color: colors.foreground,
-                },
-              ]}
-              placeholder="Enter pair code"
+              style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+              placeholder="Enter code"
               placeholderTextColor={colors.muted}
               value={pairCode}
               onChangeText={setPairCode}
@@ -199,37 +198,43 @@ export default function WatcherScreen() {
               maxLength={6}
             />
             <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: colors.primary }]}
+              style={[styles.addBtn, { backgroundColor: colors.primary }]}
               onPress={addStaff}
             >
-              <Text style={styles.addButtonText}>Add</Text>
+              <Text style={styles.addBtnText}>Add</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* View All Button */}
-        {pairedStaff.length > 1 && (
+        {/* Refresh Button */}
+        {watchedStaff.length > 0 && (
           <TouchableOpacity
-            style={[styles.viewAllButton, { backgroundColor: colors.primary }]}
-            onPress={viewAllOnMap}
+            style={[styles.refreshBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => refreshStaffData(watchedStaff)}
+            disabled={isRefreshing}
           >
-            <Text style={styles.viewAllButtonText}>View All on Map ({pairedStaff.length} staff)</Text>
+            <Text style={[styles.refreshBtnText, { color: colors.primary }]}>
+              {isRefreshing ? "Refreshing..." : "🔄 Refresh All"}
+            </Text>
           </TouchableOpacity>
         )}
       </View>
 
       {/* Staff List */}
-      {pairedStaff.length === 0 ? (
+      {watchedStaff.length === 0 ? (
         <View className="flex-1 items-center justify-center p-6">
-          <Text className="text-muted text-center text-lg">
-            No staff members added yet.{"\n"}Enter a pair code to start watching.
+          <Text className="text-muted text-center text-lg mb-4">
+            No staff members added yet.
+          </Text>
+          <Text className="text-muted text-center text-sm">
+            Enter a pair code from a staff member{"\n"}to start watching their location.
           </Text>
         </View>
       ) : (
         <FlatList
-          data={pairedStaff}
+          data={watchedStaff}
           renderItem={renderStaffItem}
-          keyExtractor={(item) => item.pairCode}
+          keyExtractor={item => item.pairCode}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
         />
@@ -239,116 +244,27 @@ export default function WatcherScreen() {
 }
 
 const styles = StyleSheet.create({
-  inputCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 12,
-  },
-  inputRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  input: {
-    flex: 1,
-    height: 48,
-    borderRadius: 8,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    letterSpacing: 2,
-  },
-  addButton: {
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  addButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  viewAllButton: {
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  viewAllButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  listContainer: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-  },
-  staffCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  staffHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 12,
-  },
-  staffInfo: {
-    flex: 1,
-  },
-  staffName: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  staffCode: {
-    fontSize: 14,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
-  statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginTop: 4,
-  },
-  locationInfo: {
-    marginBottom: 12,
-  },
-  locationText: {
-    fontSize: 13,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    marginBottom: 4,
-  },
-  timestampText: {
-    fontSize: 12,
-  },
-  noLocationText: {
-    fontSize: 13,
-    fontStyle: "italic",
-    marginBottom: 12,
-  },
-  staffActions: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  actionButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-  },
+  inputCard: { padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
+  inputLabel: { fontSize: 14, fontWeight: "600", marginBottom: 12 },
+  inputRow: { flexDirection: "row", gap: 12 },
+  input: { flex: 1, height: 48, borderRadius: 8, borderWidth: 1, paddingHorizontal: 16, fontSize: 18, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", letterSpacing: 4, textAlign: "center" },
+  addBtn: { paddingHorizontal: 24, borderRadius: 8, justifyContent: "center", alignItems: "center" },
+  addBtnText: { color: "#FFF", fontSize: 16, fontWeight: "600" },
+  refreshBtn: { padding: 12, borderRadius: 8, borderWidth: 1, alignItems: "center", marginBottom: 8 },
+  refreshBtnText: { fontSize: 14, fontWeight: "600" },
+  listContainer: { paddingHorizontal: 24, paddingBottom: 24 },
+  staffCard: { padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
+  staffHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 },
+  staffInfo: { flex: 1 },
+  staffCode: { fontSize: 18, fontWeight: "bold", fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", letterSpacing: 2 },
+  staffSite: { fontSize: 14, marginTop: 4 },
+  statusDot: { width: 12, height: 12, borderRadius: 6, marginTop: 4 },
+  locationInfo: { marginBottom: 12 },
+  locationText: { fontSize: 13, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", marginBottom: 4 },
+  timestampText: { fontSize: 12, marginBottom: 4 },
+  statsText: { fontSize: 12 },
+  noDataText: { fontSize: 13, fontStyle: "italic", marginBottom: 12 },
+  staffActions: { flexDirection: "row", gap: 12 },
+  actionBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: "center" },
+  actionBtnText: { color: "#FFF", fontSize: 14, fontWeight: "600" },
 });
