@@ -204,3 +204,9 @@
 - [x] Sync photos to server when taken
 - [x] Sync notes to server when added
 - [x] Live viewer fetches from server instead of local storage
+
+
+## BATCH GEOCODING FOR PDF
+- [x] Add batch reverse geocoding function
+- [x] Update PDF generator to geocode all location points before rendering
+- [x] Show street addresses consistently in Location Timeline

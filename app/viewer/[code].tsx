@@ -49,9 +49,9 @@ export default function LiveViewerScreen() {
     return () => clearInterval(interval);
   }, [findShift]);
 
-  const handleDownloadReport = () => {
+  const handleDownloadReport = async () => {
     if (!shift) return;
-    const html = generatePDFReport(shift);
+    const html = await generatePDFReport(shift);
     const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank");

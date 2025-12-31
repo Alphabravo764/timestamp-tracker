@@ -1,6 +1,51 @@
 import type { Shift, LocationPoint } from "./shift-types";
 import { generateStaticMapUrlEncoded } from "./google-maps";
 
+// Batch reverse geocode locations that don't have addresses
+const batchReverseGeocode = async (locations: LocationPoint[]): Promise<LocationPoint[]> => {
+  const results: LocationPoint[] = [];
+  
+  for (const loc of locations) {
+    // If already has a valid address, keep it
+    if (loc.address && loc.address !== "Unknown location" && loc.address !== "Location unavailable") {
+      results.push(loc);
+      continue;
+    }
+    
+    // Try to reverse geocode
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.latitude}&lon=${loc.longitude}&zoom=18&addressdetails=1`,
+        { headers: { "User-Agent": "TimestampCamera/1.0" } }
+      );
+      const data = await response.json();
+      
+      if (data && data.address) {
+        const addr = data.address;
+        const parts: string[] = [];
+        
+        // Build address: street, city, postcode
+        if (addr.road || addr.street) parts.push(addr.road || addr.street);
+        if (addr.city || addr.town || addr.village) parts.push(addr.city || addr.town || addr.village);
+        if (addr.postcode) parts.push(addr.postcode);
+        
+        const address = parts.length > 0 ? parts.join(", ") : data.display_name?.split(",").slice(0, 3).join(",") || "Unknown";
+        results.push({ ...loc, address });
+      } else {
+        results.push(loc);
+      }
+      
+      // Rate limit: wait 100ms between requests to respect Nominatim limits
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (e) {
+      console.log("Geocode error:", e);
+      results.push(loc);
+    }
+  }
+  
+  return results;
+};
+
 // Format duration from shift
 const formatDuration = (shift: Shift): string => {
   const start = new Date(shift.startTime);
@@ -68,22 +113,28 @@ const formatDate = (timestamp: string): string => {
 };
 
 // Generate HTML report with Google Maps trail
-export const generatePDFReport = (shift: Shift): string => {
+export const generatePDFReport = async (shift: Shift): Promise<string> => {
   const duration = formatDuration(shift);
   const startDate = formatDate(shift.startTime);
   const startTime = formatTime(shift.startTime);
   const endTime = shift.endTime ? formatTime(shift.endTime) : "In Progress";
   const distance = calculateDistance(shift.locations).toFixed(2);
   
+  // Batch reverse geocode locations that don't have addresses
+  const geocodedLocations = await batchReverseGeocode(shift.locations);
+  
+  // Update shift with geocoded locations for this report
+  const shiftWithAddresses = { ...shift, locations: geocodedLocations };
+  
   // Generate Google Maps static image with trail - high quality
-  const mapUrl = shift.locations.length > 0 
-    ? generateStaticMapUrlEncoded(shift.locations, 800, 500) 
+  const mapUrl = geocodedLocations.length > 0 
+    ? generateStaticMapUrlEncoded(geocodedLocations, 800, 500) 
     : "";
   
   // Get start and end addresses - MUST show address not coords
-  const startLoc = shift.locations[0];
-  const endLoc = shift.locations.length > 1 
-    ? shift.locations[shift.locations.length - 1] 
+  const startLoc = geocodedLocations[0];
+  const endLoc = geocodedLocations.length > 1 
+    ? geocodedLocations[geocodedLocations.length - 1] 
     : startLoc;
   
   const startAddress = startLoc?.address || "Address not recorded";
@@ -139,9 +190,9 @@ export const generatePDFReport = (shift: Shift): string => {
 
   // Build location timeline HTML - MUST show addresses with times
   let locationsHtml = "";
-  if (shift.locations.length > 0) {
+  if (geocodedLocations.length > 0) {
     // Group nearby locations to reduce clutter
-    const significantLocations = getSignificantLocations(shift.locations);
+    const significantLocations = getSignificantLocations(geocodedLocations);
     
     const locationItems = significantLocations.map((loc, index) => {
       const isStart = index === 0;

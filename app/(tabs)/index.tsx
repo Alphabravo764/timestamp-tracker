@@ -411,7 +411,7 @@ export default function HomeScreen() {
       }
       
       // Generate HTML report
-      const html = generatePDFReport(activeShift);
+      const html = await generatePDFReport(activeShift);
       
       if (Platform.OS === "web") {
         // On web, open HTML report in new tab

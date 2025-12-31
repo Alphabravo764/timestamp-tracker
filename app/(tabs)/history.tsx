@@ -157,7 +157,7 @@ export default function HistoryScreen() {
     }
     
     try {
-      const html = generatePDFReport(shift);
+      const html = await generatePDFReport(shift);
       
       if (Platform.OS === "web") {
         // On web, open HTML report in new tab
