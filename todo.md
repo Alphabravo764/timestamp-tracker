@@ -176,3 +176,31 @@
 - [x] Update watermark utility to use native marker on iOS/Android
 - [x] Burn timestamp, address, GPS into photos on capture
 - [x] Update photo sharing to share watermarked version
+
+
+## MAJOR IMPROVEMENTS - LIVE VIEW & PDF
+### Live Viewer Fixes
+- [x] Fix "Shift Not Found" error - added server API endpoint for pair code lookup
+- [x] Create web version that accepts pair code and shows live tracking
+- [x] Show live notes, pictures, and location trail to watchers
+
+### PDF Report Improvements
+- [ ] Show street address + postcode instead of lat/long in timeline
+- [ ] Merge notes into timeline (not separate section)
+- [ ] Better map with detailed trail (snap-to-road style)
+- [ ] Page 1 summary: guard name, site, start/end addresses, duration, counts
+- [ ] Fix "Address not recorded" for start/end locations
+
+### Live View Enhancements
+- [ ] Map with live dot + trail + Start/End markers
+- [ ] Activity feed showing photos, notes, location updates
+- [ ] Show "Last updated" timestamp and GPS accuracy
+- [ ] Trail toggle: Last 10 min / Full shift
+
+
+## SERVER SYNC FOR LIVE VIEWING
+- [x] Sync shift data to server when shift starts
+- [x] Sync location points to server periodically
+- [x] Sync photos to server when taken
+- [x] Sync notes to server when added
+- [x] Live viewer fetches from server instead of local storage

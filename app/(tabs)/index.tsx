@@ -35,6 +35,7 @@ import { getTemplates, saveTemplate, useTemplate, type ShiftTemplate } from "@/l
 import { generatePDFReport } from "@/lib/pdf-generator";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
+import { syncShiftStart, syncLocation, syncPhoto, syncNote, syncShiftEnd } from "@/lib/server-sync";
 
 type AppState = "idle" | "startForm" | "active" | "camera" | "confirmEnd" | "gallery";
 
@@ -186,7 +187,23 @@ export default function HomeScreen() {
         address: address,
       };
       const updated = await addLocationToShift(point);
-      if (updated) setActiveShift(updated);
+      if (updated) {
+        setActiveShift(updated);
+        // Sync location to server
+        try {
+          await syncLocation({
+            shiftId: updated.id,
+            pairCode: updated.pairCode,
+            latitude: point.latitude,
+            longitude: point.longitude,
+            accuracy: point.accuracy,
+            address: point.address,
+            timestamp: point.timestamp,
+          });
+        } catch (syncError) {
+          console.log("Location sync error (non-blocking):", syncError);
+        }
+      }
     } catch (e) {
       console.error("Track error:", e);
     }
@@ -237,6 +254,24 @@ export default function HomeScreen() {
       setActiveShift(shift);
       setAppState("active");
       
+      // Sync to server for live viewing
+      try {
+        await syncShiftStart({
+          id: shift.id,
+          pairCode: shift.pairCode,
+          staffName: shift.staffName,
+          siteName: shift.siteName,
+          startTime: shift.startTime,
+          startLocation: {
+            latitude: point.latitude,
+            longitude: point.longitude,
+            address: point.address,
+          },
+        });
+      } catch (syncError) {
+        console.log("Sync error (non-blocking):", syncError);
+      }
+      
       // Save as template for quick access
       if (siteName.trim()) {
         await saveTemplate(siteName.trim(), staffName.trim() || "Staff");
@@ -254,6 +289,7 @@ export default function HomeScreen() {
 
   const handleEndShift = async () => {
     setIsLoading(true);
+    const currentShift = activeShift; // Save reference before clearing
     try {
       if (Platform.OS !== "web") {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -261,6 +297,24 @@ export default function HomeScreen() {
       const completed = await endShift();
       setActiveShift(null);
       setAppState("idle");
+      
+      // Sync shift end to server
+      if (currentShift) {
+        try {
+          await syncShiftEnd({
+            shiftId: currentShift.id,
+            pairCode: currentShift.pairCode,
+            endTime: new Date().toISOString(),
+            endLocation: currentLocation ? {
+              latitude: currentLocation.coords.latitude,
+              longitude: currentLocation.coords.longitude,
+              address: currentAddress,
+            } : undefined,
+          });
+        } catch (syncError) {
+          console.log("End shift sync error (non-blocking):", syncError);
+        }
+      }
       
       if (completed) {
         const duration = formatDuration(getShiftDuration(completed));
@@ -323,7 +377,21 @@ export default function HomeScreen() {
       const note = await addNoteToShift(noteText.trim(), location);
       if (note) {
         const updated = await getActiveShift();
-        if (updated) setActiveShift(updated);
+        if (updated) {
+          setActiveShift(updated);
+          // Sync note to server
+          try {
+            await syncNote({
+              shiftId: updated.id,
+              pairCode: updated.pairCode,
+              noteId: note.id,
+              text: note.text,
+              timestamp: note.timestamp,
+            });
+          } catch (syncError) {
+            console.log("Note sync error (non-blocking):", syncError);
+          }
+        }
         setNoteText("");
         setShowNoteInput(false);
         alert("Note added!");
@@ -494,6 +562,20 @@ export default function HomeScreen() {
       if (updated) {
         setActiveShift(updated);
         setLastPhoto(photo.uri);
+        // Sync photo to server
+        try {
+          await syncPhoto({
+            shiftId: updated.id,
+            pairCode: updated.pairCode,
+            photoUri: watermarkedUri,
+            latitude: photoLocation?.coords.latitude,
+            longitude: photoLocation?.coords.longitude,
+            address: currentAddress,
+            timestamp: shiftPhoto.timestamp,
+          });
+        } catch (syncError) {
+          console.log("Photo sync error (non-blocking):", syncError);
+        }
       }
       
       if (Platform.OS !== "web") {

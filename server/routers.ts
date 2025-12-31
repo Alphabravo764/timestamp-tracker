@@ -95,6 +95,45 @@ export const appRouter = router({
         };
       }),
 
+    // Get shift by pair code (public access for watchers)
+    getByPairCode: publicProcedure
+      .input(z.object({ pairCode: z.string() }))
+      .query(async ({ input }) => {
+        // Normalize pair code (remove dashes, uppercase)
+        const normalizedCode = input.pairCode.replace(/-/g, "").toUpperCase();
+        const formattedCode = `${normalizedCode.slice(0, 3)}-${normalizedCode.slice(3, 6)}`;
+        
+        const shift = await db.getShiftByPairCode(formattedCode);
+        if (!shift) {
+          // Also try without formatting
+          const shiftAlt = await db.getShiftByPairCode(input.pairCode.toUpperCase());
+          if (!shiftAlt) return null;
+          
+          const locations = await db.getShiftLocations(shiftAlt.id);
+          const photos = await db.getShiftPhotos(shiftAlt.id);
+          const latestLocation = await db.getLatestLocation(shiftAlt.id);
+          
+          return {
+            shift: shiftAlt,
+            locations,
+            photos,
+            latestLocation,
+          };
+        }
+
+        // Get all shift data
+        const locations = await db.getShiftLocations(shift.id);
+        const photos = await db.getShiftPhotos(shift.id);
+        const latestLocation = await db.getLatestLocation(shift.id);
+
+        return {
+          shift,
+          locations,
+          photos,
+          latestLocation,
+        };
+      }),
+
     // Start a new shift
     start: protectedProcedure
       .input(
