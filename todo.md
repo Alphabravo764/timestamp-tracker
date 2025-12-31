@@ -217,3 +217,5 @@
 - [x] Fix native watermark error - removed react-native-image-marker dependency for Expo Go
 - [x] Fix location error handling - graceful fallback when GPS unavailable
 - [x] Live viewer page works when shift is synced to server (requires active shift)
+
+- [x] Fix live tracker share link to use correct development URL instead of dummy production URL

@@ -18,6 +18,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
+import Constants from "expo-constants";
 import {
   startShift,
   getActiveShift,
@@ -384,7 +385,22 @@ export default function HomeScreen() {
     if (!activeShift) return;
     
     // Generate live viewer URL
-    const baseUrl = Platform.OS === "web" ? window.location.origin : "https://timestamp-tracker.app";
+    // On web, use current origin (dev server URL)
+    // On native, try to get the dev server URL from Metro bundler
+    let baseUrl = "https://timestamp-tracker.app"; // Production fallback
+    
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      baseUrl = window.location.origin;
+    } else if (Platform.OS !== "web") {
+      // For native, use the Metro bundler URL if available
+      const metroUrl = Constants.expoConfig?.hostUri;
+      if (metroUrl) {
+        // Extract the base URL from Metro host (e.g., "8081-xxx.manus.computer")
+        const [host] = metroUrl.split(':');
+        baseUrl = `https://${host}`;
+      }
+    }
+    
     const liveUrl = `${baseUrl}/live/${activeShift.pairCode}`;
     
     try {
