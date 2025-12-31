@@ -170,7 +170,42 @@ export default function HomeScreen() {
 
   const trackLocation = async () => {
     try {
-      const location = await Location.getCurrentPositionAsync({});
+      // First check if we have location permission
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== "granted") {
+        console.log("Location permission not granted, skipping tracking");
+        return;
+      }
+      
+      // Try to get location with timeout and accuracy settings
+      let location;
+      try {
+        location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 5000,
+          distanceInterval: 0,
+        });
+      } catch (locError) {
+        // If high accuracy fails, try with lower accuracy
+        console.log("High accuracy location failed, trying lower accuracy");
+        try {
+          location = await Location.getLastKnownPositionAsync({});
+        } catch (fallbackError) {
+          console.log("Location unavailable, using cached location if available");
+          if (currentLocation) {
+            location = currentLocation;
+          } else {
+            console.log("No location available, skipping this tracking interval");
+            return;
+          }
+        }
+      }
+      
+      if (!location) {
+        console.log("No location data available");
+        return;
+      }
+      
       setCurrentLocation(location);
       
       // Get address for this location point
@@ -205,7 +240,8 @@ export default function HomeScreen() {
         }
       }
     } catch (e) {
-      console.error("Track error:", e);
+      // Silently handle errors - location tracking is best-effort
+      console.log("Track location skipped:", e instanceof Error ? e.message : "Unknown error");
     }
   };
 

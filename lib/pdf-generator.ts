@@ -140,7 +140,7 @@ export const generatePDFReport = async (shift: Shift): Promise<string> => {
   const startAddress = startLoc?.address || "Address not recorded";
   const endAddress = endLoc?.address || startAddress;
 
-  // Build photos HTML with placeholders showing timestamp info
+  // Build photos HTML with actual images
   let photosHtml = "";
   if (shift.photos.length > 0) {
     const photoItems = shift.photos.map((photo, index) => {
@@ -148,12 +148,23 @@ export const generatePDFReport = async (shift: Shift): Promise<string> => {
       const photoDate = formatDate(photo.timestamp);
       const photoAddress = photo.address || photo.location?.address || "Location not recorded";
       
+      // Check if photo has a valid URI (base64 or file URL)
+      const hasValidPhoto = photo.uri && (photo.uri.startsWith('data:') || photo.uri.startsWith('file:') || photo.uri.startsWith('http'));
+      
+      const photoContent = hasValidPhoto 
+        ? `<img src="${photo.uri}" alt="Photo ${index + 1}" class="photo-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+           <div class="photo-placeholder" style="display:none;">
+             <div class="photo-icon">📷</div>
+             <div class="photo-number">Photo ${index + 1}</div>
+           </div>`
+        : `<div class="photo-placeholder">
+             <div class="photo-icon">📷</div>
+             <div class="photo-number">Photo ${index + 1}</div>
+           </div>`;
+      
       return `
         <div class="photo-card">
-          <div class="photo-placeholder">
-            <div class="photo-icon">📷</div>
-            <div class="photo-number">Photo ${index + 1}</div>
-          </div>
+          ${photoContent}
           <div class="photo-info">
             <div class="photo-time">🕐 ${photoDate} at ${photoTime}</div>
             <div class="photo-address">📍 ${photoAddress}</div>
@@ -465,6 +476,12 @@ export const generatePDFReport = async (shift: Shift): Promise<string> => {
       border-radius: 12px;
       overflow: hidden;
       border: 1px solid #e2e8f0;
+    }
+    .photo-image {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      display: block;
     }
     .photo-placeholder {
       height: 140px;

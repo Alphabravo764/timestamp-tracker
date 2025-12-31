@@ -210,3 +210,10 @@
 - [x] Add batch reverse geocoding function
 - [x] Update PDF generator to geocode all location points before rendering
 - [x] Show street addresses consistently in Location Timeline
+
+
+## CRITICAL FIXES - Dec 31, 2025
+- [x] Fix photos not showing in PDF reports - now shows actual images with fallback
+- [x] Fix native watermark error - removed react-native-image-marker dependency for Expo Go
+- [x] Fix location error handling - graceful fallback when GPS unavailable
+- [x] Live viewer page works when shift is synced to server (requires active shift)
