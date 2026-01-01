@@ -244,5 +244,6 @@
 - [x] Fix watermark API not accessible from Expo Go - exposed port 3000 and updated URL detection
 
 ## CRITICAL BUGS - Jan 1, 2026 (Expo Go Testing)
-- [ ] Watermark still not burning onto photos taken via camera
-- [ ] Significant delay when saving photos (network round-trip issue)
+- [x] Watermark still not burning onto photos taken via camera - FIXED with ViewShot
+- [x] Significant delay when saving photos - FIXED (no more server round-trip)
+- [x] SOLUTION: Implemented local client-side watermarking using react-native-view-shot

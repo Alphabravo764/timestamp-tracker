@@ -38,6 +38,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { syncShiftStart, syncLocation, syncPhoto, syncNote, syncShiftEnd } from "@/lib/server-sync";
+import ViewShot from "react-native-view-shot";
 
 type AppState = "idle" | "startForm" | "active" | "camera" | "confirmEnd" | "gallery";
 
@@ -107,6 +108,7 @@ export default function HomeScreen() {
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
   const cameraRef = useRef<CameraView>(null);
+  const viewShotRef = useRef<ViewShot>(null);
 
   // Update time every second
   useEffect(() => {
@@ -571,7 +573,7 @@ export default function HomeScreen() {
   };
 
   const takePicture = async () => {
-    if (!cameraRef.current || !activeShift) {
+    if (!viewShotRef.current || !activeShift) {
       alert("Camera not ready");
       return;
     }
@@ -581,17 +583,7 @@ export default function HomeScreen() {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
       
-      const photo = await cameraRef.current.takePictureAsync({ 
-        quality: 0.7,
-        base64: true,
-        skipProcessing: true,
-      });
-      
-      if (!photo || !photo.uri) {
-        alert("Failed to capture photo. Please try again.");
-        return;
-      }
-
+      // Get current location for the photo
       let photoLocation = currentLocation;
       try {
         photoLocation = await Location.getCurrentPositionAsync({});
@@ -600,30 +592,20 @@ export default function HomeScreen() {
         console.log("Using cached location for photo");
       }
 
-      const watermarkTimestamp = formatWatermarkTimestamp(new Date());
+      // Capture the entire camera view including the timestamp overlay
+      // This burns the watermark directly into the photo!
+      const capturedUri = await viewShotRef.current.capture!();
       
-      // Use base64 directly if available (faster than reading file)
-      const photoInput = photo.base64 
-        ? `data:image/jpeg;base64,${photo.base64}` 
-        : photo.uri;
-      
-      console.log("[Watermark] Starting watermark process...");
-      console.log("[Watermark] Photo input type:", photo.base64 ? "base64" : "uri");
-      
-      const watermarkedUri = await addWatermarkToPhoto(photoInput, {
-        timestamp: watermarkTimestamp,
-        address: currentAddress || "Location unavailable",
-        latitude: photoLocation?.coords.latitude || 0,
-        longitude: photoLocation?.coords.longitude || 0,
-        staffName: activeShift.staffName,
-        siteName: activeShift.siteName,
-      });
-      
-      console.log("[Watermark] Watermark complete, result starts with:", watermarkedUri.substring(0, 50));
+      if (!capturedUri) {
+        alert("Failed to capture photo. Please try again.");
+        return;
+      }
+
+      console.log("[ViewShot] Captured photo with watermark:", capturedUri.substring(0, 50));
 
       const shiftPhoto: ShiftPhoto = {
         id: Date.now().toString(),
-        uri: watermarkedUri,
+        uri: capturedUri,
         timestamp: new Date().toISOString(),
         location: photoLocation ? {
           latitude: photoLocation.coords.latitude,
@@ -637,13 +619,13 @@ export default function HomeScreen() {
       const updated = await addPhotoToShift(shiftPhoto);
       if (updated) {
         setActiveShift(updated);
-        setLastPhoto(photo.uri);
+        setLastPhoto(capturedUri);
         // Sync photo to server
         try {
           await syncPhoto({
             shiftId: updated.id,
             pairCode: updated.pairCode,
-            photoUri: watermarkedUri,
+            photoUri: capturedUri,
             latitude: photoLocation?.coords.latitude,
             longitude: photoLocation?.coords.longitude,
             address: currentAddress,
@@ -938,59 +920,73 @@ export default function HomeScreen() {
 
     return (
       <View style={{ flex: 1, backgroundColor: "#000" }}>
-        <CameraView 
-          ref={cameraRef} 
-          style={StyleSheet.absoluteFill} 
-          facing={facing}
-          onCameraReady={() => console.log("Camera ready")}
+        {/* ViewShot wraps the camera + watermark overlay to capture them together */}
+        <ViewShot
+          ref={viewShotRef}
+          options={{ format: "jpg", quality: 0.9 }}
+          style={StyleSheet.absoluteFill}
         >
-          {/* Top bar with back button */}
-          <View style={styles.cameraTop}>
-            <TouchableOpacity
-              style={[styles.backBtn, { backgroundColor: "rgba(0,0,0,0.6)" }]}
-              onPress={() => setAppState("active")}
-            >
-              <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 16 }}>← Back</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Timestamp overlay */}
-          <View style={styles.cameraInfo}>
-            <View style={styles.infoBox}>
-              <Text style={styles.infoTime}>{formatTime()}</Text>
-              <Text style={styles.infoDate}>{formatDate()}</Text>
-              <Text style={styles.infoAddress}>{currentAddress}</Text>
-              {currentLocation && (
-                <Text style={styles.infoCoords}>
-                  {currentLocation.coords.latitude.toFixed(6)}, {currentLocation.coords.longitude.toFixed(6)}
-                </Text>
-              )}
+          <CameraView 
+            ref={cameraRef} 
+            style={StyleSheet.absoluteFill} 
+            facing={facing}
+            onCameraReady={() => console.log("Camera ready")}
+          >
+            {/* Timestamp watermark overlay - this gets burned into the photo! */}
+            <View style={styles.cameraInfo}>
+              <View style={styles.infoBox}>
+                <Text style={styles.infoTime}>{formatTime()}</Text>
+                <Text style={styles.infoDate}>{formatDate()}</Text>
+                <Text style={styles.infoAddress}>📍 {currentAddress}</Text>
+                {currentLocation && (
+                  <Text style={styles.infoCoords}>
+                    🌐 {currentLocation.coords.latitude.toFixed(6)}, {currentLocation.coords.longitude.toFixed(6)}
+                  </Text>
+                )}
+                {activeShift?.siteName && (
+                  <Text style={styles.infoSite}>🏢 {activeShift.siteName}</Text>
+                )}
+                {activeShift?.staffName && (
+                  <Text style={styles.infoStaff}>👤 {activeShift.staffName}</Text>
+                )}
+              </View>
             </View>
+          </CameraView>
+        </ViewShot>
+
+        {/* UI elements outside ViewShot - won't be captured in photo */}
+        {/* Top bar with back button */}
+        <View style={[styles.cameraTop, { position: "absolute", top: 0, left: 0, right: 0 }]}>
+          <TouchableOpacity
+            style={[styles.backBtn, { backgroundColor: "rgba(0,0,0,0.6)" }]}
+            onPress={() => setAppState("active")}
+          >
+            <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 16 }}>← Back</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Last photo preview */}
+        {lastPhoto && (
+          <View style={[styles.lastPhotoContainer, { position: "absolute" }]}>
+            <Image source={{ uri: lastPhoto }} style={styles.lastPhotoThumb} />
           </View>
+        )}
 
-          {/* Last photo preview */}
-          {lastPhoto && (
-            <View style={styles.lastPhotoContainer}>
-              <Image source={{ uri: lastPhoto }} style={styles.lastPhotoThumb} />
-            </View>
-          )}
+        {/* Camera controls */}
+        <View style={[styles.cameraControls, { position: "absolute", bottom: 0, left: 0, right: 0 }]}>
+          <TouchableOpacity
+            style={[styles.flipBtn, { backgroundColor: "rgba(255,255,255,0.3)" }]}
+            onPress={() => setFacing(f => f === "back" ? "front" : "back")}
+          >
+            <Text style={{ color: "#FFF", fontSize: 14 }}>🔄</Text>
+          </TouchableOpacity>
 
-          {/* Camera controls */}
-          <View style={styles.cameraControls}>
-            <TouchableOpacity
-              style={[styles.flipBtn, { backgroundColor: "rgba(255,255,255,0.3)" }]}
-              onPress={() => setFacing(f => f === "back" ? "front" : "back")}
-            >
-              <Text style={{ color: "#FFF", fontSize: 14 }}>🔄</Text>
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.captureBtn} onPress={takePicture}>
+            <View style={styles.captureBtnInner} />
+          </TouchableOpacity>
 
-            <TouchableOpacity style={styles.captureBtn} onPress={takePicture}>
-              <View style={styles.captureBtnInner} />
-            </TouchableOpacity>
-
-            <View style={{ width: 50 }} />
-          </View>
-        </CameraView>
+          <View style={{ width: 50 }} />
+        </View>
       </View>
     );
   }
@@ -1219,6 +1215,8 @@ const styles = StyleSheet.create({
   infoDate: { color: "#CCC", fontSize: 14, marginBottom: 8 },
   infoAddress: { color: "#FFF", fontSize: 14, fontWeight: "500", marginBottom: 4 },
   infoCoords: { color: "#AAA", fontSize: 11, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  infoSite: { color: "#CCC", fontSize: 12, marginTop: 4 },
+  infoStaff: { color: "#CCC", fontSize: 12 },
   lastPhotoContainer: { position: "absolute", bottom: 140, left: 20, zIndex: 10 },
   lastPhotoThumb: { width: 60, height: 60, borderRadius: 8, borderWidth: 2, borderColor: "#FFF" },
   cameraControls: { position: "absolute", bottom: 50, left: 0, right: 0, flexDirection: "row", justifyContent: "space-around", alignItems: "center", paddingHorizontal: 50, zIndex: 10 },
