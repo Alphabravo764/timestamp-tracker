@@ -313,5 +313,7 @@ Based on developer analysis:
 - [x] Fix Close/Share buttons - use safe-area insets + hitSlop
 - [x] Add "Generate PDF Now" button for interim reports during shift
 - [x] Build /watch page with code entry form
-- [ ] Build /live/:token dashboard with map, notes, photos
-- [ ] Ensure app + viewer use same API_BASE_URL
+- [x] Build /track page with code entry form for live viewing
+- [x] Viewer page uses tRPC API for cross-device viewing
+- [x] Watcher tab uses server API instead of local storage
+- [x] Camera close button improved with safe-area insets

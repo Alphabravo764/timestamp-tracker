@@ -1,12 +1,45 @@
 import { useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform, Image } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import type { Shift, LocationPoint } from "@/lib/shift-types";
-import { getActiveShift, getShiftHistory, formatDuration, getShiftDuration } from "@/lib/shift-storage";
+import { formatDuration, getShiftDuration } from "@/lib/shift-storage";
 import { generatePDFReport } from "@/lib/pdf-generator";
 import { getGoogleMapsApiKey } from "@/lib/google-maps";
+import { getApiBaseUrl } from "@/constants/oauth";
+
+// Convert API response to local Shift type
+function apiResponseToShift(data: any): Shift {
+  return {
+    id: data.shift.id,
+    siteName: data.shift.siteName,
+    staffName: data.shift.staffName || "Staff",
+    pairCode: data.shift.pairCode,
+    startTime: new Date(data.shift.startTime).toISOString(),
+    endTime: data.shift.endTime ? new Date(data.shift.endTime).toISOString() : null,
+    isActive: data.shift.status === "active",
+    locations: data.locations.map((loc: any) => ({
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      address: loc.address,
+      timestamp: new Date(loc.timestamp).toISOString(),
+      accuracy: loc.accuracy,
+    })),
+    photos: data.photos.map((photo: any) => ({
+      id: photo.id,
+      uri: photo.uri,
+      timestamp: new Date(photo.timestamp).toISOString(),
+      address: photo.address,
+      location: photo.latitude && photo.longitude ? {
+        latitude: photo.latitude,
+        longitude: photo.longitude,
+        timestamp: new Date(photo.timestamp).toISOString(),
+      } : null,
+    })),
+    notes: [],
+  };
+}
 
 export default function LiveViewerScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
@@ -16,50 +49,60 @@ export default function LiveViewerScreen() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
-  const findShift = useCallback(async () => {
+  const fetchShiftFromApi = useCallback(async () => {
+    if (!code) {
+      setError("No pair code provided");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const active = await getActiveShift();
-      if (active && active.pairCode === code?.toUpperCase()) {
-        setShift(active);
+      const apiUrl = getApiBaseUrl();
+      const normalizedCode = code.replace(/-/g, "").toUpperCase();
+      
+      const response = await fetch(`${apiUrl}/api/trpc/shifts.getByPairCode?input=${encodeURIComponent(JSON.stringify({ pairCode: normalizedCode }))}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch shift data");
+
+      const result = await response.json();
+      const data = result?.result?.data;
+      
+      if (!data || !data.shift) {
+        setError("Shift not found. Please check the pair code.");
+        setShift(null);
+      } else {
+        setShift(apiResponseToShift(data));
         setError(null);
         setLastUpdate(new Date());
-        return;
       }
-
-      const history = await getShiftHistory();
-      const found = history.find(s => s.pairCode === code?.toUpperCase());
-      if (found) {
-        setShift(found);
-        setError(null);
-        setLastUpdate(new Date());
-        return;
-      }
-
-      setError("Shift not found. Please check the pair code.");
-    } catch (e) {
-      setError("Failed to load shift data");
+    } catch (e: any) {
+      console.error("API fetch error:", e);
+      setError(`Failed to load shift data: ${e.message}`);
     } finally {
       setLoading(false);
     }
   }, [code]);
 
   useEffect(() => {
-    findShift();
-    const interval = setInterval(findShift, 10000);
+    fetchShiftFromApi();
+    const interval = setInterval(fetchShiftFromApi, 10000);
     return () => clearInterval(interval);
-  }, [findShift]);
+  }, [fetchShiftFromApi]);
 
   const handleDownloadReport = async () => {
     if (!shift) return;
-    const html = await generatePDFReport(shift);
-    const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-  };
-
-  const handleRefresh = () => {
-    setLoading(true);
-    findShift();
+    try {
+      const html = await generatePDFReport(shift);
+      if (Platform.OS === "web") {
+        const blob = new Blob([html], { type: "text/html" });
+        window.open(URL.createObjectURL(blob), "_blank");
+      }
+    } catch (e) {
+      alert("Failed to generate report");
+    }
   };
 
   if (loading) {
@@ -75,16 +118,9 @@ export default function LiveViewerScreen() {
     return (
       <ScreenContainer className="items-center justify-center p-6">
         <Text style={{ color: colors.error, fontSize: 24, marginBottom: 16 }}>⚠️</Text>
-        <Text style={{ color: colors.foreground, fontSize: 18, textAlign: "center" }}>
-          {error || "Shift not found"}
-        </Text>
-        <Text style={{ color: colors.muted, marginTop: 8, textAlign: "center" }}>
-          Pair Code: {code}
-        </Text>
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.primary, marginTop: 24 }]}
-          onPress={handleRefresh}
-        >
+        <Text style={{ color: colors.foreground, fontSize: 18, textAlign: "center" }}>{error || "Shift not found"}</Text>
+        <Text style={{ color: colors.muted, marginTop: 8 }}>Pair Code: {code}</Text>
+        <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary, marginTop: 24 }]} onPress={() => { setLoading(true); fetchShiftFromApi(); }}>
           <Text style={styles.buttonText}>Try Again</Text>
         </TouchableOpacity>
       </ScreenContainer>
@@ -97,7 +133,6 @@ export default function LiveViewerScreen() {
   return (
     <ScreenContainer>
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-        {/* Header */}
         <View style={[styles.header, { backgroundColor: isLive ? colors.success : colors.primary }]}>
           <View style={styles.statusBadge}>
             <Text style={styles.statusText}>{isLive ? "🔴 LIVE" : "✓ COMPLETED"}</Text>
@@ -107,7 +142,6 @@ export default function LiveViewerScreen() {
           <Text style={styles.pairCode}>Code: {shift.pairCode}</Text>
         </View>
 
-        {/* Stats */}
         <View style={[styles.statsRow, { borderColor: colors.border }]}>
           <View style={styles.stat}>
             <Text style={[styles.statValue, { color: colors.primary }]}>{duration}</Text>
@@ -123,7 +157,6 @@ export default function LiveViewerScreen() {
           </View>
         </View>
 
-        {/* Google Map with Trail */}
         {shift.locations.length > 0 && Platform.OS === "web" && (
           <View style={styles.mapSection}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>📍 Location Trail</Text>
@@ -131,98 +164,60 @@ export default function LiveViewerScreen() {
           </View>
         )}
 
-        {/* Location List */}
         {shift.locations.length > 0 && (
           <View style={[styles.section, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-              Trail Points ({shift.locations.length})
-            </Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Trail Points ({shift.locations.length})</Text>
             <View style={[styles.locationCard, { borderLeftColor: colors.success }]}>
               <Text style={[styles.locationLabel, { color: colors.success }]}>START</Text>
-              <Text style={[styles.locationCoords, { color: colors.foreground }]}>
-                {shift.locations[0].latitude.toFixed(6)}, {shift.locations[0].longitude.toFixed(6)}
-              </Text>
-              <Text style={[styles.locationTime, { color: colors.muted }]}>
-                {new Date(shift.locations[0].timestamp).toLocaleString()}
-              </Text>
-              {shift.locations[0].address && (
-                <Text style={[styles.locationAddress, { color: colors.muted }]}>
-                  📍 {shift.locations[0].address}
-                </Text>
-              )}
+              <Text style={[styles.locationCoords, { color: colors.foreground }]}>{shift.locations[0].latitude.toFixed(6)}, {shift.locations[0].longitude.toFixed(6)}</Text>
+              <Text style={[styles.locationTime, { color: colors.muted }]}>{new Date(shift.locations[0].timestamp).toLocaleString()}</Text>
+              {shift.locations[0].address && <Text style={[styles.locationAddress, { color: colors.muted }]}>📍 {shift.locations[0].address}</Text>}
             </View>
             {shift.locations.length > 1 && (
               <View style={[styles.locationCard, { borderLeftColor: colors.error }]}>
-                <Text style={[styles.locationLabel, { color: colors.error }]}>
-                  {isLive ? "CURRENT" : "END"}
-                </Text>
-                <Text style={[styles.locationCoords, { color: colors.foreground }]}>
-                  {shift.locations[shift.locations.length - 1].latitude.toFixed(6)}, {shift.locations[shift.locations.length - 1].longitude.toFixed(6)}
-                </Text>
-                <Text style={[styles.locationTime, { color: colors.muted }]}>
-                  {new Date(shift.locations[shift.locations.length - 1].timestamp).toLocaleString()}
-                </Text>
-                {shift.locations[shift.locations.length - 1].address && (
-                  <Text style={[styles.locationAddress, { color: colors.muted }]}>
-                    📍 {shift.locations[shift.locations.length - 1].address}
-                  </Text>
-                )}
+                <Text style={[styles.locationLabel, { color: colors.error }]}>{isLive ? "CURRENT" : "END"}</Text>
+                <Text style={[styles.locationCoords, { color: colors.foreground }]}>{shift.locations[shift.locations.length - 1].latitude.toFixed(6)}, {shift.locations[shift.locations.length - 1].longitude.toFixed(6)}</Text>
+                <Text style={[styles.locationTime, { color: colors.muted }]}>{new Date(shift.locations[shift.locations.length - 1].timestamp).toLocaleString()}</Text>
+                {shift.locations[shift.locations.length - 1].address && <Text style={[styles.locationAddress, { color: colors.muted }]}>📍 {shift.locations[shift.locations.length - 1].address}</Text>}
               </View>
             )}
           </View>
         )}
 
-        {/* Photos */}
         {shift.photos.length > 0 && (
           <View style={[styles.section, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-              📷 Photos ({shift.photos.length})
-            </Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>📷 Photos ({shift.photos.length})</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {shift.photos.map((photo, index) => (
                 <View key={photo.id} style={styles.photoItem}>
-                  <img src={photo.uri} alt={`Photo ${index + 1}`} style={{ width: 150, height: 150, objectFit: "cover", borderRadius: 8 }} />
-                  <Text style={[styles.photoTime, { color: colors.muted }]}>
-                    {new Date(photo.timestamp).toLocaleTimeString()}
-                  </Text>
-                  {photo.address && (
-                    <Text style={[styles.photoAddress, { color: colors.muted }]} numberOfLines={1}>
-                      {photo.address}
-                    </Text>
+                  {Platform.OS === "web" ? (
+                    <img src={photo.uri} alt={`Photo ${index + 1}`} style={{ width: 150, height: 150, objectFit: "cover", borderRadius: 8 }} />
+                  ) : (
+                    <Image source={{ uri: photo.uri }} style={{ width: 150, height: 150, borderRadius: 8 }} />
                   )}
+                  <Text style={[styles.photoTime, { color: colors.muted }]}>{new Date(photo.timestamp).toLocaleTimeString()}</Text>
+                  {photo.address && <Text style={[styles.photoAddress, { color: colors.muted }]} numberOfLines={1}>{photo.address}</Text>}
                 </View>
               ))}
             </ScrollView>
           </View>
         )}
 
-        {/* Actions */}
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: colors.primary }]}
-            onPress={handleDownloadReport}
-          >
+          <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} onPress={handleDownloadReport}>
             <Text style={styles.buttonText}>📄 Download PDF Report</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}
-            onPress={handleRefresh}
-          >
+          <TouchableOpacity style={[styles.button, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]} onPress={() => { setLoading(true); fetchShiftFromApi(); }}>
             <Text style={[styles.buttonText, { color: colors.foreground }]}>🔄 Refresh</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Last Update */}
-        <Text style={[styles.lastUpdate, { color: colors.muted }]}>
-          Last updated: {lastUpdate.toLocaleTimeString()}
-        </Text>
+        <Text style={[styles.lastUpdate, { color: colors.muted }]}>Last updated: {lastUpdate.toLocaleTimeString()}{isLive && " • Auto-refreshing every 10s"}</Text>
       </ScrollView>
     </ScreenContainer>
   );
 }
 
-// Google Maps Component (Web only)
 function GoogleMap({ locations, isLive }: { locations: LocationPoint[]; isLive: boolean }) {
   const mapId = "google-map-" + Math.random().toString(36).substr(2, 9);
   const apiKey = getGoogleMapsApiKey();
@@ -230,7 +225,6 @@ function GoogleMap({ locations, isLive }: { locations: LocationPoint[]; isLive: 
   useEffect(() => {
     if (Platform.OS !== "web" || locations.length === 0) return;
 
-    // Load Google Maps script
     const existingScript = document.getElementById("google-maps-script");
     if (!existingScript) {
       const script = document.createElement("script");
@@ -241,254 +235,83 @@ function GoogleMap({ locations, isLive }: { locations: LocationPoint[]; isLive: 
       document.head.appendChild(script);
     }
 
-    // Define callback
-    (window as any).initGoogleMap = () => {
-      initMap();
-    };
-
-    // If Google Maps already loaded
-    if ((window as any).google?.maps) {
-      initMap();
-    }
+    (window as any).initGoogleMap = () => initMap();
+    if ((window as any).google?.maps) initMap();
 
     function initMap() {
       const google = (window as any).google;
       if (!google?.maps) return;
-
       const mapContainer = document.getElementById(mapId);
       if (!mapContainer) return;
 
-      // Calculate center
       const lats = locations.map(l => l.latitude);
       const lngs = locations.map(l => l.longitude);
-      const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
-      const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
-
-      // Create map
       const map = new google.maps.Map(mapContainer, {
-        center: { lat: centerLat, lng: centerLng },
+        center: { lat: (Math.min(...lats) + Math.max(...lats)) / 2, lng: (Math.min(...lngs) + Math.max(...lngs)) / 2 },
         zoom: 15,
         mapTypeControl: false,
         streetViewControl: false,
       });
 
-      // Create trail polyline
-      const trailCoords = locations.map(l => ({ lat: l.latitude, lng: l.longitude }));
-      const polyline = new google.maps.Polyline({
-        path: trailCoords,
+      new google.maps.Polyline({
+        path: locations.map(l => ({ lat: l.latitude, lng: l.longitude })),
         geodesic: true,
         strokeColor: "#0a7ea4",
         strokeOpacity: 1.0,
         strokeWeight: 4,
-      });
-      polyline.setMap(map);
+      }).setMap(map);
 
-      // Add start marker (green)
       new google.maps.Marker({
         position: { lat: locations[0].latitude, lng: locations[0].longitude },
-        map: map,
-        title: "Start: " + new Date(locations[0].timestamp).toLocaleString(),
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 10,
-          fillColor: "#22c55e",
-          fillOpacity: 1,
-          strokeColor: "#ffffff",
-          strokeWeight: 3,
-        },
-        label: { text: "S", color: "#ffffff", fontWeight: "bold" },
+        map,
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: "#22c55e", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 3 },
+        label: { text: "S", color: "#fff", fontWeight: "bold" },
       });
 
-      // Add end/current marker (red)
       if (locations.length > 1) {
-        const endLoc = locations[locations.length - 1];
-        const marker = new google.maps.Marker({
-          position: { lat: endLoc.latitude, lng: endLoc.longitude },
-          map: map,
-          title: (isLive ? "Current: " : "End: ") + new Date(endLoc.timestamp).toLocaleString(),
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 10,
-            fillColor: isLive ? "#ef4444" : "#6366f1",
-            fillOpacity: 1,
-            strokeColor: "#ffffff",
-            strokeWeight: 3,
-          },
-          label: { text: isLive ? "●" : "E", color: "#ffffff", fontWeight: "bold" },
+        const end = locations[locations.length - 1];
+        new google.maps.Marker({
+          position: { lat: end.latitude, lng: end.longitude },
+          map,
+          icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: isLive ? "#ef4444" : "#6366f1", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 3 },
+          label: { text: isLive ? "●" : "E", color: "#fff", fontWeight: "bold" },
         });
-
-        // Animate current position marker if live
-        if (isLive) {
-          let scale = 10;
-          let growing = true;
-          setInterval(() => {
-            scale += growing ? 0.5 : -0.5;
-            if (scale >= 14) growing = false;
-            if (scale <= 10) growing = true;
-            marker.setIcon({
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: scale,
-              fillColor: "#ef4444",
-              fillOpacity: 1,
-              strokeColor: "#ffffff",
-              strokeWeight: 3,
-            });
-          }, 100);
-        }
       }
 
-      // Fit bounds
       const bounds = new google.maps.LatLngBounds();
       locations.forEach(loc => bounds.extend({ lat: loc.latitude, lng: loc.longitude }));
       map.fitBounds(bounds, 50);
     }
-
-    return () => {
-      const mapContainer = document.getElementById(mapId);
-      if (mapContainer) {
-        mapContainer.innerHTML = "";
-      }
-    };
   }, [locations, isLive, mapId, apiKey]);
 
-  if (Platform.OS !== "web") {
-    return null;
-  }
-
-  return (
-    <div
-      id={mapId}
-      style={{
-        width: "100%",
-        height: 350,
-        borderRadius: 12,
-        overflow: "hidden",
-        marginTop: 12,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-      }}
-    />
-  );
+  if (Platform.OS !== "web") return null;
+  return <div id={mapId} style={{ width: "100%", height: 350, borderRadius: 12, overflow: "hidden", marginTop: 12 }} />;
 }
 
 const styles = StyleSheet.create({
-  header: {
-    padding: 24,
-    alignItems: "center",
-  },
-  statusBadge: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 12,
-  },
-  statusText: {
-    color: "white",
-    fontWeight: "bold",
-    fontSize: 14,
-  },
-  siteName: {
-    color: "white",
-    fontSize: 28,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  staffName: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 16,
-    marginTop: 4,
-  },
-  pairCode: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 14,
-    fontFamily: "monospace",
-    marginTop: 8,
-  },
-  statsRow: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-  },
-  stat: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 16,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-  statLabel: {
-    fontSize: 12,
-    textTransform: "uppercase",
-    marginTop: 4,
-  },
-  mapSection: {
-    padding: 16,
-  },
-  section: {
-    margin: 16,
-    padding: 16,
-    borderRadius: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 12,
-  },
-  locationCard: {
-    borderLeftWidth: 4,
-    paddingLeft: 12,
-    marginBottom: 12,
-  },
-  locationLabel: {
-    fontSize: 11,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-  },
-  locationCoords: {
-    fontFamily: "monospace",
-    fontSize: 14,
-    marginTop: 4,
-  },
-  locationTime: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  locationAddress: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-  photoItem: {
-    marginRight: 12,
-    width: 150,
-  },
-  photoTime: {
-    fontSize: 12,
-    marginTop: 4,
-    textAlign: "center",
-  },
-  photoAddress: {
-    fontSize: 10,
-    textAlign: "center",
-  },
-  actions: {
-    padding: 16,
-    gap: 12,
-  },
-  button: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  buttonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  lastUpdate: {
-    textAlign: "center",
-    fontSize: 12,
-    paddingBottom: 24,
-  },
+  header: { padding: 24, alignItems: "center" },
+  statusBadge: { backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, marginBottom: 12 },
+  statusText: { color: "white", fontWeight: "bold", fontSize: 14 },
+  siteName: { color: "white", fontSize: 28, fontWeight: "bold", textAlign: "center" },
+  staffName: { color: "rgba(255,255,255,0.9)", fontSize: 16, marginTop: 4 },
+  pairCode: { color: "rgba(255,255,255,0.8)", fontSize: 14, marginTop: 8, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", letterSpacing: 2 },
+  statsRow: { flexDirection: "row", justifyContent: "space-around", paddingVertical: 20, borderBottomWidth: 1, marginHorizontal: 16 },
+  stat: { alignItems: "center" },
+  statValue: { fontSize: 24, fontWeight: "bold" },
+  statLabel: { fontSize: 12, marginTop: 4 },
+  mapSection: { padding: 16 },
+  section: { margin: 16, padding: 16, borderRadius: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 12 },
+  locationCard: { borderLeftWidth: 4, paddingLeft: 12, marginBottom: 12 },
+  locationLabel: { fontSize: 12, fontWeight: "bold", marginBottom: 4 },
+  locationCoords: { fontSize: 14, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  locationTime: { fontSize: 12, marginTop: 4 },
+  locationAddress: { fontSize: 12, marginTop: 4 },
+  photoItem: { marginRight: 12, width: 150 },
+  photoTime: { fontSize: 12, marginTop: 4, textAlign: "center" },
+  photoAddress: { fontSize: 10, textAlign: "center" },
+  actions: { padding: 16, gap: 12 },
+  button: { padding: 16, borderRadius: 12, alignItems: "center" },
+  buttonText: { color: "white", fontSize: 16, fontWeight: "600" },
+  lastUpdate: { textAlign: "center", fontSize: 12, marginBottom: 24 },
 });

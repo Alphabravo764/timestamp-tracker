@@ -998,14 +998,20 @@ export default function HomeScreen() {
           </View>
         </CameraView>
 
-        {/* Top bar with back button - positioned safely below status bar */}
-        <View style={{ position: "absolute", top: 60, left: 20, right: 20, zIndex: 10 }}>
+        {/* Top bar with close button - positioned safely using safe area insets */}
+        <View style={{ position: "absolute", top: Math.max(insets.top, 20) + 10, left: 16, right: 16, zIndex: 10, flexDirection: "row", justifyContent: "space-between" }}>
           <TouchableOpacity
-            style={[styles.backBtn, { backgroundColor: "rgba(0,0,0,0.6)" }]}
+            style={[styles.backBtn, { backgroundColor: "rgba(0,0,0,0.7)", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 }]}
             onPress={() => setAppState("active")}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 16 }}>← Back</Text>
+            <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 16 }}>✕ Close</Text>
           </TouchableOpacity>
+          {activeShift && activeShift.photos.length > 0 && (
+            <View style={{ backgroundColor: "rgba(0,0,0,0.7)", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 }}>
+              <Text style={{ color: "#FFF", fontSize: 14, fontWeight: "500" }}>📷 {activeShift.photos.length}</Text>
+            </View>
+          )}
         </View>
 
         {/* Last photo preview */}
