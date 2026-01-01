@@ -235,3 +235,6 @@
 - [x] Create Manus-only developer handover document (no Railway/GitHub)
 
 - [x] Create simple step-by-step guide for GitHub + Railway deployment
+
+- [x] Fix PDF report - images are corrupted/not showing (photos now stored as base64 data URIs)
+- [x] Fix timestamp watermark not being burned onto photos (server-side watermarking with Sharp)

@@ -1,4 +1,6 @@
 import { Platform } from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
+import { getApiBaseUrl } from "@/constants/oauth";
 
 export interface WatermarkOptions {
   timestamp: string;
@@ -9,34 +11,100 @@ export interface WatermarkOptions {
   siteName?: string;
 }
 
-// Check if we're in Expo Go (native packages won't work)
-const isExpoGo = (): boolean => {
-  // In Expo Go, native modules like react-native-image-marker won't be linked
-  // We detect this by checking if we're on native but the module fails to load
-  return true; // For now, always use the fallback approach that works everywhere
-};
-
-// Create watermark by drawing text on photo
+// Add watermark to photo - uses server API on native, canvas on web
 export const addWatermarkToPhoto = async (
   photoUri: string,
   options: WatermarkOptions
 ): Promise<string> => {
   try {
     if (Platform.OS === "web") {
-      // On web, use canvas to add watermark
+      // On web, use canvas to add watermark (works locally)
       return await addWatermarkCanvas(photoUri, options);
     }
     
-    // On native iOS/Android in Expo Go, we can't use react-native-image-marker
-    // Instead, we'll store the watermark info as metadata and apply it when sharing/exporting
-    // The photo will be shared with text description containing the watermark info
-    console.log("Native platform - storing watermark metadata");
-    
-    // Return original photo - watermark info will be added when sharing
-    return photoUri;
+    // On native iOS/Android, use server-side watermarking
+    return await addWatermarkServer(photoUri, options);
   } catch (error) {
     console.error("Watermark error:", error);
+    // Return original photo if watermarking fails
     return photoUri;
+  }
+};
+
+// Server-side watermarking for native platforms
+const addWatermarkServer = async (
+  photoUri: string,
+  options: WatermarkOptions
+): Promise<string> => {
+  try {
+    // Read the photo as base64
+    let base64Data: string;
+    
+    if (photoUri.startsWith("data:")) {
+      // Already base64
+      base64Data = photoUri.split(",")[1] || photoUri;
+    } else {
+      // Read file as base64
+      const fileInfo = await FileSystem.getInfoAsync(photoUri);
+      if (!fileInfo.exists) {
+        console.error("Photo file does not exist:", photoUri);
+        return photoUri;
+      }
+      
+      base64Data = await FileSystem.readAsStringAsync(photoUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+    }
+    
+    // Call server watermark API
+    const apiBaseUrl = getApiBaseUrl();
+    const response = await fetch(`${apiBaseUrl}/api/watermark`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        imageBase64: base64Data,
+        timestamp: options.timestamp,
+        address: options.address,
+        latitude: options.latitude,
+        longitude: options.longitude,
+        staffName: options.staffName,
+        siteName: options.siteName,
+      }),
+    });
+    
+    if (!response.ok) {
+      console.error("Watermark API error:", response.status);
+      // Return original as data URI if server fails
+      return `data:image/jpeg;base64,${base64Data}`;
+    }
+    
+    const result = await response.json();
+    
+    if (result.success && result.watermarkedBase64) {
+      // Return watermarked image as data URI
+      return `data:image/jpeg;base64,${result.watermarkedBase64}`;
+    }
+    
+    console.error("Watermark API returned error:", result.error);
+    // Return original as data URI
+    return `data:image/jpeg;base64,${base64Data}`;
+  } catch (error) {
+    console.error("Server watermark error:", error);
+    
+    // Try to return original as data URI
+    try {
+      if (photoUri.startsWith("data:")) {
+        return photoUri;
+      }
+      const base64Data = await FileSystem.readAsStringAsync(photoUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      return `data:image/jpeg;base64,${base64Data}`;
+    } catch {
+      return photoUri;
+    }
   }
 };
 

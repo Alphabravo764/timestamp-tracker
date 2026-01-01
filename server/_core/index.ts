@@ -148,6 +148,34 @@ async function startServer() {
     }
   });
 
+  // Watermark API endpoint - adds timestamp watermark to photos
+  const watermarkApi = await import("../watermark-api.js");
+  
+  app.post("/api/watermark", async (req, res) => {
+    try {
+      const { imageBase64, timestamp, address, latitude, longitude, staffName, siteName } = req.body;
+      
+      if (!imageBase64) {
+        return res.status(400).json({ success: false, error: "imageBase64 required" });
+      }
+      
+      const result = await watermarkApi.addWatermarkServer({
+        imageBase64,
+        timestamp: timestamp || new Date().toLocaleString(),
+        address: address || "Location unavailable",
+        latitude: latitude || 0,
+        longitude: longitude || 0,
+        staffName,
+        siteName,
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Watermark API error:", error);
+      res.status(500).json({ success: false, error: "Failed to add watermark" });
+    }
+  });
+
   app.use(
     "/api/trpc",
     createExpressMiddleware({
