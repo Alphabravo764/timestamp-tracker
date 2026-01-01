@@ -601,7 +601,16 @@ export default function HomeScreen() {
       }
 
       const watermarkTimestamp = formatWatermarkTimestamp(new Date());
-      const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
+      
+      // Use base64 directly if available (faster than reading file)
+      const photoInput = photo.base64 
+        ? `data:image/jpeg;base64,${photo.base64}` 
+        : photo.uri;
+      
+      console.log("[Watermark] Starting watermark process...");
+      console.log("[Watermark] Photo input type:", photo.base64 ? "base64" : "uri");
+      
+      const watermarkedUri = await addWatermarkToPhoto(photoInput, {
         timestamp: watermarkTimestamp,
         address: currentAddress || "Location unavailable",
         latitude: photoLocation?.coords.latitude || 0,
@@ -609,6 +618,8 @@ export default function HomeScreen() {
         staffName: activeShift.staffName,
         siteName: activeShift.siteName,
       });
+      
+      console.log("[Watermark] Watermark complete, result starts with:", watermarkedUri.substring(0, 50));
 
       const shiftPhoto: ShiftPhoto = {
         id: Date.now().toString(),

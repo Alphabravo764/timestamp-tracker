@@ -242,3 +242,7 @@
 ## BUG FIX - Jan 1, 2026
 - [x] Fix photo sharing error - expo-sharing requires file:// URLs, not data: URLs (base64)
 - [x] Fix watermark API not accessible from Expo Go - exposed port 3000 and updated URL detection
+
+## CRITICAL BUGS - Jan 1, 2026 (Expo Go Testing)
+- [ ] Watermark still not burning onto photos taken via camera
+- [ ] Significant delay when saving photos (network round-trip issue)

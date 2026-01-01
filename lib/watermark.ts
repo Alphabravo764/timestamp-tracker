@@ -37,17 +37,21 @@ const addWatermarkServer = async (
   options: WatermarkOptions
 ): Promise<string> => {
   try {
+    console.log("[WatermarkServer] Starting server watermark...");
+    
     // Read the photo as base64
     let base64Data: string;
     
     if (photoUri.startsWith("data:")) {
       // Already base64
+      console.log("[WatermarkServer] Photo is already base64");
       base64Data = photoUri.split(",")[1] || photoUri;
     } else {
       // Read file as base64
+      console.log("[WatermarkServer] Reading file as base64:", photoUri.substring(0, 50));
       const fileInfo = await FileSystem.getInfoAsync(photoUri);
       if (!fileInfo.exists) {
-        console.error("Photo file does not exist:", photoUri);
+        console.error("[WatermarkServer] Photo file does not exist:", photoUri);
         return photoUri;
       }
       
@@ -56,8 +60,13 @@ const addWatermarkServer = async (
       });
     }
     
+    console.log("[WatermarkServer] Base64 data length:", base64Data.length);
+    
     // Call server watermark API
     const apiBaseUrl = getApiBaseUrl();
+    console.log("[WatermarkServer] API Base URL:", apiBaseUrl);
+    console.log("[WatermarkServer] Calling API...");
+    
     const response = await fetch(`${apiBaseUrl}/api/watermark`, {
       method: "POST",
       headers: {
@@ -74,20 +83,24 @@ const addWatermarkServer = async (
       }),
     });
     
+    console.log("[WatermarkServer] API response status:", response.status);
+    
     if (!response.ok) {
-      console.error("Watermark API error:", response.status);
+      console.error("[WatermarkServer] API error:", response.status);
       // Return original as data URI if server fails
       return `data:image/jpeg;base64,${base64Data}`;
     }
     
     const result = await response.json();
+    console.log("[WatermarkServer] API result success:", result.success);
     
     if (result.success && result.watermarkedBase64) {
+      console.log("[WatermarkServer] Got watermarked image, length:", result.watermarkedBase64.length);
       // Return watermarked image as data URI
       return `data:image/jpeg;base64,${result.watermarkedBase64}`;
     }
     
-    console.error("Watermark API returned error:", result.error);
+    console.error("[WatermarkServer] API returned error:", result.error);
     // Return original as data URI
     return `data:image/jpeg;base64,${base64Data}`;
   } catch (error) {
