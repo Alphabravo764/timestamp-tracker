@@ -1,7 +1,6 @@
 import React, { useRef, useImperativeHandle, forwardRef, useState, useCallback } from "react";
 import { View, Text, StyleSheet, Dimensions, Platform, Image as RNImage } from "react-native";
 import { captureRef } from "react-native-view-shot";
-import * as FileSystem from "expo-file-system/legacy";
 
 export interface WatermarkData {
   timestamp: string;
@@ -17,17 +16,23 @@ export interface PhotoWatermarkRef {
   addWatermark: (photoUri: string, data: WatermarkData) => Promise<string>;
 }
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-// Use screen dimensions for capture
+// Use screen width for capture, 4:3 aspect ratio
 const CAPTURE_WIDTH = SCREEN_WIDTH;
-const CAPTURE_HEIGHT = SCREEN_WIDTH * 1.33; // 4:3 aspect ratio
+const CAPTURE_HEIGHT = SCREEN_WIDTH * 1.33;
 
 /**
- * Component that composites watermark text onto a photo.
- * Renders the photo + overlay, then captures as a single image.
+ * PhotoWatermark - Composites timestamp footer onto photos
  * 
- * This is a fallback for when Skia is not available (Expo Go).
+ * This is the CORRECT approach used by professional timestamp camera apps:
+ * 1. Render photo as <Image />
+ * 2. Overlay footer strip with timestamp info
+ * 3. Capture composite using captureRef
+ * 4. Return watermarked image URI
+ * 
+ * IMPORTANT: Component uses opacity:0 (NOT top:-9999) so it's
+ * rendered and measured by GPU but invisible to user.
  */
 export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
   const containerRef = useRef<View>(null);
@@ -36,20 +41,27 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const resolveRef = useRef<((uri: string) => void) | null>(null);
 
+  const cleanup = useCallback(() => {
+    setPhotoUri(null);
+    setWatermarkData(null);
+    setIsProcessing(false);
+    resolveRef.current = null;
+  }, []);
+
   const handleImageLoad = useCallback(async () => {
     if (!containerRef.current || !resolveRef.current || !photoUri) {
       return;
     }
 
     try {
-      // Wait for render to complete
-      await new Promise(r => setTimeout(r, 100));
+      // Wait for render to complete (important for GPU to paint)
+      await new Promise(r => setTimeout(r, 150));
       
       console.log("[PhotoWatermark] Capturing composite...");
       
       const capturedUri = await captureRef(containerRef.current, {
         format: "jpg",
-        quality: 0.85,
+        quality: 0.9,
         result: "tmpfile",
       });
       
@@ -60,24 +72,18 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
       }
     } catch (error) {
       console.error("[PhotoWatermark] Capture error:", error);
+      // Return original on error
       if (resolveRef.current && photoUri) {
         resolveRef.current(photoUri);
       }
     } finally {
       cleanup();
     }
-  }, [photoUri]);
-
-  const cleanup = () => {
-    setPhotoUri(null);
-    setWatermarkData(null);
-    setIsProcessing(false);
-    resolveRef.current = null;
-  };
+  }, [photoUri, cleanup]);
 
   useImperativeHandle(ref, () => ({
     addWatermark: async (uri: string, data: WatermarkData): Promise<string> => {
-      console.log("[PhotoWatermark] Starting watermark...");
+      console.log("[PhotoWatermark] Starting watermark for:", uri.substring(0, 50));
       
       return new Promise((resolve) => {
         resolveRef.current = resolve;
@@ -85,7 +91,7 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
         setWatermarkData(data);
         setPhotoUri(uri);
         
-        // Timeout fallback
+        // Timeout fallback - return original if capture takes too long
         setTimeout(() => {
           if (resolveRef.current) {
             console.log("[PhotoWatermark] Timeout - returning original");
@@ -111,7 +117,7 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
         style={styles.captureContainer}
         collapsable={false}
       >
-        {/* Use React Native's Image for better compatibility */}
+        {/* Photo */}
         <RNImage
           source={{ uri: photoUri }}
           style={styles.image}
@@ -126,8 +132,8 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
           }}
         />
         
-        {/* Watermark strip at bottom */}
-        <View style={styles.watermarkStrip}>
+        {/* Footer watermark strip */}
+        <View style={styles.watermarkFooter}>
           <View style={styles.topRow}>
             <View style={styles.leftCol}>
               <Text style={styles.timeText}>{watermarkData.timestamp}</Text>
@@ -142,7 +148,7 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
               )}
             </View>
           </View>
-          <Text style={styles.addressText} numberOfLines={1}>
+          <Text style={styles.addressText} numberOfLines={2}>
             📍 {watermarkData.address}
           </Text>
           <Text style={styles.coordsText}>🌐 {coords}</Text>
@@ -153,15 +159,16 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
 });
 
 const styles = StyleSheet.create({
+  // CORRECT: Use opacity:0 so component is rendered/measured but invisible
+  // DO NOT use top:-9999 as that prevents GPU painting
   hiddenContainer: {
     position: "absolute",
-    // Position below the visible screen area
-    top: SCREEN_HEIGHT + 100,
     left: 0,
+    right: 0,
+    bottom: -20,
+    opacity: 0,
     width: CAPTURE_WIDTH,
     height: CAPTURE_HEIGHT,
-    opacity: 1, // Must be visible for capture to work
-    zIndex: -1000,
   },
   captureContainer: {
     width: CAPTURE_WIDTH,
@@ -172,20 +179,20 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  watermarkStrip: {
+  watermarkFooter: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: "rgba(0, 0, 0, 0.75)",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
   topRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 6,
+    marginBottom: 8,
   },
   leftCol: {
     flex: 1,
@@ -195,29 +202,30 @@ const styles = StyleSheet.create({
   },
   timeText: {
     color: "#FFFFFF",
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "bold",
     letterSpacing: 0.5,
   },
   dateText: {
     color: "#E0E0E0",
-    fontSize: 13,
+    fontSize: 14,
     marginTop: 2,
   },
   metaText: {
     color: "#CCCCCC",
-    fontSize: 12,
-    marginBottom: 2,
+    fontSize: 13,
+    marginBottom: 3,
   },
   addressText: {
     color: "#FFFFFF",
-    fontSize: 13,
+    fontSize: 14,
     marginTop: 4,
+    lineHeight: 20,
   },
   coordsText: {
     color: "#AAAAAA",
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    marginTop: 4,
+    marginTop: 6,
   },
 });

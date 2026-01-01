@@ -274,3 +274,12 @@ Based on expert developer analysis:
 - [x] Implement proper Skia watermarking for APK builds with lazy loading
 - [x] Update takePicture flow: try Skia first, then PhotoWatermark fallback
 - [x] Improved PhotoWatermark component positioning (below screen, not negative top)
+
+
+## FINAL DEVELOPER FIX - Jan 1, 2026
+Based on authoritative developer guidance:
+- [x] Remove Skia entirely (adds complexity, not needed)
+- [x] Fix PhotoWatermark positioning (use opacity:0, NOT top:-9999)
+- [x] Use ONE method only: PhotoWatermark with captureRef
+- [x] Simplify takePicture: photo → composite → capture → save
+- [x] Remove all competing watermark strategies

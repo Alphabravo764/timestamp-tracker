@@ -38,7 +38,6 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { syncShiftStart, syncLocation, syncPhoto, syncNote, syncShiftEnd } from "@/lib/server-sync";
 import { PhotoWatermark, PhotoWatermarkRef } from "@/components/photo-watermark";
-import { processWatermark, isSkiaAvailable } from "@/lib/watermark-skia";
 
 type AppState = "idle" | "startForm" | "active" | "camera" | "confirmEnd" | "gallery";
 
@@ -607,25 +606,14 @@ export default function HomeScreen() {
         siteName: activeShift.siteName,
       };
       
-      // Try Skia watermarking first (works in APK builds)
-      if (Platform.OS !== "web" && isSkiaAvailable()) {
+      // Add watermark using PhotoWatermark component (ONE method only)
+      if (watermarkRef.current) {
         try {
-          console.log("[Watermark] Using Skia...");
-          finalUri = await processWatermark(photo.uri, watermarkData);
-          console.log("[Watermark] Skia done:", finalUri?.substring(0, 50));
-        } catch (skiaError) {
-          console.log("[Watermark] Skia error:", skiaError);
-        }
-      }
-      
-      // Fallback to PhotoWatermark component if Skia didn't work
-      if (finalUri === photo.uri && watermarkRef.current) {
-        try {
-          console.log("[Watermark] Using PhotoWatermark fallback...");
+          console.log("[Watermark] Adding watermark...");
           finalUri = await watermarkRef.current.addWatermark(photo.uri, watermarkData);
-          console.log("[Watermark] Fallback done:", finalUri?.substring(0, 50));
+          console.log("[Watermark] Done:", finalUri?.substring(0, 50));
         } catch (wmError) {
-          console.log("[Watermark] Fallback error, using original:", wmError);
+          console.log("[Watermark] Error, using original:", wmError);
         }
       }
       
