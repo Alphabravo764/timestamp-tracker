@@ -266,3 +266,11 @@
 - [x] Using PhotoWatermark component with captureRef approach
 - [x] Photo + text overlay rendered together, then captured as single image
 - [x] Works on both Android APK builds and Expo Go
+
+
+## DEVELOPER FEEDBACK FIX - Jan 1, 2026
+Based on expert developer analysis:
+- [x] Fix watermark.ts - removed hardcoded isExpoGo() that disabled native watermarking
+- [x] Implement proper Skia watermarking for APK builds with lazy loading
+- [x] Update takePicture flow: try Skia first, then PhotoWatermark fallback
+- [x] Improved PhotoWatermark component positioning (below screen, not negative top)
