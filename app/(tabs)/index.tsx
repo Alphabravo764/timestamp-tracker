@@ -28,7 +28,6 @@ import {
   formatDuration,
   getShiftDuration,
 } from "@/lib/shift-storage";
-import { addWatermarkToPhoto, formatWatermarkTimestamp } from "@/lib/watermark";
 import type { Shift, LocationPoint, ShiftPhoto } from "@/lib/shift-types";
 import { addNoteToShift, getShiftNotes } from "@/lib/shift-notes";
 import { batchExportPhotos } from "@/lib/batch-export";
@@ -38,9 +37,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { syncShiftStart, syncLocation, syncPhoto, syncNote, syncShiftEnd } from "@/lib/server-sync";
-import ViewShot from "react-native-view-shot";
 import { PhotoWatermark, PhotoWatermarkRef } from "@/components/photo-watermark";
-import { processWatermark, isSkiaAvailable } from "@/lib/watermark-skia";
 
 type AppState = "idle" | "startForm" | "active" | "camera" | "confirmEnd" | "gallery";
 
@@ -110,7 +107,6 @@ export default function HomeScreen() {
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
   const cameraRef = useRef<CameraView>(null);
-  const viewShotRef = useRef<ViewShot>(null);
   const watermarkRef = useRef<PhotoWatermarkRef>(null);
 
   // Update time every second
@@ -525,38 +521,28 @@ export default function HomeScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       
-      // Generate watermarked version for sharing
-      const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
-        timestamp: formatWatermarkTimestamp(new Date(photo.timestamp)),
-        address: photo.address || "Location unavailable",
-        latitude: photo.location?.latitude || 0,
-        longitude: photo.location?.longitude || 0,
-        staffName: activeShift?.staffName,
-        siteName: activeShift?.siteName,
-      });
+      // Photos are already watermarked when captured
+      const photoUri = photo.uri;
       
       if (Platform.OS === "web") {
-        // On web, download watermarked image
         const link = document.createElement("a");
-        link.href = watermarkedUri;
+        link.href = photoUri;
         link.download = `timestamp_photo_${Date.now()}.jpg`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        alert("Watermarked photo downloaded!");
+        alert("Photo downloaded!");
       } else {
-        // On mobile, share the watermarked photo
         const isAvailable = await Sharing.isAvailableAsync();
         if (!isAvailable) {
           alert("Sharing is not available on this device");
           return;
         }
         
-        // expo-sharing requires file:// URLs, not data: URLs
-        // Save base64 to temp file first
-        let fileUri = watermarkedUri;
-        if (watermarkedUri.startsWith("data:")) {
-          const base64Data = watermarkedUri.split(",")[1];
+        // expo-sharing requires file:// URLs
+        let fileUri = photoUri;
+        if (photoUri.startsWith("data:")) {
+          const base64Data = photoUri.split(",")[1];
           const tempPath = `${FileSystem.cacheDirectory}timestamp_photo_${Date.now()}.jpg`;
           await FileSystem.writeAsStringAsync(tempPath, base64Data, {
             encoding: FileSystem.EncodingType.Base64,
@@ -620,25 +606,14 @@ export default function HomeScreen() {
         siteName: activeShift.siteName,
       };
       
-      // Try Skia first (works in EAS dev client builds)
-      if (isSkiaAvailable()) {
+      // Add watermark using PhotoWatermark component
+      if (watermarkRef.current) {
         try {
-          console.log("[Watermark] Using Skia...");
-          finalUri = await processWatermark(photo.uri, watermarkData);
-          console.log("[Watermark] Skia done:", finalUri.substring(0, 50));
-        } catch (skiaError) {
-          console.log("[Watermark] Skia error, trying fallback:", skiaError);
-        }
-      }
-      
-      // Fallback to PhotoWatermark component (for Expo Go)
-      if (finalUri === photo.uri && watermarkRef.current) {
-        try {
-          console.log("[Watermark] Using PhotoWatermark fallback...");
+          console.log("[Watermark] Adding watermark...");
           finalUri = await watermarkRef.current.addWatermark(photo.uri, watermarkData);
-          console.log("[Watermark] Fallback done:", finalUri.substring(0, 50));
+          console.log("[Watermark] Done:", finalUri?.substring(0, 50));
         } catch (wmError) {
-          console.log("[Watermark] Fallback error, using original:", wmError);
+          console.log("[Watermark] Error, using original:", wmError);
         }
       }
       

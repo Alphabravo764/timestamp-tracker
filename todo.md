@@ -259,3 +259,10 @@
 - [x] Create WatermarkService.ts using Skia off-screen rendering
 - [x] Integrate into camera flow (with fallback to PhotoWatermark for Expo Go)
 - [x] Note: Skia works in EAS dev client builds; PhotoWatermark fallback for Expo Go
+
+
+## SIMPLIFIED WATERMARK - Jan 1, 2026
+- [x] Removed Skia dependency (too complex, not reliable in all builds)
+- [x] Using PhotoWatermark component with captureRef approach
+- [x] Photo + text overlay rendered together, then captured as single image
+- [x] Works on both Android APK builds and Expo Go

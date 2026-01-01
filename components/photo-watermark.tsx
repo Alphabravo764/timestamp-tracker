@@ -1,6 +1,7 @@
-import React, { useRef, useImperativeHandle, forwardRef, useState, useEffect } from "react";
-import { View, Text, Image, StyleSheet, Dimensions, Platform } from "react-native";
-import ViewShot from "react-native-view-shot";
+import React, { useRef, useImperativeHandle, forwardRef, useState, useCallback } from "react";
+import { View, Text, StyleSheet, Dimensions, Platform } from "react-native";
+import { Image } from "expo-image";
+import { captureRef } from "react-native-view-shot";
 
 export interface WatermarkData {
   timestamp: string;
@@ -18,176 +19,196 @@ export interface PhotoWatermarkRef {
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
+// Use a fixed size that works well for photos
+const CAPTURE_WIDTH = Math.min(SCREEN_WIDTH, 400);
+const CAPTURE_HEIGHT = CAPTURE_WIDTH * 1.33; // 4:3 aspect ratio
+
 /**
- * Hidden component that composites watermark text onto a photo.
- * 
- * Usage:
- * 1. Render this component (it's invisible)
- * 2. Call ref.addWatermark(photoUri, watermarkData) 
- * 3. Returns a new URI with the watermark burned in
+ * Component that composites watermark text onto a photo.
+ * Uses captureRef to capture the rendered Image + Text overlay.
  */
 export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
-  const viewShotRef = useRef<ViewShot>(null);
+  const containerRef = useRef<View>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [watermarkData, setWatermarkData] = useState<WatermarkData | null>(null);
-  const [resolveCapture, setResolveCapture] = useState<((uri: string) => void) | null>(null);
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const resolveRef = useRef<((uri: string) => void) | null>(null);
+  const rejectRef = useRef<((error: Error) => void) | null>(null);
+
+  const handleImageLoad = useCallback(async () => {
+    if (!containerRef.current || !resolveRef.current || !photoUri) {
+      return;
+    }
+
+    try {
+      // Wait a frame for the render to complete
+      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 50)));
+      
+      console.log("[PhotoWatermark] Capturing...");
+      const capturedUri = await captureRef(containerRef.current, {
+        format: "jpg",
+        quality: 0.85,
+        result: "tmpfile",
+      });
+      
+      console.log("[PhotoWatermark] Captured:", capturedUri?.substring(0, 60));
+      resolveRef.current(capturedUri);
+    } catch (error) {
+      console.error("[PhotoWatermark] Capture failed:", error);
+      // Return original photo on error
+      resolveRef.current(photoUri);
+    } finally {
+      // Clean up
+      setPhotoUri(null);
+      setWatermarkData(null);
+      setIsProcessing(false);
+      resolveRef.current = null;
+      rejectRef.current = null;
+    }
+  }, [photoUri]);
 
   useImperativeHandle(ref, () => ({
     addWatermark: async (uri: string, data: WatermarkData): Promise<string> => {
+      console.log("[PhotoWatermark] Starting watermark for:", uri.substring(0, 50));
+      
       return new Promise((resolve, reject) => {
-        setPhotoUri(uri);
+        resolveRef.current = resolve;
+        rejectRef.current = reject;
+        setIsProcessing(true);
         setWatermarkData(data);
-        setImageLoaded(false);
-        setResolveCapture(() => resolve);
+        setPhotoUri(uri);
         
-        // Timeout fallback
+        // Timeout fallback - if capture doesn't happen in 3 seconds, return original
         setTimeout(() => {
-          if (!imageLoaded) {
+          if (resolveRef.current) {
             console.log("[PhotoWatermark] Timeout - returning original");
-            resolve(uri);
+            resolveRef.current(uri);
+            setPhotoUri(null);
+            setWatermarkData(null);
+            setIsProcessing(false);
+            resolveRef.current = null;
           }
-        }, 5000);
+        }, 3000);
       });
     },
   }));
 
-  // Capture when image is loaded
-  useEffect(() => {
-    if (imageLoaded && viewShotRef.current && resolveCapture) {
-      const capture = async () => {
-        try {
-          // Small delay to ensure render is complete
-          await new Promise(r => setTimeout(r, 100));
-          const capturedUri = await (viewShotRef.current!.capture as () => Promise<string>)();
-          console.log("[PhotoWatermark] Captured:", capturedUri?.substring(0, 50));
-          resolveCapture(capturedUri);
-        } catch (e) {
-          console.error("[PhotoWatermark] Capture error:", e);
-          resolveCapture(photoUri!);
-        } finally {
-          setPhotoUri(null);
-          setWatermarkData(null);
-          setResolveCapture(null);
-          setImageLoaded(false);
-        }
-      };
-      capture();
-    }
-  }, [imageLoaded, resolveCapture]);
-
-  if (!photoUri || !watermarkData) {
+  // Don't render anything if not processing
+  if (!photoUri || !watermarkData || !isProcessing) {
     return null;
   }
 
   const coords = `${watermarkData.latitude.toFixed(6)}, ${watermarkData.longitude.toFixed(6)}`;
 
   return (
-    <View style={styles.hiddenContainer}>
-      <ViewShot
-        ref={viewShotRef}
-        options={{ format: "jpg", quality: 0.9 }}
+    <View style={styles.offscreenContainer} pointerEvents="none">
+      <View 
+        ref={containerRef} 
         style={styles.captureContainer}
+        collapsable={false}
       >
         <Image
           source={{ uri: photoUri }}
           style={styles.image}
-          resizeMode="cover"
-          onLoad={() => {
-            console.log("[PhotoWatermark] Image loaded");
-            setImageLoaded(true);
-          }}
+          contentFit="cover"
+          onLoad={handleImageLoad}
           onError={(e) => {
-            console.error("[PhotoWatermark] Image error:", e.nativeEvent.error);
-            if (resolveCapture) resolveCapture(photoUri);
+            console.error("[PhotoWatermark] Image load error");
+            if (resolveRef.current) {
+              resolveRef.current(photoUri);
+            }
           }}
         />
-        <View style={styles.overlay}>
-          <View style={styles.leftContent}>
-            <Text style={styles.timestamp}>{watermarkData.timestamp}</Text>
-            <Text style={styles.date}>{watermarkData.date}</Text>
-            <Text style={styles.address}>📍 {watermarkData.address}</Text>
-            <Text style={styles.coords}>🌐 {coords}</Text>
+        {/* Watermark overlay at bottom */}
+        <View style={styles.watermarkStrip}>
+          <View style={styles.watermarkRow}>
+            <View style={styles.leftColumn}>
+              <Text style={styles.timeText}>{watermarkData.timestamp}</Text>
+              <Text style={styles.dateText}>{watermarkData.date}</Text>
+            </View>
+            <View style={styles.rightColumn}>
+              {watermarkData.siteName && (
+                <Text style={styles.siteText}>🏢 {watermarkData.siteName}</Text>
+              )}
+              {watermarkData.staffName && (
+                <Text style={styles.staffText}>👤 {watermarkData.staffName}</Text>
+              )}
+            </View>
           </View>
-          <View style={styles.rightContent}>
-            {watermarkData.siteName && (
-              <Text style={styles.siteInfo}>🏢 {watermarkData.siteName}</Text>
-            )}
-            {watermarkData.staffName && (
-              <Text style={styles.staffInfo}>👤 {watermarkData.staffName}</Text>
-            )}
-          </View>
+          <Text style={styles.addressText} numberOfLines={1}>📍 {watermarkData.address}</Text>
+          <Text style={styles.coordsText}>🌐 {coords}</Text>
         </View>
-      </ViewShot>
+      </View>
     </View>
   );
 });
 
 const styles = StyleSheet.create({
-  hiddenContainer: {
+  offscreenContainer: {
     position: "absolute",
-    left: -9999,
-    top: -9999,
-    opacity: 0,
+    // Position off-screen but still rendered
+    top: -CAPTURE_HEIGHT - 100,
+    left: 0,
+    width: CAPTURE_WIDTH,
+    height: CAPTURE_HEIGHT,
+    overflow: "hidden",
   },
   captureContainer: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_WIDTH * 1.33, // 4:3 aspect ratio
+    width: CAPTURE_WIDTH,
+    height: CAPTURE_HEIGHT,
     backgroundColor: "#000",
   },
   image: {
     width: "100%",
     height: "100%",
   },
-  overlay: {
+  watermarkStrip: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  watermarkRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.65)",
-  },
-  leftContent: {
-    flex: 1,
-  },
-  rightContent: {
-    alignItems: "flex-end",
-  },
-  timestamp: {
-    color: "#FFFFFF",
-    fontSize: 22,
-    fontWeight: "bold",
-    textShadowColor: "rgba(0,0,0,0.8)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
-  },
-  date: {
-    color: "#DDDDDD",
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  address: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "500",
-    marginBottom: 2,
-  },
-  coords: {
-    color: "#AAAAAA",
-    fontSize: 11,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
-  siteInfo: {
-    color: "#CCCCCC",
-    fontSize: 12,
+    alignItems: "flex-start",
     marginBottom: 4,
   },
-  staffInfo: {
-    color: "#CCCCCC",
+  leftColumn: {
+    flex: 1,
+  },
+  rightColumn: {
+    alignItems: "flex-end",
+  },
+  timeText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  dateText: {
+    color: "#DDDDDD",
     fontSize: 12,
+  },
+  siteText: {
+    color: "#CCCCCC",
+    fontSize: 11,
+  },
+  staffText: {
+    color: "#CCCCCC",
+    fontSize: 11,
+  },
+  addressText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    marginTop: 4,
+  },
+  coordsText: {
+    color: "#AAAAAA",
+    fontSize: 10,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    marginTop: 2,
   },
 });
