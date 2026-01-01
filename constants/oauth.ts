@@ -1,5 +1,6 @@
 import * as Linking from "expo-linking";
 import * as ReactNative from "react-native";
+import Constants from "expo-constants";
 
 // Extract scheme from bundle ID (last segment timestamp, prefixed with "manus")
 // e.g., "space.manus.my.app.t20240115103045" -> "manus20240115103045"
@@ -42,6 +43,41 @@ export function getApiBaseUrl(): string {
     const apiHostname = hostname.replace(/^8081-/, "3000-");
     if (apiHostname !== hostname) {
       return `${protocol}//${apiHostname}`;
+    }
+  }
+
+  // On native (Expo Go), derive from the manifest/debugger host
+  if (ReactNative.Platform.OS !== "web") {
+    try {
+      // Get the debugger host from Expo Constants (e.g., "192.168.1.100:8081" or tunnel URL)
+      const debuggerHost = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
+      if (debuggerHost) {
+        // Check if it's a manus.computer tunnel URL
+        if (debuggerHost.includes("manus.computer") || debuggerHost.includes("-")) {
+          // Replace 8081- prefix with 3000- for the API tunnel
+          const apiHost = debuggerHost.replace(/^8081-/, "3000-").replace(/:8081$/, "");
+          // Ensure HTTPS for tunnel URLs
+          if (apiHost.includes("manus.computer")) {
+            return `https://${apiHost}`;
+          }
+        }
+        // Local network - replace port
+        const apiHost = debuggerHost.replace(/:8081$/, ":3000").replace(/:19000$/, ":3000");
+        return `http://${apiHost}`;
+      }
+      
+      // Try manifest URL as fallback
+      const manifestUrl = (Constants as any).manifest?.debuggerHost;
+      if (manifestUrl) {
+        if (manifestUrl.includes("manus.computer")) {
+          const apiHost = manifestUrl.replace(/^8081-/, "3000-").replace(/:8081$/, "");
+          return `https://${apiHost}`;
+        }
+        const apiHost = manifestUrl.replace(/:8081$/, ":3000").replace(/:19000$/, ":3000");
+        return `http://${apiHost}`;
+      }
+    } catch (e) {
+      console.log("Could not derive API URL from Expo Constants", e);
     }
   }
 

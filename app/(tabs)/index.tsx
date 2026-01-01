@@ -36,6 +36,7 @@ import { getTemplates, saveTemplate, useTemplate, type ShiftTemplate } from "@/l
 import { generatePDFReport } from "@/lib/pdf-generator";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system/legacy";
 import { syncShiftStart, syncLocation, syncPhoto, syncNote, syncShiftEnd } from "@/lib/server-sync";
 
 type AppState = "idle" | "startForm" | "active" | "camera" | "confirmEnd" | "gallery";
@@ -546,7 +547,19 @@ export default function HomeScreen() {
           return;
         }
         
-        await Sharing.shareAsync(watermarkedUri, {
+        // expo-sharing requires file:// URLs, not data: URLs
+        // Save base64 to temp file first
+        let fileUri = watermarkedUri;
+        if (watermarkedUri.startsWith("data:")) {
+          const base64Data = watermarkedUri.split(",")[1];
+          const tempPath = `${FileSystem.cacheDirectory}timestamp_photo_${Date.now()}.jpg`;
+          await FileSystem.writeAsStringAsync(tempPath, base64Data, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          fileUri = tempPath;
+        }
+        
+        await Sharing.shareAsync(fileUri, {
           mimeType: "image/jpeg",
           dialogTitle: "Share Timestamp Photo",
         });

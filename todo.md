@@ -238,3 +238,7 @@
 
 - [x] Fix PDF report - images are corrupted/not showing (photos now stored as base64 data URIs)
 - [x] Fix timestamp watermark not being burned onto photos (server-side watermarking with Sharp)
+
+## BUG FIX - Jan 1, 2026
+- [x] Fix photo sharing error - expo-sharing requires file:// URLs, not data: URLs (base64)
+- [x] Fix watermark API not accessible from Expo Go - exposed port 3000 and updated URL detection
