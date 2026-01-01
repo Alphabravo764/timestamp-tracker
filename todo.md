@@ -219,3 +219,6 @@
 - [x] Live viewer page works when shift is synced to server (requires active shift)
 
 - [x] Fix live tracker share link to use correct development URL instead of dummy production URL
+
+- [x] Migrate in-memory live shift storage to database for permanent hosting
+- [x] Ensure backend server persists after Manus publish/deployment

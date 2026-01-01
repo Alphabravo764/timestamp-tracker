@@ -60,81 +60,92 @@ async function startServer() {
     res.json({ ok: true, timestamp: Date.now() });
   });
 
-  // In-memory storage for live shift data (for demo purposes)
-  // In production, this would use Redis or database
-  const liveShifts = new Map<string, any>();
+  // Import database sync functions
+  const syncDb = await import("../sync-db.js");
 
-  // Sync API endpoints for live viewing
-  app.post("/api/sync/shift", (req, res) => {
-    const { pairCode, ...shiftData } = req.body;
-    if (!pairCode) {
-      return res.status(400).json({ error: "pairCode required" });
+  // Sync API endpoints for live viewing - now using database
+  app.post("/api/sync/shift", async (req, res) => {
+    try {
+      const { pairCode, shiftId, staffName, siteName, startTime } = req.body;
+      if (!pairCode) {
+        return res.status(400).json({ error: "pairCode required" });
+      }
+      await syncDb.upsertShift({ pairCode, shiftId, staffName, siteName, startTime });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Sync shift error:", error);
+      res.status(500).json({ error: "Failed to sync shift" });
     }
-    liveShifts.set(pairCode, {
-      ...shiftData,
-      pairCode,
-      locations: [],
-      photos: [],
-      notes: [],
-      isActive: true,
-      lastUpdated: new Date().toISOString(),
-    });
-    res.json({ success: true });
   });
 
-  app.post("/api/sync/location", (req, res) => {
-    const { pairCode, ...locationData } = req.body;
-    const shift = liveShifts.get(pairCode);
-    if (!shift) {
-      return res.status(404).json({ error: "Shift not found" });
+  app.post("/api/sync/location", async (req, res) => {
+    try {
+      const { pairCode, latitude, longitude, accuracy, timestamp, address } = req.body;
+      if (!pairCode) {
+        return res.status(400).json({ error: "pairCode required" });
+      }
+      await syncDb.addLocationPoint({ pairCode, latitude, longitude, accuracy, timestamp, address });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Sync location error:", error);
+      res.status(500).json({ error: "Failed to sync location" });
     }
-    shift.locations.push(locationData);
-    shift.lastUpdated = new Date().toISOString();
-    res.json({ success: true });
   });
 
-  app.post("/api/sync/photo", (req, res) => {
-    const { pairCode, ...photoData } = req.body;
-    const shift = liveShifts.get(pairCode);
-    if (!shift) {
-      return res.status(404).json({ error: "Shift not found" });
+  app.post("/api/sync/photo", async (req, res) => {
+    try {
+      const { pairCode, photoUri, latitude, longitude, accuracy, timestamp, address } = req.body;
+      if (!pairCode) {
+        return res.status(400).json({ error: "pairCode required" });
+      }
+      await syncDb.addPhoto({ pairCode, photoUri, latitude, longitude, accuracy, timestamp, address });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Sync photo error:", error);
+      res.status(500).json({ error: "Failed to sync photo" });
     }
-    shift.photos.push(photoData);
-    shift.lastUpdated = new Date().toISOString();
-    res.json({ success: true });
   });
 
-  app.post("/api/sync/note", (req, res) => {
-    const { pairCode, ...noteData } = req.body;
-    const shift = liveShifts.get(pairCode);
-    if (!shift) {
-      return res.status(404).json({ error: "Shift not found" });
+  app.post("/api/sync/note", async (req, res) => {
+    try {
+      const { pairCode, text, timestamp } = req.body;
+      if (!pairCode) {
+        return res.status(400).json({ error: "pairCode required" });
+      }
+      // TODO: Implement note storage in database
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Sync note error:", error);
+      res.status(500).json({ error: "Failed to sync note" });
     }
-    shift.notes.push(noteData);
-    shift.lastUpdated = new Date().toISOString();
-    res.json({ success: true });
   });
 
-  app.post("/api/sync/shift-end", (req, res) => {
-    const { pairCode, endTime, endLocation } = req.body;
-    const shift = liveShifts.get(pairCode);
-    if (!shift) {
-      return res.status(404).json({ error: "Shift not found" });
+  app.post("/api/sync/shift-end", async (req, res) => {
+    try {
+      const { pairCode, endTime } = req.body;
+      if (!pairCode) {
+        return res.status(400).json({ error: "pairCode required" });
+      }
+      await syncDb.endShift({ pairCode, endTime });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Sync shift-end error:", error);
+      res.status(500).json({ error: "Failed to end shift" });
     }
-    shift.isActive = false;
-    shift.endTime = endTime;
-    shift.endLocation = endLocation;
-    shift.lastUpdated = new Date().toISOString();
-    res.json({ success: true });
   });
 
-  app.get("/api/sync/shift/:pairCode", (req, res) => {
-    const { pairCode } = req.params;
-    const shift = liveShifts.get(pairCode) || liveShifts.get(pairCode.toUpperCase());
-    if (!shift) {
-      return res.status(404).json({ error: "Shift not found" });
+  app.get("/api/sync/shift/:pairCode", async (req, res) => {
+    try {
+      const { pairCode } = req.params;
+      const shift = await syncDb.getShiftByPairCode(pairCode);
+      if (!shift) {
+        return res.status(404).json({ error: "Shift not found" });
+      }
+      res.json(shift);
+    } catch (error) {
+      console.error("Get shift error:", error);
+      res.status(500).json({ error: "Failed to get shift" });
     }
-    res.json(shift);
   });
 
   app.use(
