@@ -247,3 +247,9 @@
 - [x] Watermark still not burning onto photos taken via camera - FIXED with ViewShot
 - [x] Significant delay when saving photos - FIXED (no more server round-trip)
 - [x] SOLUTION: Implemented local client-side watermarking using react-native-view-shot
+
+## UI BUGS - Jan 1, 2026
+- [x] Camera back button too high - FIXED (moved to top: 60)
+- [ ] "Failed to end shift" error in web preview mode (works on native)
+- [x] "Row too big to fit into CursorWindow" - FIXED (save photos to file system, not base64)
+- [x] ViewShot cannot capture native camera preview - FIXED (use PhotoWatermark component to composite after capture)
