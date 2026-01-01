@@ -233,3 +233,5 @@
 - [x] Document all deployment steps with Railway
 
 - [x] Create Manus-only developer handover document (no Railway/GitHub)
+
+- [x] Create simple step-by-step guide for GitHub + Railway deployment
