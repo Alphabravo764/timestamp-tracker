@@ -288,3 +288,30 @@ Based on authoritative developer guidance:
 ## NEXT STEPS - Jan 1, 2026
 - [x] Tune footer styling for UK security industry standards (orange accent, monospace time, Officer label)
 - [x] Fix GPS sampling for better map trails (BestForNavigation accuracy, 15s interval, 5m distance)
+
+
+## PDF REPORT CRITICAL FIXES - Jan 1, 2026
+Based on developer analysis:
+- [ ] Fix photos corrupted in PDF - embed as base64 data URIs using ImageManipulator
+- [ ] Fix map on page 2 - add page-break-inside:avoid CSS
+- [ ] Improve map quality - scale=2, larger size, thicker path weight
+- [ ] Filter GPS points - drop accuracy >30m, remove jitter, keep only >5m movement
+- [ ] Add notes to timeline - merge notes with location events
+- [ ] Limit photos to 12 to prevent WebView memory issues
+
+
+## PDF REPORT CRITICAL FIXES - Jan 1, 2026
+Based on developer analysis:
+- [x] Fix photos corrupted in PDF - embed as base64 data URIs using ImageManipulator
+- [x] Fix map on page 2 - add page-break-inside:avoid CSS
+- [x] Improve map quality - scale=2, larger size (1200x700), thicker path weight (6-8)
+- [x] Add notes to timeline - merge notes with location events into activity timeline
+- [ ] Filter GPS points - drop accuracy >30m, remove jitter, keep only >5m movement
+- [ ] Limit photos to 12 to prevent WebView memory issues
+
+## UI & FEATURE FIXES - Jan 1, 2026
+- [x] Fix Close/Share buttons - use safe-area insets + hitSlop
+- [x] Add "Generate PDF Now" button for interim reports during shift
+- [x] Build /watch page with code entry form
+- [ ] Build /live/:token dashboard with map, notes, photos
+- [ ] Ensure app + viewer use same API_BASE_URL

@@ -16,6 +16,7 @@ import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import { useFocusEffect } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import Constants from "expo-constants";
@@ -90,6 +91,7 @@ const getTrailMapUrl = (locations: LocationPoint[]): string => {
 
 export default function HomeScreen() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [activeShift, setActiveShift] = useState<Shift | null>(null);
   const [currentLocation, setCurrentLocation] = useState<Location.LocationObject | null>(null);
@@ -464,8 +466,11 @@ export default function HomeScreen() {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       
-      // Generate HTML report
-      const html = await generatePDFReport(activeShift);
+      // Mark as interim report since shift is still active
+      const isInterim = activeShift.isActive;
+      
+      // Generate HTML report (pass isInterim for active shifts)
+      const html = await generatePDFReport(activeShift, isInterim);
       
       if (Platform.OS === "web") {
         // On web, open HTML report in new tab
@@ -697,12 +702,20 @@ export default function HomeScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setSelectedPhoto(null)}>
+            {/* Header with safe area */}
+            <View style={[styles.modalHeader, { paddingTop: Math.max(insets.top, 20) + 10 }]}>
+              <TouchableOpacity 
+                onPress={() => setSelectedPhoto(null)}
+                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                style={styles.headerButton}
+              >
                 <Text style={[styles.modalClose, { color: colors.primary }]}>✕ Close</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => sharePhoto(selectedPhoto)}>
+              <TouchableOpacity 
+                onPress={() => sharePhoto(selectedPhoto)}
+                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                style={styles.headerButton}
+              >
                 <Text style={[styles.modalShare, { color: colors.primary }]}>📤 Share</Text>
               </TouchableOpacity>
             </View>
@@ -1176,7 +1189,7 @@ export default function HomeScreen() {
           style={[styles.secondaryBtn, { borderColor: colors.primary }]}
           onPress={shareCurrentReport}
         >
-          <Text style={[styles.secondaryBtnText, { color: colors.primary }]}>📋 Share Report</Text>
+          <Text style={[styles.secondaryBtnText, { color: colors.primary }]}>📋 Generate PDF Now</Text>
         </TouchableOpacity>
 
         {activeShift.photos.length > 0 && (
@@ -1273,10 +1286,11 @@ const styles = StyleSheet.create({
   photoThumbTime: { fontSize: 10, marginTop: 4 },
   // Modal styles
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.9)", justifyContent: "center", alignItems: "center" },
-  modalContent: { width: "100%", height: "100%", paddingTop: 50 },
+  modalContent: { width: "100%", height: "100%" },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16 },
-  modalClose: { fontSize: 16, fontWeight: "600" },
-  modalShare: { fontSize: 16, fontWeight: "600" },
+  headerButton: { padding: 12, minWidth: 80 },
+  modalClose: { fontSize: 17, fontWeight: "600" },
+  modalShare: { fontSize: 17, fontWeight: "600" },
   modalImage: { flex: 1, width: "100%" },
   modalInfo: { padding: 20 },
   modalTime: { fontSize: 16, fontWeight: "600", marginBottom: 8 },

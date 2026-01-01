@@ -1,5 +1,6 @@
 import type { Shift, LocationPoint } from "./shift-types";
 import { generateStaticMapUrlEncoded } from "./google-maps";
+import { photoToBase64DataUri } from "./photo-to-base64";
 
 // Batch reverse geocode locations that don't have addresses
 const batchReverseGeocode = async (locations: LocationPoint[]): Promise<LocationPoint[]> => {
@@ -113,7 +114,7 @@ const formatDate = (timestamp: string): string => {
 };
 
 // Generate HTML report with Google Maps trail
-export const generatePDFReport = async (shift: Shift): Promise<string> => {
+export const generatePDFReport = async (shift: Shift, isInterim: boolean = false): Promise<string> => {
   const duration = formatDuration(shift);
   const startDate = formatDate(shift.startTime);
   const startTime = formatTime(shift.startTime);
@@ -126,9 +127,9 @@ export const generatePDFReport = async (shift: Shift): Promise<string> => {
   // Update shift with geocoded locations for this report
   const shiftWithAddresses = { ...shift, locations: geocodedLocations };
   
-  // Generate Google Maps static image with trail - high quality
+  // Generate Google Maps static image with trail - high quality (1200x700 for better detail)
   const mapUrl = geocodedLocations.length > 0 
-    ? generateStaticMapUrlEncoded(geocodedLocations, 800, 500) 
+    ? generateStaticMapUrlEncoded(geocodedLocations, 1200, 700) 
     : "";
   
   // Get start and end addresses - MUST show address not coords
@@ -140,23 +141,28 @@ export const generatePDFReport = async (shift: Shift): Promise<string> => {
   const startAddress = startLoc?.address || "Address not recorded";
   const endAddress = endLoc?.address || startAddress;
 
-  // Build photos HTML with actual images
+  // Build photos HTML with actual images - convert to base64 for PDF embedding
   let photosHtml = "";
   if (shift.photos.length > 0) {
-    const photoItems = shift.photos.map((photo, index) => {
+    // Limit to 12 photos to prevent WebView memory issues
+    const limitedPhotos = shift.photos.slice(0, 12);
+    
+    // Convert all photos to base64 data URIs
+    const photoDataUris = await Promise.all(
+      limitedPhotos.map(photo => photoToBase64DataUri(photo.uri))
+    );
+    
+    const photoItems = limitedPhotos.map((photo, index) => {
       const photoTime = formatTime(photo.timestamp);
       const photoDate = formatDate(photo.timestamp);
       const photoAddress = photo.address || photo.location?.address || "Location not recorded";
       
-      // Check if photo has a valid URI (base64 or file URL)
-      const hasValidPhoto = photo.uri && (photo.uri.startsWith('data:') || photo.uri.startsWith('file:') || photo.uri.startsWith('http'));
+      // Use the converted base64 data URI
+      const dataUri = photoDataUris[index];
+      const hasValidPhoto = dataUri && dataUri.startsWith('data:');
       
       const photoContent = hasValidPhoto 
-        ? `<img src="${photo.uri}" alt="Photo ${index + 1}" class="photo-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-           <div class="photo-placeholder" style="display:none;">
-             <div class="photo-icon">📷</div>
-             <div class="photo-number">Photo ${index + 1}</div>
-           </div>`
+        ? `<img src="${dataUri}" alt="Photo ${index + 1}" class="photo-image" />`
         : `<div class="photo-placeholder">
              <div class="photo-icon">📷</div>
              <div class="photo-number">Photo ${index + 1}</div>
@@ -173,81 +179,107 @@ export const generatePDFReport = async (shift: Shift): Promise<string> => {
       `;
     }).join("");
     
+    const photoCountNote = shift.photos.length > 12 
+      ? ` (showing first 12 of ${shift.photos.length})` 
+      : "";
+    
     photosHtml = `
       <div class="section">
-        <h2>📷 Photo Evidence (${shift.photos.length})</h2>
+        <h2>📷 Photo Evidence${photoCountNote}</h2>
         <div class="photos-grid">${photoItems}</div>
       </div>
     `;
   }
 
-  // Build notes HTML
-  let notesHtml = "";
-  if (shift.notes && shift.notes.length > 0) {
-    const noteItems = shift.notes.map((note) => `
-      <div class="note-item">
-        <div class="note-time">🕐 ${formatTime(note.timestamp)}</div>
-        <div class="note-text">${note.text}</div>
-      </div>
-    `).join("");
+  // Build combined activity timeline with locations AND notes merged chronologically
+  let activityHtml = "";
+  if (geocodedLocations.length > 0 || (shift.notes && shift.notes.length > 0)) {
+    // Create timeline events from locations and notes
+    interface TimelineEvent {
+      type: 'location' | 'note';
+      timestamp: string;
+      data: LocationPoint | { text: string };
+    }
     
-    notesHtml = `
-      <div class="section">
-        <h2>📝 Shift Notes (${shift.notes.length})</h2>
-        <div class="notes-list">${noteItems}</div>
-      </div>
-    `;
-  }
-
-  // Build location timeline HTML - MUST show addresses with times
-  let locationsHtml = "";
-  if (geocodedLocations.length > 0) {
-    // Group nearby locations to reduce clutter
+    const events: TimelineEvent[] = [];
+    
+    // Add significant locations to timeline
     const significantLocations = getSignificantLocations(geocodedLocations);
+    significantLocations.forEach((loc) => {
+      events.push({ type: 'location', timestamp: loc.timestamp, data: loc });
+    });
     
-    const locationItems = significantLocations.map((loc, index) => {
-      const isStart = index === 0;
-      const isEnd = index === significantLocations.length - 1;
-      let label = `📍 Point ${index + 1}`;
-      let className = "";
-      let icon = "📍";
+    // Add notes to timeline
+    if (shift.notes) {
+      shift.notes.forEach((note) => {
+        events.push({ type: 'note', timestamp: note.timestamp, data: { text: note.text } });
+      });
+    }
+    
+    // Sort by timestamp
+    events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    
+    const activityItems = events.map((event, index) => {
+      const time = formatTime(event.timestamp);
       
-      if (isStart) { 
-        label = "START"; 
-        className = "start"; 
-        icon = "🟢";
-      } else if (isEnd) { 
-        label = shift.isActive ? "CURRENT" : "END"; 
-        className = "end"; 
-        icon = shift.isActive ? "🔵" : "🔴";
-      }
-      
-      // MUST show address, not coordinates
-      const locationDisplay = formatLocationDisplay(loc);
-      const time = formatTime(loc.timestamp);
-      
-      return `
-        <div class="location-item ${className}">
-          <div class="location-marker">${icon}</div>
-          <div class="location-content">
-            <div class="location-header">
-              <span class="location-label">${label}</span>
-              <span class="location-time">${time}</span>
+      if (event.type === 'note') {
+        const note = event.data as { text: string };
+        return `
+          <div class="timeline-item note">
+            <div class="timeline-marker">📝</div>
+            <div class="timeline-content">
+              <div class="timeline-header">
+                <span class="timeline-label">NOTE</span>
+                <span class="timeline-time">${time}</span>
+              </div>
+              <div class="timeline-text">${note.text}</div>
             </div>
-            <div class="location-address">${locationDisplay}</div>
           </div>
-        </div>
-      `;
+        `;
+      } else {
+        const loc = event.data as LocationPoint;
+        const isStart = index === 0 && event.type === 'location';
+        const isEnd = index === events.length - 1 && event.type === 'location';
+        
+        let label = "LOCATION";
+        let icon = "📍";
+        let className = "";
+        
+        if (isStart) { label = "START"; icon = "🟢"; className = "start"; }
+        else if (isEnd) { label = shift.isActive ? "CURRENT" : "END"; icon = shift.isActive ? "🟢" : "🔴"; className = "end"; }
+        
+        const locationDisplay = formatLocationDisplay(loc);
+        
+        return `
+          <div class="timeline-item location ${className}">
+            <div class="timeline-marker">${icon}</div>
+            <div class="timeline-content">
+              <div class="timeline-header">
+                <span class="timeline-label">${label}</span>
+                <span class="timeline-time">${time}</span>
+              </div>
+              <div class="timeline-address">${locationDisplay}</div>
+            </div>
+          </div>
+        `;
+      }
     }).join("");
     
-    locationsHtml = `
+    const noteCount = shift.notes?.length || 0;
+    const locationCount = significantLocations.length;
+    
+    activityHtml = `
       <div class="section">
-        <h2>🗺️ Location Timeline (${shift.locations.length} points recorded)</h2>
-        <p class="section-subtitle">Showing ${significantLocations.length} key locations</p>
-        <div class="location-timeline">${locationItems}</div>
+        <h2>📊 Activity Timeline</h2>
+        <p class="section-subtitle">${locationCount} locations, ${noteCount} notes</p>
+        <div class="activity-timeline">${activityItems}</div>
       </div>
     `;
   }
+  
+  // Keep notesHtml empty since notes are now in activity timeline
+  const notesHtml = "";
+  const locationsHtml = "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -300,6 +332,17 @@ export const generatePDFReport = async (shift: Shift): Promise<string> => {
       font-family: monospace;
       font-size: 14px;
       margin-top: 12px;
+    }
+    
+    /* Interim banner */
+    .interim-banner {
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      color: #92400e;
+      padding: 14px 24px;
+      font-size: 15px;
+      font-weight: 700;
+      text-align: center;
+      border-bottom: 2px solid #f59e0b;
     }
     
     .summary {
@@ -356,6 +399,8 @@ export const generatePDFReport = async (shift: Shift): Promise<string> => {
     .map-section {
       padding: 24px;
       border-bottom: 1px solid #e2e8f0;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .map-section h2 {
       font-size: 18px;
@@ -515,6 +560,92 @@ export const generatePDFReport = async (shift: Shift): Promise<string> => {
       line-height: 1.4;
     }
     
+    /* Activity Timeline Styles */
+    .activity-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      position: relative;
+      padding-left: 24px;
+    }
+    .activity-timeline::before {
+      content: '';
+      position: absolute;
+      left: 11px;
+      top: 20px;
+      bottom: 20px;
+      width: 2px;
+      background: #e2e8f0;
+    }
+    .timeline-item {
+      display: flex;
+      gap: 12px;
+      padding: 12px 0;
+      position: relative;
+    }
+    .timeline-marker {
+      font-size: 16px;
+      width: 24px;
+      text-align: center;
+      position: relative;
+      z-index: 1;
+      background: white;
+    }
+    .timeline-content {
+      flex: 1;
+      padding: 12px 16px;
+      background: #f8fafc;
+      border-radius: 10px;
+      border-left: 3px solid #0a7ea4;
+    }
+    .timeline-item.note .timeline-content {
+      background: #fffbeb;
+      border-left-color: #f59e0b;
+    }
+    .timeline-item.start .timeline-content {
+      border-left-color: #22c55e;
+    }
+    .timeline-item.end .timeline-content {
+      border-left-color: #ef4444;
+    }
+    .timeline-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .timeline-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #0a7ea4;
+    }
+    .timeline-item.note .timeline-label {
+      color: #b45309;
+    }
+    .timeline-item.start .timeline-label {
+      color: #16a34a;
+    }
+    .timeline-item.end .timeline-label {
+      color: #dc2626;
+    }
+    .timeline-time {
+      font-size: 12px;
+      color: #64748b;
+      font-family: monospace;
+    }
+    .timeline-address {
+      font-size: 14px;
+      color: #334155;
+      line-height: 1.4;
+    }
+    .timeline-text {
+      font-size: 14px;
+      color: #78350f;
+      line-height: 1.5;
+    }
+    
     .notes-list {
       display: flex;
       flex-direction: column;
@@ -554,8 +685,13 @@ export const generatePDFReport = async (shift: Shift): Promise<string> => {
 </head>
 <body>
   <div class="container">
+    ${isInterim ? `
+    <div class="interim-banner">
+      ⚠️ INTERIM REPORT - Shift Still Active
+    </div>
+    ` : ''}
     <div class="header">
-      <h1>📋 Shift Report</h1>
+      <h1>📋 ${isInterim ? 'Interim ' : ''}Shift Report</h1>
       <div class="site-name">${shift.siteName}</div>
       <div class="staff">Staff: ${shift.staffName}</div>
       <div class="pair-code">Code: ${shift.pairCode}</div>
@@ -613,9 +749,8 @@ export const generatePDFReport = async (shift: Shift): Promise<string> => {
     </div>
     ` : ""}
     
-    ${locationsHtml}
+    ${activityHtml}
     ${photosHtml}
-    ${notesHtml}
     
     <div class="footer">
       Generated on ${new Date().toLocaleString("en-GB")} • Timestamp Camera App

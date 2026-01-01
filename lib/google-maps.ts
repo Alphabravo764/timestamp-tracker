@@ -156,10 +156,60 @@ function encodeNumber(num: number): string {
 }
 
 /**
+ * Filter GPS points to remove jitter and bad accuracy readings
+ */
+function filterGpsPoints(locations: { latitude: number; longitude: number; accuracy?: number }[]): { latitude: number; longitude: number }[] {
+  if (locations.length <= 2) return locations;
+  
+  const filtered: { latitude: number; longitude: number }[] = [];
+  let lastPoint: { latitude: number; longitude: number } | null = null;
+  
+  for (const loc of locations) {
+    // Skip points with poor accuracy (>30m)
+    if (loc.accuracy && loc.accuracy > 30) continue;
+    
+    if (!lastPoint) {
+      filtered.push(loc);
+      lastPoint = loc;
+      continue;
+    }
+    
+    // Calculate distance from last point
+    const R = 6371000; // Earth's radius in meters
+    const dLat = ((loc.latitude - lastPoint.latitude) * Math.PI) / 180;
+    const dLon = ((loc.longitude - lastPoint.longitude) * Math.PI) / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos((lastPoint.latitude * Math.PI) / 180) *
+              Math.cos((loc.latitude * Math.PI) / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+    
+    // Only keep points that moved >5m (removes jitter)
+    if (distance > 5) {
+      filtered.push(loc);
+      lastPoint = loc;
+    }
+  }
+  
+  // Always include the last point
+  if (locations.length > 0 && filtered.length > 0) {
+    const last = locations[locations.length - 1];
+    const lastFiltered = filtered[filtered.length - 1];
+    if (last.latitude !== lastFiltered.latitude || last.longitude !== lastFiltered.longitude) {
+      filtered.push(last);
+    }
+  }
+  
+  return filtered;
+}
+
+/**
  * Generate Google Static Maps URL with encoded polyline (for long trails)
+ * Improved quality: scale=2, larger size, thicker path, filtered GPS points
  */
 export function generateStaticMapUrlEncoded(
-  locations: { latitude: number; longitude: number }[],
+  locations: { latitude: number; longitude: number; accuracy?: number }[],
   width: number = 600,
   height: number = 400
 ): string {
@@ -169,16 +219,23 @@ export function generateStaticMapUrlEncoded(
     return "";
   }
 
-  const start = locations[0];
-  const end = locations[locations.length - 1];
-  const encodedPath = encodePolyline(locations);
-
-  let url = `https://maps.googleapis.com/maps/api/staticmap?size=${width}x${height}&maptype=roadmap`;
-  url += `&markers=color:green|label:S|${start.latitude},${start.longitude}`;
+  // Filter GPS points to remove jitter and bad readings
+  const filteredLocations = filterGpsPoints(locations);
   
-  if (locations.length > 1) {
-    url += `&markers=color:red|label:E|${end.latitude},${end.longitude}`;
-    url += `&path=color:0x0a7ea4ff|weight:4|enc:${encodedPath}`;
+  const start = filteredLocations[0];
+  const end = filteredLocations[filteredLocations.length - 1];
+  const encodedPath = encodePolyline(filteredLocations);
+
+  // Use larger size and scale=2 for high quality
+  let url = `https://maps.googleapis.com/maps/api/staticmap?size=${width}x${height}&scale=2&maptype=roadmap`;
+  
+  // Use custom markers with better visibility
+  url += `&markers=color:0x22C55E|label:S|${start.latitude},${start.longitude}`;
+  
+  if (filteredLocations.length > 1) {
+    url += `&markers=color:0xEF4444|label:E|${end.latitude},${end.longitude}`;
+    // Thicker path (weight:6) with better color
+    url += `&path=color:0x0a7ea4ff|weight:6|enc:${encodedPath}`;
   }
 
   url += `&key=${apiKey}`;
