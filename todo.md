@@ -222,3 +222,5 @@
 
 - [x] Migrate in-memory live shift storage to database for permanent hosting
 - [x] Ensure backend server persists after Manus publish/deployment
+
+- [x] CRITICAL: Configure app to use permanent production backend URL for Google Play Store deployment
