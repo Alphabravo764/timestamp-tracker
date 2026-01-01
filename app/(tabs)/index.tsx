@@ -134,7 +134,7 @@ export default function HomeScreen() {
     let interval: ReturnType<typeof setInterval> | null = null;
     if (activeShift?.isActive && appState === "active") {
       trackLocation();
-      interval = setInterval(() => trackLocation(), 30000);
+      interval = setInterval(() => trackLocation(), 15000); // 15 seconds for better map trails
     }
     return () => { if (interval) clearInterval(interval); };
   }, [activeShift?.isActive, appState]);
@@ -184,9 +184,9 @@ export default function HomeScreen() {
       let location;
       try {
         location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-          timeInterval: 5000,
-          distanceInterval: 0,
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 10000,
+          distanceInterval: 5,
         });
       } catch (locError) {
         // If high accuracy fails, try with lower accuracy

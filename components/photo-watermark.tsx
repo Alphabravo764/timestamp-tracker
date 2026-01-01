@@ -23,16 +23,17 @@ const CAPTURE_WIDTH = SCREEN_WIDTH;
 const CAPTURE_HEIGHT = SCREEN_WIDTH * 1.33;
 
 /**
- * PhotoWatermark - Composites timestamp footer onto photos
+ * PhotoWatermark - UK Security Industry Standard
  * 
- * This is the CORRECT approach used by professional timestamp camera apps:
- * 1. Render photo as <Image />
- * 2. Overlay footer strip with timestamp info
- * 3. Capture composite using captureRef
- * 4. Return watermarked image URI
+ * Professional timestamp footer for security patrol evidence photos.
+ * Matches industry standards used by UK security companies.
  * 
- * IMPORTANT: Component uses opacity:0 (NOT top:-9999) so it's
- * rendered and measured by GPU but invisible to user.
+ * Footer includes:
+ * - Large timestamp (HH:MM:SS) - primary evidence
+ * - Date (DD/MM/YYYY) - UK format
+ * - Full address with postcode
+ * - GPS coordinates (6 decimal places)
+ * - Site name and officer name
  */
 export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
   const containerRef = useRef<View>(null);
@@ -54,7 +55,7 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
     }
 
     try {
-      // Wait for render to complete (important for GPU to paint)
+      // Wait for render to complete
       await new Promise(r => setTimeout(r, 150));
       
       console.log("[PhotoWatermark] Capturing composite...");
@@ -72,7 +73,6 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
       }
     } catch (error) {
       console.error("[PhotoWatermark] Capture error:", error);
-      // Return original on error
       if (resolveRef.current && photoUri) {
         resolveRef.current(photoUri);
       }
@@ -83,7 +83,7 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
 
   useImperativeHandle(ref, () => ({
     addWatermark: async (uri: string, data: WatermarkData): Promise<string> => {
-      console.log("[PhotoWatermark] Starting watermark for:", uri.substring(0, 50));
+      console.log("[PhotoWatermark] Starting watermark...");
       
       return new Promise((resolve) => {
         resolveRef.current = resolve;
@@ -91,7 +91,7 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
         setWatermarkData(data);
         setPhotoUri(uri);
         
-        // Timeout fallback - return original if capture takes too long
+        // Timeout fallback
         setTimeout(() => {
           if (resolveRef.current) {
             console.log("[PhotoWatermark] Timeout - returning original");
@@ -103,7 +103,6 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
     },
   }));
 
-  // Don't render if not processing
   if (!photoUri || !watermarkData || !isProcessing) {
     return null;
   }
@@ -132,26 +131,33 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
           }}
         />
         
-        {/* Footer watermark strip */}
-        <View style={styles.watermarkFooter}>
-          <View style={styles.topRow}>
-            <View style={styles.leftCol}>
+        {/* UK Security Industry Standard Footer */}
+        <View style={styles.footer}>
+          {/* Row 1: Time and Site/Staff */}
+          <View style={styles.row}>
+            <View style={styles.timeSection}>
               <Text style={styles.timeText}>{watermarkData.timestamp}</Text>
               <Text style={styles.dateText}>{watermarkData.date}</Text>
             </View>
-            <View style={styles.rightCol}>
+            <View style={styles.infoSection}>
               {watermarkData.siteName && (
-                <Text style={styles.metaText}>🏢 {watermarkData.siteName}</Text>
+                <Text style={styles.siteText}>{watermarkData.siteName}</Text>
               )}
               {watermarkData.staffName && (
-                <Text style={styles.metaText}>👤 {watermarkData.staffName}</Text>
+                <Text style={styles.staffText}>Officer: {watermarkData.staffName}</Text>
               )}
             </View>
           </View>
+          
+          {/* Row 2: Address */}
           <Text style={styles.addressText} numberOfLines={2}>
-            📍 {watermarkData.address}
+            {watermarkData.address}
           </Text>
-          <Text style={styles.coordsText}>🌐 {coords}</Text>
+          
+          {/* Row 3: GPS Coordinates */}
+          <Text style={styles.coordsText}>
+            GPS: {coords}
+          </Text>
         </View>
       </View>
     </View>
@@ -159,8 +165,7 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
 });
 
 const styles = StyleSheet.create({
-  // CORRECT: Use opacity:0 so component is rendered/measured but invisible
-  // DO NOT use top:-9999 as that prevents GPU painting
+  // Use opacity:0 so component is rendered but invisible
   hiddenContainer: {
     position: "absolute",
     left: 0,
@@ -179,53 +184,70 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  watermarkFooter: {
+  // UK Security Industry Standard Footer
+  footer: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderTopWidth: 2,
+    borderTopColor: "#FF6600", // Orange accent - common in security apps
   },
-  topRow: {
+  row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 8,
+    marginBottom: 6,
   },
-  leftCol: {
+  timeSection: {
     flex: 1,
   },
-  rightCol: {
+  infoSection: {
     alignItems: "flex-end",
+    maxWidth: "45%",
   },
+  // Large, bold timestamp - primary evidence
   timeText: {
     color: "#FFFFFF",
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: "bold",
-    letterSpacing: 0.5,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    letterSpacing: 1,
   },
+  // UK date format
   dateText: {
-    color: "#E0E0E0",
+    color: "#CCCCCC",
     fontSize: 14,
     marginTop: 2,
   },
-  metaText: {
-    color: "#CCCCCC",
-    fontSize: 13,
-    marginBottom: 3,
-  },
-  addressText: {
-    color: "#FFFFFF",
+  // Site name - prominent
+  siteText: {
+    color: "#FF6600",
     fontSize: 14,
-    marginTop: 4,
-    lineHeight: 20,
+    fontWeight: "bold",
+    textAlign: "right",
   },
-  coordsText: {
+  // Officer name
+  staffText: {
     color: "#AAAAAA",
     fontSize: 12,
+    marginTop: 2,
+    textAlign: "right",
+  },
+  // Full address with postcode
+  addressText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+  // GPS coordinates - monospace for accuracy
+  coordsText: {
+    color: "#888888",
+    fontSize: 11,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    marginTop: 6,
   },
 });

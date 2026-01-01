@@ -283,3 +283,8 @@ Based on authoritative developer guidance:
 - [x] Use ONE method only: PhotoWatermark with captureRef
 - [x] Simplify takePicture: photo → composite → capture → save
 - [x] Remove all competing watermark strategies
+
+
+## NEXT STEPS - Jan 1, 2026
+- [x] Tune footer styling for UK security industry standards (orange accent, monospace time, Officer label)
+- [x] Fix GPS sampling for better map trails (BestForNavigation accuracy, 15s interval, 5m distance)
