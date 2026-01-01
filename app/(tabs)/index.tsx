@@ -40,6 +40,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { syncShiftStart, syncLocation, syncPhoto, syncNote, syncShiftEnd } from "@/lib/server-sync";
 import ViewShot from "react-native-view-shot";
 import { PhotoWatermark, PhotoWatermarkRef } from "@/components/photo-watermark";
+import { processWatermark, isSkiaAvailable } from "@/lib/watermark-skia";
 
 type AppState = "idle" | "startForm" | "active" | "camera" | "confirmEnd" | "gallery";
 
@@ -607,24 +608,37 @@ export default function HomeScreen() {
         console.log("Using cached location for photo");
       }
 
-      // Step 2: Add watermark to the photo
+      // Step 2: Add watermark to the photo using Skia (preferred) or fallback
       let finalUri = photo.uri;
-      if (watermarkRef.current) {
+      const watermarkData = {
+        timestamp: formatTime(),
+        date: formatDate(),
+        address: currentAddress || "Location unavailable",
+        latitude: photoLocation?.coords.latitude || 0,
+        longitude: photoLocation?.coords.longitude || 0,
+        staffName: activeShift.staffName,
+        siteName: activeShift.siteName,
+      };
+      
+      // Try Skia first (works in EAS dev client builds)
+      if (isSkiaAvailable()) {
         try {
-          const watermarkData = {
-            timestamp: formatTime(),
-            date: formatDate(),
-            address: currentAddress || "Location unavailable",
-            latitude: photoLocation?.coords.latitude || 0,
-            longitude: photoLocation?.coords.longitude || 0,
-            staffName: activeShift.staffName,
-            siteName: activeShift.siteName,
-          };
-          console.log("[Watermark] Adding watermark...");
+          console.log("[Watermark] Using Skia...");
+          finalUri = await processWatermark(photo.uri, watermarkData);
+          console.log("[Watermark] Skia done:", finalUri.substring(0, 50));
+        } catch (skiaError) {
+          console.log("[Watermark] Skia error, trying fallback:", skiaError);
+        }
+      }
+      
+      // Fallback to PhotoWatermark component (for Expo Go)
+      if (finalUri === photo.uri && watermarkRef.current) {
+        try {
+          console.log("[Watermark] Using PhotoWatermark fallback...");
           finalUri = await watermarkRef.current.addWatermark(photo.uri, watermarkData);
-          console.log("[Watermark] Done:", finalUri.substring(0, 50));
+          console.log("[Watermark] Fallback done:", finalUri.substring(0, 50));
         } catch (wmError) {
-          console.log("[Watermark] Error, using original:", wmError);
+          console.log("[Watermark] Fallback error, using original:", wmError);
         }
       }
       

@@ -253,3 +253,9 @@
 - [ ] "Failed to end shift" error in web preview mode (works on native)
 - [x] "Row too big to fit into CursorWindow" - FIXED (save photos to file system, not base64)
 - [x] ViewShot cannot capture native camera preview - FIXED (use PhotoWatermark component to composite after capture)
+
+## SKIA WATERMARK IMPLEMENTATION - Jan 1, 2026
+- [x] Install @shopify/react-native-skia
+- [x] Create WatermarkService.ts using Skia off-screen rendering
+- [x] Integrate into camera flow (with fallback to PhotoWatermark for Expo Go)
+- [x] Note: Skia works in EAS dev client builds; PhotoWatermark fallback for Expo Go
