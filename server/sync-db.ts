@@ -13,7 +13,7 @@ import { shifts, locationPoints, photoEvents, type InsertShift, type InsertLocat
 export async function upsertShift(data: {
   pairCode: string;
   shiftId: string;
-  staffName: string;
+  staffName?: string;
   siteName: string;
   startTime: string;
   userId?: number;
@@ -33,6 +33,7 @@ export async function upsertShift(data: {
     await db
       .update(shifts)
       .set({
+        staffName: data.staffName,
         siteName: data.siteName,
         updatedAt: new Date(),
       })
@@ -42,6 +43,7 @@ export async function upsertShift(data: {
     // Create new shift
     const result = await db.insert(shifts).values({
       userId: data.userId || 0, // Default to 0 for anonymous shifts
+      staffName: data.staffName,
       siteName: data.siteName,
       status: "active",
       startTimeUtc: new Date(data.startTime),

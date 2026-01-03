@@ -15,6 +15,13 @@
       "when": 1767104996893,
       "tag": "0001_silly_wrecking_crew",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1767441299800,
+      "tag": "0002_groovy_wrecking_crew",
+      "breakpoints": true
     }
   ]
 }

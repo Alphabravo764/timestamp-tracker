@@ -73,6 +73,10 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
       }
     } catch (error) {
       console.error("[PhotoWatermark] Capture error:", error);
+      if (__DEV__) {
+        console.log("[PhotoWatermark] Skipped in Expo Go (Not supported) - returning original");
+      }
+      // Return original image on failure (common in Expo Go)
       if (resolveRef.current && photoUri) {
         resolveRef.current(photoUri);
       }

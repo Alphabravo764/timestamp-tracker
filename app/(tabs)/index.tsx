@@ -39,6 +39,7 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { syncShiftStart, syncLocation, syncPhoto, syncNote, syncShiftEnd } from "@/lib/server-sync";
 import { PhotoWatermark, PhotoWatermarkRef } from "@/components/photo-watermark";
+import { getApiBaseUrl } from "@/constants/oauth";
 
 type AppState = "idle" | "startForm" | "active" | "camera" | "confirmEnd" | "gallery";
 
@@ -297,7 +298,8 @@ export default function HomeScreen() {
       
       // Sync to server for live viewing
       try {
-        await syncShiftStart({
+        console.log("[startShift] Attempting sync to Railway...");
+        const result = await syncShiftStart({
           id: shift.id,
           pairCode: shift.pairCode,
           staffName: shift.staffName,
@@ -309,8 +311,15 @@ export default function HomeScreen() {
             address: point.address,
           },
         });
+        console.log("[startShift] Sync successful:", result);
       } catch (syncError) {
-        console.log("Sync error (non-blocking):", syncError);
+        console.error("[startShift] Sync FAILED:", syncError);
+        // Show user-visible alert for debugging
+        if (Platform.OS !== "web") {
+          setTimeout(() => {
+            alert(`Sync to server failed: ${String(syncError)}\n\nShift saved locally only.`);
+          }, 500);
+        }
       }
       
       // Save as template for quick access
@@ -388,24 +397,11 @@ export default function HomeScreen() {
   const sharePairCode = async () => {
     if (!activeShift) return;
     
-    // Generate live viewer URL
-    // On web, use current origin (dev server URL)
-    // On native, try to get the dev server URL from Metro bundler
-    let baseUrl = "https://timestamp-tracker.app"; // Production fallback
+    // Use getApiBaseUrl to ensure consistency with sync
+    const baseUrl = getApiBaseUrl().replace(/\/$/, "");
+    const liveUrl = `${baseUrl}/viewer/${activeShift.pairCode}`;
     
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      baseUrl = window.location.origin;
-    } else if (Platform.OS !== "web") {
-      // For native, use the Metro bundler URL if available
-      const metroUrl = Constants.expoConfig?.hostUri;
-      if (metroUrl) {
-        // Extract the base URL from Metro host (e.g., "8081-xxx.manus.computer")
-        const [host] = metroUrl.split(':');
-        baseUrl = `https://${host}`;
-      }
-    }
-    
-    const liveUrl = `${baseUrl}/live/${activeShift.pairCode}`;
+    console.log("[sharePairCode] Sharing URL:", liveUrl);
     
     try {
       await Share.share({

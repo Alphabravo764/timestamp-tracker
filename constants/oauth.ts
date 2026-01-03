@@ -25,71 +25,16 @@ export const OWNER_OPEN_ID = env.ownerId;
 export const OWNER_NAME = env.ownerName;
 export const API_BASE_URL = env.apiBaseUrl;
 
+// HARDCODE Railway URL - this ensures all sync and share links use production backend
+const RAILWAY_URL = 'https://timestamp-tracker-production.up.railway.app';
+
 /**
- * Get the API base URL, deriving from current hostname if not set.
- * Metro runs on 8081, API server runs on 3000.
- * URL pattern: https://PORT-sandboxid.region.domain
+ * Get the API base URL.
+ * ALWAYS returns Railway production URL to ensure data syncs to the permanent database.
  */
 export function getApiBaseUrl(): string {
-  // PRODUCTION: Always use Railway URL
-  // This ensures the app connects to the permanent production database
-  const PRODUCTION_URL = "https://timestamp-tracker-production.up.railway.app";
-  console.log("[getApiBaseUrl] Using production Railway URL:", PRODUCTION_URL);
-  return PRODUCTION_URL;
-
-  // Development fallback (unreachable in production)
-  if (API_BASE_URL) {
-    console.log("[getApiBaseUrl] Using EXPO_PUBLIC_API_BASE_URL:", API_BASE_URL);
-    return API_BASE_URL.replace(/\/$/, "");
-  }
-
-  // Fallback: On web, derive from current hostname by replacing port 8081 with 3000
-  if (ReactNative.Platform.OS === "web" && typeof window !== "undefined" && window.location) {
-    const { protocol, hostname } = window.location;
-    // Pattern: 8081-sandboxid.region.domain -> 3000-sandboxid.region.domain
-    const apiHostname = hostname.replace(/^8081-/, "3000-");
-    if (apiHostname !== hostname) {
-      return `${protocol}//${apiHostname}`;
-    }
-  }
-
-  // On native (Expo Go), derive from the manifest/debugger host
-  if (ReactNative.Platform.OS !== "web") {
-    try {
-      // Get the debugger host from Expo Constants (e.g., "192.168.1.100:8081" or tunnel URL)
-      const debuggerHost = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.debuggerHost;
-      if (debuggerHost) {
-        // Check if it's a manus.computer tunnel URL
-        if (debuggerHost.includes("manus.computer") || debuggerHost.includes("-")) {
-          // Replace 8081- prefix with 3000- for the API tunnel
-          const apiHost = debuggerHost.replace(/^8081-/, "3000-").replace(/:8081$/, "");
-          // Ensure HTTPS for tunnel URLs
-          if (apiHost.includes("manus.computer")) {
-            return `https://${apiHost}`;
-          }
-        }
-        // Local network - replace port
-        const apiHost = debuggerHost.replace(/:8081$/, ":3000").replace(/:19000$/, ":3000");
-        return `http://${apiHost}`;
-      }
-      
-      // Try manifest URL as fallback
-      const manifestUrl = (Constants as any).manifest?.debuggerHost;
-      if (manifestUrl) {
-        if (manifestUrl.includes("manus.computer")) {
-          const apiHost = manifestUrl.replace(/^8081-/, "3000-").replace(/:8081$/, "");
-          return `https://${apiHost}`;
-        }
-        const apiHost = manifestUrl.replace(/:8081$/, ":3000").replace(/:19000$/, ":3000");
-        return `http://${apiHost}`;
-      }
-    } catch (e) {
-      console.log("Could not derive API URL from Expo Constants", e);
-    }
-  }
-
-  // Fallback to empty (will use relative URL)
-  return "";
+  console.log("[getApiBaseUrl] Using Railway production:", RAILWAY_URL);
+  return RAILWAY_URL;
 }
 
 export const SESSION_TOKEN_KEY = "app_session_token";

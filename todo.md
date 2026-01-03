@@ -368,3 +368,33 @@ Based on developer analysis:
 - [x] Fixed viewer.html to read locations from locations array
 - [x] Fixed viewer.html to build timeline from locations/photos/notes arrays
 - [ ] Redeploy to Railway to apply viewer.html fixes
+
+
+## EXPO GO SYNC ISSUE - Jan 3, 2026
+- [x] Timestamp watermark is working correctly in Expo Go
+- [ ] Shifts not syncing to Railway from Expo Go device
+- [ ] Watch tab shows "No active shift found" for valid pair codes
+- [ ] Diagnose network/CORS issue preventing sync
+- [ ] Fix sync from device to Railway
+
+
+## CRITICAL BUGS - Jan 3, 2026 (Expo Go Testing)
+- [ ] Photo watermark not showing - PhotoWatermark component error "findNodeHandle failed"
+- [ ] Share link using dev URL instead of Railway production URL
+- [ ] Location error "Current location is unavailable" - need to check permissions
+
+
+## DEVELOPER SUGGESTIONS IMPLEMENTED - Jan 3, 2026
+- [x] Hardcoded Railway URL in constants/oauth.ts (forces production backend)
+- [x] Rewrote server-sync.ts with timeout (15s) and loud logging
+- [x] Added error alerts to show sync failures to user
+- [x] Fixed share link to use getApiBaseUrl() for consistency
+- [x] Added try-catch fallback to watermark component for Expo Go
+- [x] Created eas.json for APK builds
+- [x] Verified package.json has no hanging scripts
+
+## NEXT STEPS FOR USER
+- [ ] Clear Expo Go cache: `npx expo start -c`
+- [ ] Test Railway URL from phone browser: https://timestamp-tracker-production.up.railway.app/api/health
+- [ ] Start new shift and check console logs for sync status
+- [ ] Try APK build with: `eas build -p android --profile preview --clear-cache`

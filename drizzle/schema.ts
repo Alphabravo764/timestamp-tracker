@@ -39,6 +39,7 @@ export type InsertUser = typeof users.$inferInsert;
 export const shifts = mysqlTable("shifts", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
+  staffName: varchar("staffName", { length: 255 }),
   siteName: varchar("siteName", { length: 255 }).notNull(),
   notes: text("notes"),
   status: mysqlEnum("status", ["active", "completed", "cancelled"]).default("active").notNull(),
