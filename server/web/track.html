@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Track a Guard</title>
+    <style>
+      body { font-family: system-ui, Arial; padding: 24px; max-width: 520px; margin: 0 auto; }
+      input, button { width: 100%; padding: 12px; font-size: 16px; }
+      button { margin-top: 12px; cursor: pointer; }
+      .hint { color: #666; margin-top: 10px; font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <h2>Enter Pair Code</h2>
+    <form id="f">
+      <input id="code" placeholder="e.g. ABC123 or ABC-123" autocomplete="off" />
+      <button type="submit">View Live</button>
+    </form>
+    <div class="hint">Tip: You can paste with or without the dash.</div>
+
+    <script>
+      document.getElementById("f").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const raw = document.getElementById("code").value || "";
+        const clean = raw.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+        if (!clean) return;
+        window.location.href = "/viewer/" + clean;
+      });
+    </script>
+  </body>
+</html>
