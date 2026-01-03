@@ -219,12 +219,15 @@ export function generateStaticMapUrlEncoded(
     return "";
   }
 
-  // Filter GPS points to remove jitter and bad readings
-  const filteredLocations = filterGpsPoints(locations);
+  // Use all locations for smoother curve (don't filter too aggressively)
+  const filteredLocations = locations.filter(loc => !loc.accuracy || loc.accuracy < 50);
+  
+  if (filteredLocations.length === 0) {
+    return "";
+  }
   
   const start = filteredLocations[0];
   const end = filteredLocations[filteredLocations.length - 1];
-  const encodedPath = encodePolyline(filteredLocations);
 
   // Use larger size and scale=2 for high quality
   let url = `https://maps.googleapis.com/maps/api/staticmap?size=${width}x${height}&scale=2&maptype=roadmap`;
@@ -234,8 +237,15 @@ export function generateStaticMapUrlEncoded(
   
   if (filteredLocations.length > 1) {
     url += `&markers=color:0xEF4444|label:E|${end.latitude},${end.longitude}`;
-    // Thicker path (weight:6) with better color
-    url += `&path=color:0x0a7ea4ff|weight:6|enc:${encodedPath}`;
+    
+    // Use direct path coordinates instead of encoded polyline for better visibility
+    // Sample points if too many (Google has URL length limits)
+    const maxPoints = 100;
+    const step = Math.max(1, Math.floor(filteredLocations.length / maxPoints));
+    const sampledLocations = filteredLocations.filter((_, i) => i % step === 0 || i === filteredLocations.length - 1);
+    
+    const pathPoints = sampledLocations.map(loc => `${loc.latitude},${loc.longitude}`).join('|');
+    url += `&path=color:0x0a7ea4ff|weight:5|${pathPoints}`;
   }
 
   url += `&key=${apiKey}`;

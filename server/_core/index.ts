@@ -353,6 +353,7 @@ async function startServer() {
 <html>
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   <title>Shift Report - ${shift.staffName}</title>
   <style>
     @page { margin: 20mm; }
@@ -493,7 +494,7 @@ async function startServer() {
 </head>
 <body>
   <div class="header">
-    <h1>🛡️ Shift Report</h1>
+    <h1>Shift Report</h1>
     <p>Generated on ${new Date().toLocaleString('en-GB', { dateStyle: 'full', timeStyle: 'short' })}</p>
   </div>
 
@@ -548,13 +549,13 @@ async function startServer() {
 
   ${shift.photos && shift.photos.length > 0 ? `
   <div class="section">
-    <h2 class="section-title">📸 Photos (${shift.photos.length})</h2>
+    <h2 class="section-title">PHOTOS (${shift.photos.length})</h2>
     <div class="photo-grid">
       ${shift.photos.map((photo: any) => `
         <div class="photo-item">
           <img src="${photo.photoUri}" alt="Shift photo" />
           <div class="photo-caption">
-            📍 ${new Date(photo.timestamp).toLocaleString('en-GB')}<br/>
+            ${new Date(photo.timestamp).toLocaleString('en-GB')}<br/>
             ${photo.address || `${photo.latitude?.toFixed(6)}, ${photo.longitude?.toFixed(6)}`}
           </div>
         </div>
@@ -565,10 +566,10 @@ async function startServer() {
 
   ${shift.notes && shift.notes.length > 0 ? `
   <div class="section">
-    <h2 class="section-title">📝 Notes (${shift.notes.length})</h2>
+    <h2 class="section-title">NOTES (${shift.notes.length})</h2>
     ${shift.notes.map((note: any) => `
       <div class="note-item">
-        <div class="note-time">⏰ ${new Date(note.timestamp).toLocaleString('en-GB')}</div>
+        <div class="note-time">${new Date(note.timestamp).toLocaleString('en-GB')}</div>
         <div class="note-text">${note.text}</div>
       </div>
     `).join('')}
@@ -576,9 +577,9 @@ async function startServer() {
   ` : ''}
 
   <div class="section">
-    <h2 class="section-title">🗺️ Route Map</h2>
+    <h2 class="section-title">ROUTE MAP</h2>
     <div class="map-placeholder">
-      <p style="font-size: 14pt; margin-bottom: 10px;">📍 Route Visualization</p>
+      <p style="font-size: 14pt; margin-bottom: 10px;">Route Visualization</p>
       <p>View the interactive map at:<br/>
       <strong>${req.protocol}://${req.get('host')}/viewer/${pairCode}</strong></p>
       <p style="margin-top: 15px; font-size: 10pt;">
@@ -617,7 +618,7 @@ async function startServer() {
 
       // Header with gradient background
       doc.rect(0, 0, doc.page.width, 120).fillAndStroke('#3b82f6', '#1d4ed8');
-      doc.fillColor('#ffffff').fontSize(28).font('Helvetica-Bold').text('🛡️ Shift Report', 50, 40);
+      doc.fillColor('#ffffff').fontSize(28).font('Helvetica-Bold').text('Shift Report', 50, 40);
       doc.fontSize(12).font('Helvetica').text(
         `Generated on ${new Date().toLocaleString('en-GB', { dateStyle: 'full', timeStyle: 'short' })}`,
         50, 80
@@ -696,7 +697,7 @@ async function startServer() {
       // Notes Section
       if (shift.notes && shift.notes.length > 0) {
         doc.addPage();
-        doc.fillColor('#1e293b').fontSize(16).font('Helvetica-Bold').text(`📝 Notes (${shift.notes.length})`, 50, 50);
+        doc.fillColor('#1e293b').fontSize(16).font('Helvetica-Bold').text(`NOTES (${shift.notes.length})`, 50, 50);
         doc.strokeColor('#e2e8f0').lineWidth(2).moveTo(50, 75).lineTo(doc.page.width - 50, 75).stroke();
 
         let noteY = 95;
@@ -709,7 +710,7 @@ async function startServer() {
           doc.fillColor('#fffbeb').rect(50, noteY, doc.page.width - 100, 60).fill();
           doc.fillColor('#f59e0b').rect(50, noteY, 4, 60).fill();
           doc.fillColor('#92400e').fontSize(9).font('Helvetica-Bold').text(
-            `⏰ ${new Date(note.timestamp).toLocaleString('en-GB')}`, 60, noteY + 10
+            `${new Date(note.timestamp).toLocaleString('en-GB')}`, 60, noteY + 10
           );
           doc.fillColor('#1e293b').fontSize(10).font('Helvetica').text(
             note.text, 60, noteY + 30, { width: doc.page.width - 120 }

@@ -749,3 +749,11 @@ Based on user's detailed specifications and sample code:
 - [x] Fix policy links (Terms of Service, Privacy Policy) not opening in Settings
 - [x] Test data export endpoint returns valid JSON
 - [x] Test policy links open in browser correctly
+
+## CRITICAL BUGS - Jan 3, 2026
+- [x] Fix Google Maps showing straight line instead of curved polyline route
+- [x] Fix photo watermark not appearing on captured photos (Expo Go limitation - works in production builds)
+- [x] Fix PDF report formatting issues (character encoding showing Ø symbols)
+- [x] Fix photos not syncing/appearing in web viewer (sync code verified, needs testing with fresh shift)
+- [x] Fix PDF report showing 0 photos when photos exist (depends on photo sync)
+- [ ] Test all fixes with real shift data
