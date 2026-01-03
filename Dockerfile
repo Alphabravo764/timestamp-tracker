@@ -26,4 +26,4 @@ ENV NODE_ENV=production
 ENV PORT=3000
 
 # Run migrations and start the server
-CMD ["sh", "-c", "pnpm db:push && pnpm start"]
+CMD ["pnpm", "start"]
