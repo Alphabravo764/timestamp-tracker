@@ -561,16 +561,27 @@
       const path = pathPoints.join('|');
       
       // Create map using Leaflet (OpenStreetMap - free, no API key)
-      mapDiv.innerHTML = `
-        <div id="leaflet-map" style="width: 100%; height: 100%;"></div>
-        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-      `;
+      mapDiv.innerHTML = '<div id="leaflet-map" style="width: 100%; height: 100%;"></div>';
+      
+      // Load Leaflet CSS
+      if (!document.querySelector('link[href*="leaflet.css"]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(link);
+      }
+      
+      // Load Leaflet JS
+      if (typeof L === 'undefined') {
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        document.head.appendChild(script);
+      }
       
       // Wait for Leaflet to load
       setTimeout(() => {
         if (typeof L === 'undefined') {
-          mapDiv.innerHTML = '<div style="padding: 40px; text-align: center; color: #666;"><p style="font-size: 18px; margin-bottom: 8px;">📍 Route Map</p><p>${locations.length} GPS points recorded</p></div>';
+          mapDiv.innerHTML = '<div style="padding: 40px; text-align: center; color: #666;"><p style="font-size: 18px; margin-bottom: 8px;">📍 Route Map</p><p>' + locations.length + ' GPS points recorded</p></div>';
           return;
         }
         

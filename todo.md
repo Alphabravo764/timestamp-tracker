@@ -555,3 +555,12 @@ Based on user's detailed specifications and sample code:
 - [x] FIX: Map is too small and not visible - increased to 500px height
 - [x] FIX: Static map image not loading - replaced with Leaflet (OpenStreetMap) interactive map
 - [x] FIX: "Download Shift Report" button not working - opens print dialog for PDF
+
+
+## VIEWER ISSUES - Jan 3, 2026
+- [x] FIX: Map is too small and not visible - increased to 500px height
+- [x] FIX: Static map image not loading - replaced with Leaflet (OpenStreetMap) interactive map
+- [x] FIX: "Download Shift Report" button not working - opens print dialog for PDF
+- [x] FIX: SyntaxError in viewer.html - removed embedded script tags in template literals
+- [x] FIX: ReferenceError downloadPDF not defined - fixed template literal syntax
+- [ ] DEPLOY: Push to GitHub and redeploy on Railway to apply fixes
