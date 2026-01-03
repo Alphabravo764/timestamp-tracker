@@ -15,7 +15,8 @@ RUN pnpm install --frozen-lockfile --prod=false
 COPY . .
 
 # Build the server
-RUN pnpm build
+RUN pnpm add react-native-css-interop
+RUN pnpm build:all
 
 # Expose port
 EXPOSE 3000
