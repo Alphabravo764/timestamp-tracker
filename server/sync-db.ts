@@ -5,7 +5,7 @@
 
 import { eq, and, desc } from "drizzle-orm";
 import { getDb } from "./db.js";
-import { shifts, locationPoints, photoEvents, type InsertShift, type InsertLocationPoint, type InsertPhotoEvent, type LocationPoint, type PhotoEvent } from "../drizzle/schema.js";
+import { shifts, locationPoints, photoEvents, noteEvents, type InsertShift, type InsertLocationPoint, type InsertPhotoEvent, type InsertNoteEvent, type LocationPoint, type PhotoEvent, type NoteEvent } from "../drizzle/schema.js";
 
 /**
  * Create or update a shift in the database
@@ -142,6 +142,47 @@ export async function addPhoto(data: {
 }
 
 /**
+ * Add a note to a shift
+ */
+export async function addNote(data: {
+  pairCode: string;
+  noteId: string;
+  text: string;
+  timestamp: string;
+  latitude?: number;
+  longitude?: number;
+  accuracy?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get shift by pair code
+  const shift = await db
+    .select()
+    .from(shifts)
+    .where(eq(shifts.pairCode, data.pairCode))
+    .limit(1);
+
+  if (shift.length === 0) {
+    throw new Error("Shift not found");
+  }
+
+  const shiftId = shift[0].id;
+
+  // Insert note
+  await db.insert(noteEvents).values({
+    shiftId,
+    noteText: data.text,
+    latitude: data.latitude ? data.latitude.toString() : null,
+    longitude: data.longitude ? data.longitude.toString() : null,
+    accuracy: data.accuracy ? data.accuracy.toString() : null,
+    capturedAt: new Date(data.timestamp),
+  });
+
+  console.log(`[sync-db] Note added to shift ${shiftId}`);
+}
+
+/**
  * End a shift
  */
 export async function endShift(data: {
@@ -215,6 +256,13 @@ export async function getShiftByPairCode(pairCode: string) {
     .where(eq(photoEvents.shiftId, shift.id))
     .orderBy(photoEvents.capturedAt);
 
+  // Get notes
+  const notes: NoteEvent[] = await db
+    .select()
+    .from(noteEvents)
+    .where(eq(noteEvents.shiftId, shift.id))
+    .orderBy(noteEvents.capturedAt);
+
   // Transform to expected format
   return {
     id: shift.liveToken,
@@ -240,7 +288,16 @@ export async function getShiftByPairCode(pairCode: string) {
       timestamp: photo.capturedAt.toISOString(),
       address: undefined, // Address not stored in DB yet
     })),
-    notes: [], // Notes not implemented yet
+    notes: notes.map((note: NoteEvent) => ({
+      id: note.id.toString(),
+      text: note.noteText,
+      timestamp: note.capturedAt.toISOString(),
+      location: note.latitude && note.longitude ? {
+        latitude: parseFloat(note.latitude),
+        longitude: parseFloat(note.longitude),
+        accuracy: note.accuracy ? parseFloat(note.accuracy) : undefined,
+      } : undefined,
+    })),
     lastUpdated: shift.updatedAt.toISOString(),
   };
 }

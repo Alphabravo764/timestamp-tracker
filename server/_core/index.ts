@@ -120,12 +120,18 @@ async function startServer() {
 
   app.post("/api/sync/note", async (req, res) => {
     try {
-      const { pairCode, text, timestamp } = req.body;
-      if (!pairCode) return res.status(400).json({ error: "pairCode required" });
+      const { pairCode, noteId, text, timestamp, latitude, longitude, accuracy } = req.body;
+      if (!pairCode || !text) return res.status(400).json({ error: "pairCode and text required" });
 
-      // Note storage not implemented in database yet - this is a no-op
-      // TODO: Add addNote function to sync-db.ts when note storage is needed
-      console.log("Note sync received:", { pairCode, text: text?.substring(0, 50) });
+      await syncDb.addNote({
+        pairCode,
+        noteId: noteId || `note_${Date.now()}`,
+        text,
+        timestamp: timestamp || new Date().toISOString(),
+        latitude,
+        longitude,
+        accuracy,
+      });
 
       res.json({ success: true });
     } catch (error) {

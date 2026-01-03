@@ -104,6 +104,25 @@ export const photoEvents = mysqlTable("photoEvents", {
 export type PhotoEvent = typeof photoEvents.$inferSelect;
 export type InsertPhotoEvent = typeof photoEvents.$inferInsert;
 
+// NoteEvents table - stores notes/comments added during shifts
+export const noteEvents = mysqlTable("noteEvents", {
+  id: int("id").autoincrement().primaryKey(),
+  shiftId: int("shiftId").notNull(),
+  noteText: text("noteText").notNull(),
+  latitude: decimal("latitude", { precision: 10, scale: 7 }),
+  longitude: decimal("longitude", { precision: 10, scale: 7 }),
+  accuracy: decimal("accuracy", { precision: 10, scale: 2 }),
+  capturedAt: timestamp("capturedAt").notNull(),
+  receivedAt: timestamp("receivedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  shiftIdIdx: index("shiftId_idx").on(table.shiftId),
+  capturedAtIdx: index("capturedAt_idx").on(table.capturedAt),
+}));
+
+export type NoteEvent = typeof noteEvents.$inferSelect;
+export type InsertNoteEvent = typeof noteEvents.$inferInsert;
+
 // Companies table - organizations that monitor staff
 export const companies = mysqlTable("companies", {
   id: int("id").autoincrement().primaryKey(),

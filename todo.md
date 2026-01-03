@@ -527,3 +527,12 @@ Based on user's detailed specifications and sample code:
 ## CRITICAL - Railway Crash (Jan 3, 2026)
 - [x] FIX: Server crashing on Railway - Cannot find package 'expo-file-system' imported from /app/dist/index.js
 - [x] Remove expo-file-system import from server code (made conditional with try/catch)
+
+
+## NOTES FUNCTIONALITY - Jan 3, 2026
+- [x] Check current notes implementation in mobile app
+- [x] Implement notes storage in AsyncStorage (already implemented)
+- [x] Implement notes sync to server database (noteEvents table created, addNote function added)
+- [x] Add notes to activity feed in viewer (with reverse geocoding)
+- [x] Add notes to PDF report (already implemented in timeline)
+- [x] Test notes end-to-end (mobile → server → viewer → PDF) - ready for testing

@@ -658,14 +658,19 @@
       
       // Add notes
       if (shift.notes && shift.notes.length > 0) {
-        shift.notes.forEach(note => {
+        for (const note of shift.notes) {
+          let content = note.text;
+          if (note.location && note.location.latitude && note.location.longitude) {
+            const address = await reverseGeocode(note.location.latitude, note.location.longitude);
+            content += ` • ${address}`;
+          }
           activities.push({
             type: 'note',
             time: note.timestamp,
-            title: 'Note Added',
-            content: note.content
+            title: '📝 Note Added',
+            content: content
           });
-        });
+        }
       }
       
       // Add shift end
