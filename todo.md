@@ -335,3 +335,10 @@ Based on developer analysis:
 - [ ] Create .env file with Railway production URL
 - [ ] Redeploy Railway with migration command
 - [ ] Test viewer page with Railway database
+
+## RAILWAY CONNECTION & WATERMARK FIX - Jan 3, 2026
+- [x] Revert hardcoded Railway URL and use environment variable properly
+- [x] Clear Metro bundler cache to force rebuild
+- [x] Restore timestamp watermark on photos (PhotoWatermark component is working)
+- [ ] Test Railway viewer with new shift
+- [ ] Verify watermark appears on photos
