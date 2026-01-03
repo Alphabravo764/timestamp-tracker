@@ -1,16 +1,43 @@
-import { Platform } from "react-native";
+// Detect environment without importing react-native at module level
+const isServer = typeof window === 'undefined' && typeof process !== 'undefined' && process.versions?.node;
 
-// Conditional imports - only load expo modules on mobile
+// Lazy-load modules only when needed
+let Platform: any;
 let FileSystem: any;
 let ImageManipulator: any;
 
-if (Platform.OS !== 'web') {
+async function loadModules() {
+  if (isServer) {
+    // Server environment - mock Platform
+    Platform = { OS: 'server' };
+    return;
+  }
+
+  // Mobile/web environment - load react-native
   try {
-    FileSystem = require("expo-file-system/legacy");
-    ImageManipulator = require("expo-image-manipulator");
+    const RN = await import('react-native');
+    Platform = RN.Platform;
+    
+    if (Platform.OS !== 'web') {
+      try {
+        FileSystem = require('expo-file-system/legacy');
+        ImageManipulator = require('expo-image-manipulator');
+      } catch (e) {
+        console.log('[photo-to-base64] Expo modules not available');
+      }
+    }
   } catch (e) {
-    // Server environment - expo modules not available
-    console.log('[photo-to-base64] Running on server, expo modules not loaded');
+    // Fallback if react-native not available
+    Platform = { OS: 'unknown' };
+  }
+}
+
+// Initialize modules on first use
+let modulesLoaded = false;
+async function ensureModulesLoaded() {
+  if (!modulesLoaded) {
+    await loadModules();
+    modulesLoaded = true;
   }
 }
 
@@ -29,14 +56,21 @@ export async function photoToBase64DataUri(
   quality: number = 0.75
 ): Promise<string | null> {
   try {
+    await ensureModulesLoaded();
+
     // If already a data URI, return as-is
-    if (photoUri.startsWith("data:")) {
+    if (photoUri.startsWith('data:')) {
+      return photoUri;
+    }
+
+    // On server, return original URI
+    if (isServer || Platform.OS === 'server') {
       return photoUri;
     }
 
     // On web, we can use the URI directly if it's a blob or http URL
-    if (Platform.OS === "web") {
-      if (photoUri.startsWith("blob:") || photoUri.startsWith("http")) {
+    if (Platform.OS === 'web') {
+      if (photoUri.startsWith('blob:') || photoUri.startsWith('http')) {
         // For web, try to fetch and convert to base64
         try {
           const response = await fetch(photoUri);
@@ -56,7 +90,6 @@ export async function photoToBase64DataUri(
 
     // On native (iOS/Android), use ImageManipulator to resize and convert
     if (!ImageManipulator || !FileSystem) {
-      // Server environment - return original URI
       console.log('[photo-to-base64] Expo modules not available, returning original URI');
       return photoUri;
     }
@@ -76,7 +109,7 @@ export async function photoToBase64DataUri(
     // 3) Return as data URI
     return `data:image/jpeg;base64,${base64}`;
   } catch (error) {
-    console.error("[photoToBase64DataUri] Error converting photo:", error);
+    console.error('[photoToBase64DataUri] Error converting photo:', error);
     return null;
   }
 }

@@ -536,3 +536,9 @@ Based on user's detailed specifications and sample code:
 - [x] Add notes to activity feed in viewer (with reverse geocoding)
 - [x] Add notes to PDF report (already implemented in timeline)
 - [x] Test notes end-to-end (mobile → server → viewer → PDF) - ready for testing
+
+
+## CRITICAL - Railway Crash #2 - Jan 3, 2026
+- [x] FIX: Server crashing - SyntaxError: Unexpected token 'typeof' in react-native/index.js
+- [x] Find where server code imports react-native (photo-to-base64.ts)
+- [x] Make react-native imports conditional (lazy-load with environment detection)
