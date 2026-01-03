@@ -38,6 +38,8 @@ import * as FileSystem from "expo-file-system/legacy";
 import { syncShiftStart, syncLocation, syncPhoto, syncNote, syncShiftEnd } from "@/lib/server-sync";
 import { PhotoWatermark, PhotoWatermarkRef } from "@/components/photo-watermark";
 import { getApiBaseUrl } from "@/constants/oauth";
+import { SyncStatusIndicator } from "@/components/sync-status-indicator";
+import { useSyncState } from "@/lib/sync-state";
 
 type AppState = "idle" | "startForm" | "active" | "camera" | "confirmEnd" | "gallery";
 
@@ -91,6 +93,7 @@ const getTrailMapUrl = (locations: LocationPoint[]): string => {
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { photoSyncStatus, locationSyncStatus, lastPhotoSyncMessage, lastLocationSyncMessage } = useSyncState();
   const [permission, requestPermission] = useCameraPermissions();
   const [activeShift, setActiveShift] = useState<Shift | null>(null);
   const [currentLocation, setCurrentLocation] = useState<Location.LocationObject | null>(null);
@@ -1126,6 +1129,16 @@ export default function HomeScreen() {
         {/* Site Info */}
         <Text style={[styles.siteName, { color: colors.foreground }]}>{activeShift.siteName}</Text>
         <Text style={[styles.staffNameText, { color: colors.muted }]}>{activeShift.staffName}</Text>
+        
+        {/* Sync Status Indicators */}
+        <View style={styles.syncIndicators}>
+          {photoSyncStatus !== "idle" && (
+            <SyncStatusIndicator status={photoSyncStatus} message={lastPhotoSyncMessage} />
+          )}
+          {locationSyncStatus !== "idle" && (
+            <SyncStatusIndicator status={locationSyncStatus} message={lastLocationSyncMessage} />
+          )}
+        </View>
 
         {/* Pair Code Card */}
         <View style={[styles.pairCodeCard, { backgroundColor: colors.primary }]}>
@@ -1302,7 +1315,8 @@ const styles = StyleSheet.create({
   statusText: { color: "#FFF", fontSize: 12, fontWeight: "bold" },
   duration: { fontSize: 18, fontWeight: "600" },
   siteName: { fontSize: 28, fontWeight: "bold", marginBottom: 4 },
-  staffNameText: { fontSize: 16, marginBottom: 20 },
+  staffNameText: { fontSize: 16, marginBottom: 8 },
+  syncIndicators: { flexDirection: "row", gap: 8, marginBottom: 12, flexWrap: "wrap" },
   pairCodeCard: { padding: 24, borderRadius: 16, alignItems: "center", marginBottom: 20 },
   pairCodeLabel: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600", letterSpacing: 1 },
   pairCodeValue: { color: "#FFF", fontSize: 42, fontWeight: "bold", letterSpacing: 6, marginVertical: 8, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },

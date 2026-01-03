@@ -1,5 +1,6 @@
 // /lib/server-sync.ts
 import { getApiBaseUrl } from "@/constants/oauth";
+import { useSyncState } from "@/lib/sync-state";
 
 type ShiftStartPayload = {
   id: string;
@@ -111,14 +112,38 @@ export async function syncShiftStart(payload: ShiftStartPayload) {
  * Sync location update to server
  */
 export async function syncLocation(payload: LocationPayload) {
-  return postJson<{ success: boolean }>("/api/sync/location", payload);
+  const { setLocationSyncStatus } = useSyncState.getState();
+  setLocationSyncStatus("syncing", "Syncing location...");
+  
+  try {
+    const result = await postJson<{ success: boolean }>("/api/sync/location", payload);
+    setLocationSyncStatus("success", "Location synced");
+    setTimeout(() => setLocationSyncStatus("idle"), 2000);
+    return result;
+  } catch (error) {
+    setLocationSyncStatus("error", "Location sync failed");
+    setTimeout(() => setLocationSyncStatus("idle"), 3000);
+    throw error;
+  }
 }
 
 /**
  * Sync photo to server - uploads base64 image and returns cloud URL
  */
 export async function syncPhoto(payload: PhotoPayload): Promise<{ success: boolean; photoUrl?: string }> {
-  return postJson<{ success: boolean; photoUrl?: string }>("/api/sync/photo", payload);
+  const { setPhotoSyncStatus } = useSyncState.getState();
+  setPhotoSyncStatus("syncing", "Uploading photo...");
+  
+  try {
+    const result = await postJson<{ success: boolean; photoUrl?: string }>("/api/sync/photo", payload);
+    setPhotoSyncStatus("success", "Photo uploaded");
+    setTimeout(() => setPhotoSyncStatus("idle"), 2000);
+    return result;
+  } catch (error) {
+    setPhotoSyncStatus("error", "Photo upload failed");
+    setTimeout(() => setPhotoSyncStatus("idle"), 3000);
+    throw error;
+  }
 }
 
 /**

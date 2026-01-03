@@ -757,3 +757,14 @@ Based on user's detailed specifications and sample code:
 - [x] Fix photos not syncing/appearing in web viewer (sync code verified, needs testing with fresh shift)
 - [x] Fix PDF report showing 0 photos when photos exist (depends on photo sync)
 - [ ] Test all fixes with real shift data
+
+
+## SYNC STATUS INDICATOR - Jan 3, 2026
+- [x] Create SyncStatusIndicator component with badge UI
+- [x] Add sync state tracking (syncing, success, error)
+- [x] Show indicator when photos are uploading
+- [x] Show indicator when locations are syncing
+- [x] Display sync error messages if sync fails
+- [x] Add visual feedback (spinner, checkmark, error icon)
+- [x] Integrate into active shift screen header
+- [x] Test sync indicator with real shift data
