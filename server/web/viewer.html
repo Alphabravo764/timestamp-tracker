@@ -812,41 +812,63 @@
           attribution: '© OpenStreetMap contributors'
         }).addTo(leafletMap);
         
-        // Add marker for current location
-        L.circleMarker([latest.latitude, latest.longitude], {
-          radius: 8,
-          fillColor: '#3b82f6',
-          color: '#ffffff',
-          weight: 2,
-          fillOpacity: 1
-        }).addTo(leafletMap);
-        
-        // Add polyline for route
+        // Add polyline for route (MAIN PATROL TRAIL)
         const latlngs = locations.map(loc => [loc.latitude, loc.longitude]);
-        L.polyline(latlngs, {
-          color: '#3b82f6',
-          weight: 3,
-          opacity: 0.8
+        const polyline = L.polyline(latlngs, {
+          color: '#2563eb',
+          weight: 4,
+          opacity: 0.7,
+          smoothFactor: 1
         }).addTo(leafletMap);
         
-        // Add time markers at key points (start, middle, end)
-        const keyPoints = [
-          { index: 0, label: 'Start', color: '#10b981' },
-          { index: Math.floor(locations.length / 2), label: 'Middle', color: '#f59e0b' },
-          { index: locations.length - 1, label: 'End', color: '#ef4444' }
-        ];
-        
-        keyPoints.forEach(point => {
-          const loc = locations[point.index];
-          const time = new Date(loc.timestamp).toLocaleTimeString();
+        // Add small circle markers along the route (every 10th point)
+        const markerInterval = Math.max(1, Math.floor(locations.length / 20));
+        for (let i = 0; i < locations.length; i += markerInterval) {
+          const loc = locations[i];
           L.circleMarker([loc.latitude, loc.longitude], {
-            radius: 6,
-            fillColor: point.color,
+            radius: 3,
+            fillColor: '#3b82f6',
+            color: '#ffffff',
+            weight: 1,
+            fillOpacity: 0.8
+          }).addTo(leafletMap);
+        }
+        
+        // Add START marker (green)
+        const startLoc = locations[0];
+        const startTime = new Date(startLoc.timestamp).toLocaleTimeString();
+        L.circleMarker([startLoc.latitude, startLoc.longitude], {
+          radius: 10,
+          fillColor: '#10b981',
+          color: '#ffffff',
+          weight: 3,
+          fillOpacity: 1
+        }).bindPopup(`<strong>🟢 Start</strong><br/>${startTime}`).addTo(leafletMap);
+        
+        // Add END marker (red) - current location
+        const endLoc = locations[locations.length - 1];
+        const endTime = new Date(endLoc.timestamp).toLocaleTimeString();
+        L.circleMarker([endLoc.latitude, endLoc.longitude], {
+          radius: 10,
+          fillColor: '#ef4444',
+          color: '#ffffff',
+          weight: 3,
+          fillOpacity: 1
+        }).bindPopup(`<strong>🔴 Current Location</strong><br/>${endTime}`).addTo(leafletMap);
+        
+        // Add middle checkpoint marker (yellow) if route is long enough
+        if (locations.length > 10) {
+          const midIndex = Math.floor(locations.length / 2);
+          const midLoc = locations[midIndex];
+          const midTime = new Date(midLoc.timestamp).toLocaleTimeString();
+          L.circleMarker([midLoc.latitude, midLoc.longitude], {
+            radius: 8,
+            fillColor: '#f59e0b',
             color: '#ffffff',
             weight: 2,
             fillOpacity: 1
-          }).bindPopup(`<strong>${point.label}</strong><br/>${time}`).addTo(leafletMap);
-        });
+          }).bindPopup(`<strong>🟡 Midpoint</strong><br/>${midTime}`).addTo(leafletMap);
+        }
         
         // Create heatmap layer (hidden by default)
         const heatPoints = locations.map(loc => [loc.latitude, loc.longitude, 0.5]);

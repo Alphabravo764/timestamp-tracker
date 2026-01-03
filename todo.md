@@ -728,7 +728,7 @@ Based on user's detailed specifications and sample code:
 - [x] Export user's shift data, photos, and locations as JSON
 
 ## MAP VISUALIZATION FIX - Jan 3, 2026
-- [ ] Add polyline trail to show patrol route on map
-- [ ] Add pinpoint markers for each location point
-- [ ] Ensure map displays location tracking visually
-- [ ] Test map rendering with real shift data
+- [x] Add polyline trail to show patrol route on map
+- [x] Add pinpoint markers for each location point
+- [x] Ensure map displays location tracking visually
+- [x] Test map rendering with real shift data
