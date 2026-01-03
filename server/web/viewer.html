@@ -888,31 +888,25 @@
       }
     }
     
-    // Download PDF
+    // Download PDF - opens printable version of viewer
     async function downloadPDF() {
       if (!shiftData) return;
       
       try {
-        // Fetch PDF HTML
-        const response = await fetch(`/api/sync/shift/${shiftData.pairCode}?format=pdf`);
-        const html = await response.text();
-        
-        // Open in new window for printing
-        const printWindow = window.open('', '_blank');
+        // Open current viewer page in new window for printing
+        // This includes the map with polylines, photos, and all data
+        const printWindow = window.open(window.location.href, '_blank');
         if (printWindow) {
-          printWindow.document.write(html);
-          printWindow.document.close();
-          
-          // Trigger print dialog after page loads
+          // Wait for page to load, then trigger print dialog
           printWindow.onload = () => {
             setTimeout(() => {
               printWindow.print();
-            }, 500);
+            }, 1000);
           };
         }
       } catch (error) {
         console.error('PDF download failed:', error);
-        alert('Failed to generate PDF report');
+        alert('Failed to open print dialog');
       }
     }
     

@@ -596,3 +596,19 @@ Based on user's detailed specifications and sample code:
 - [x] Display distance in header (e.g., "2.3 km traveled") - new stat in header
 - [x] Add interactive time markers that show timestamp on hover - click markers to see popup
 - [ ] DEPLOY: Push to GitHub and redeploy Railway to apply all fixes
+
+
+## PDF ENHANCEMENT - Jan 3, 2026 (User Request)
+- [x] Add map with polylines to PDF report (similar to live viewer) - opens viewer in new window for printing
+- [x] Include route visualization in PDF - uses browser print with full map
+- [x] Add distance and time markers to PDF map - prints entire viewer page
+- [x] Make PDF look like the live viewer (professional layout) - exact same as web viewer
+
+## WATCH TAB FIXES - Jan 3, 2026 (User Request)
+- [x] Link Watch tab to web viewer portal (open in WebView) - replaced with WebView
+- [x] Fix "No shift found" error in Watch tab pairing - now uses sync API via WebView
+- [x] Watch tab should use same viewer as web link - exact same viewer
+- [x] Simplify architecture: one web viewer for both mobile and web - unified codebase
+- [x] Install react-native-webview package
+- [ ] TEST: Verify Watch tab WebView loads correctly
+- [ ] DEPLOY: Push to GitHub and redeploy Railway
