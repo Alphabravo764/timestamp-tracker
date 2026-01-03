@@ -511,3 +511,9 @@ Based on user's detailed specifications and sample code:
 - [x] Location is hardcoded "Location updating..." instead of real-time address
 - [x] Route polyline not showing on map
 - [x] Need to implement everything with REAL data from API, not placeholders
+
+
+## VIEWER ENHANCEMENTS - Jan 3, 2026
+- [x] Add reverse geocoding to show street addresses in activity feed
+- [x] Implement WebSocket updates for real-time auto-refresh (WebSocket client ready, falls back to 30s polling)
+- [x] Add photo lightbox for full-screen photo viewing
