@@ -582,3 +582,17 @@ Based on user's detailed specifications and sample code:
 - [x] DEBUG: Check Leaflet CSS/JS loading in browser console - now loads in <head> with integrity hashes
 - [x] VERIFY: initMap() function is being called with location data - simplified to use pre-loaded library
 - [ ] DEPLOY: Push to GitHub and redeploy Railway to apply map fix
+
+
+## PDF GENERATION ERROR - Jan 3, 2026 (CRITICAL)
+- [x] FIX: "Failed to generate PDF report" error when clicking Download button - fixed import path
+- [x] DEBUG: Check downloadPDF() function and API endpoint - was using wrong database
+- [x] VERIFY: PDF generation works with new shift data - generates simple HTML for printing
+
+## NEW MAP FEATURES - Jan 3, 2026 (User Request)
+- [x] Add route distance calculation - show total km traveled using GPS coordinates (Haversine formula)
+- [x] Add time markers on route - display timestamps at start, middle, end points (green, orange, red)
+- [x] Add heatmap layer toggle - show areas where guard spent most time with color intensity (Leaflet.heat)
+- [x] Display distance in header (e.g., "2.3 km traveled") - new stat in header
+- [x] Add interactive time markers that show timestamp on hover - click markers to see popup
+- [ ] DEPLOY: Push to GitHub and redeploy Railway to apply all fixes

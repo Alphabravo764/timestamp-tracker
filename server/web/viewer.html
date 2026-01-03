@@ -9,6 +9,8 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Leaflet.heat plugin for heatmap -->
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
@@ -625,6 +627,54 @@
           opacity: 0.8
         }).addTo(leafletMap);
         
+        // Add time markers at key points (start, middle, end)
+        const keyPoints = [
+          { index: 0, label: 'Start', color: '#10b981' },
+          { index: Math.floor(locations.length / 2), label: 'Middle', color: '#f59e0b' },
+          { index: locations.length - 1, label: 'End', color: '#ef4444' }
+        ];
+        
+        keyPoints.forEach(point => {
+          const loc = locations[point.index];
+          const time = new Date(loc.timestamp).toLocaleTimeString();
+          L.circleMarker([loc.latitude, loc.longitude], {
+            radius: 6,
+            fillColor: point.color,
+            color: '#ffffff',
+            weight: 2,
+            fillOpacity: 1
+          }).bindPopup(`<strong>${point.label}</strong><br/>${time}`).addTo(leafletMap);
+        });
+        
+        // Create heatmap layer (hidden by default)
+        const heatPoints = locations.map(loc => [loc.latitude, loc.longitude, 0.5]);
+        const heatLayer = L.heatLayer(heatPoints, {
+          radius: 25,
+          blur: 15,
+          maxZoom: 17,
+          max: 1.0,
+          gradient: {0.4: 'blue', 0.6: 'cyan', 0.7: 'lime', 0.8: 'yellow', 1.0: 'red'}
+        });
+        
+        // Add heatmap toggle button
+        const heatmapControl = L.control({ position: 'topright' });
+        heatmapControl.onAdd = function() {
+          const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+          div.innerHTML = '<button id="heatmap-toggle" style="background: white; border: none; padding: 8px 12px; cursor: pointer; font-size: 14px; border-radius: 4px;">🔥 Heatmap</button>';
+          div.onclick = function() {
+            if (leafletMap.hasLayer(heatLayer)) {
+              leafletMap.removeLayer(heatLayer);
+              document.getElementById('heatmap-toggle').style.background = 'white';
+            } else {
+              leafletMap.addLayer(heatLayer);
+              document.getElementById('heatmap-toggle').style.background = '#ef4444';
+              document.getElementById('heatmap-toggle').style.color = 'white';
+            }
+          };
+          return div;
+        };
+        heatmapControl.addTo(leafletMap);
+        
         // Fit bounds to show entire route
         const bounds = L.latLngBounds(latlngs);
         leafletMap.fitBounds(bounds, { padding: [50, 50] });
@@ -645,6 +695,24 @@
       const latestLocation = shift.locations && shift.locations.length > 0 
         ? shift.locations[shift.locations.length - 1] 
         : null;
+      
+      // Calculate total distance traveled (Haversine formula)
+      let totalDistance = 0;
+      if (shift.locations && shift.locations.length > 1) {
+        for (let i = 1; i < shift.locations.length; i++) {
+          const prev = shift.locations[i - 1];
+          const curr = shift.locations[i];
+          const R = 6371; // Earth radius in km
+          const dLat = (curr.latitude - prev.latitude) * Math.PI / 180;
+          const dLon = (curr.longitude - prev.longitude) * Math.PI / 180;
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(prev.latitude * Math.PI / 180) * Math.cos(curr.latitude * Math.PI / 180) *
+                    Math.sin(dLon/2) * Math.sin(dLon/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          totalDistance += R * c;
+        }
+      }
+      const distanceText = totalDistance > 0 ? `${totalDistance.toFixed(2)} km` : '0 km';
       
       // Build activity feed
       const activities = [];
@@ -733,6 +801,10 @@
               <div class="stat">
                 <div class="stat-label">Photos</div>
                 <div class="stat-value">${shift.photos ? shift.photos.length : 0}</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Distance</div>
+                <div class="stat-value">${distanceText}</div>
               </div>
             </div>
           </div>

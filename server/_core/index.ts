@@ -161,13 +161,45 @@ async function startServer() {
       const shift = await syncDb.getShiftByPairCode(pairCode);
       if (!shift) return res.status(404).json({ error: "Shift not found" });
       
-      // If PDF format requested, generate and return PDF
+      // If PDF format requested, generate printable HTML
       if (format === 'pdf') {
-        const { generatePDFReport } = await import("../../lib/pdf-generator.js");
-        const pdfHtml = await generatePDFReport(shift as any, false);
+        // Generate simple HTML for printing (viewer uses window.print())
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Shift Report - ${shift.staffName}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    h1 { color: #333; }
+    .info { margin: 20px 0; }
+    .photo { max-width: 300px; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <h1>Shift Report</h1>
+  <div class="info">
+    <p><strong>Staff:</strong> ${shift.staffName}</p>
+    <p><strong>Site:</strong> ${shift.siteName}</p>
+    <p><strong>Start:</strong> ${new Date(shift.startTime).toLocaleString()}</p>
+    <p><strong>End:</strong> ${shift.endTime ? new Date(shift.endTime).toLocaleString() : 'In progress'}</p>
+    <p><strong>Locations tracked:</strong> ${shift.locations?.length || 0}</p>
+    <p><strong>Photos:</strong> ${shift.photos?.length || 0}</p>
+  </div>
+  <h2>Photos</h2>
+  ${shift.photos?.map((p: any) => `
+    <div>
+      <img src="${p.photoUri}" class="photo" />
+      <p>${new Date(p.timestamp).toLocaleString()}</p>
+    </div>
+  `).join('') || '<p>No photos</p>'}
+  <h2>Notes</h2>
+  ${shift.notes?.map((n: any) => `
+    <p><strong>${new Date(n.timestamp).toLocaleString()}:</strong> ${n.text}</p>
+  `).join('') || '<p>No notes</p>'}
+</body>
+</html>`;
         res.setHeader('Content-Type', 'text/html');
-        res.setHeader('Content-Disposition', `inline; filename="shift-report-${pairCode}.html"`);
-        return res.send(pdfHtml);
+        return res.send(html);
       }
       
       res.json(shift);
