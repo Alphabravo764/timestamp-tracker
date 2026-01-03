@@ -34,6 +34,7 @@ import { addNoteToShift, getShiftNotes } from "@/lib/shift-notes";
 import { batchExportPhotos } from "@/lib/batch-export";
 import { getTemplates, saveTemplate, useTemplate, type ShiftTemplate } from "@/lib/shift-templates";
 import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system/legacy";
 import { syncShiftStart, syncLocation, syncPhoto, syncNote, syncShiftEnd } from "@/lib/server-sync";
 import { PhotoWatermark, PhotoWatermarkRef } from "@/components/photo-watermark";
 import { getApiBaseUrl } from "@/constants/oauth";
@@ -469,23 +470,11 @@ export default function HomeScreen() {
         // On web, open viewer in new tab
         window.open(viewerUrl, "_blank");
       } else {
-        // On mobile, share the viewer URL
-        // User can open it in browser and use "Download Shift Report" button
-        const duration = formatDuration(getShiftDuration(activeShift));
-        
-        const message = `📊 Shift Report - ${activeShift.siteName}\n\n` +
-          `👤 Staff: ${activeShift.staffName}\n` +
-          `⏱️ Duration: ${duration}\n` +
-          `📷 Photos: ${activeShift.photos.length}\n` +
-          `📍 Locations: ${activeShift.locations.length}\n` +
-          `\n🔗 View Report: ${viewerUrl}\n\n` +
-          `Open the link above to view the full report with map, photos, and timeline. ` +
-          `Click "Download Shift Report" to save as PDF.`;
-        
+        // On mobile, share just the viewer URL
+        // The URL will be clickable in most messaging apps
         await Share.share({ 
-          message, 
-          title: `Shift Report - ${activeShift.siteName}`,
-          url: viewerUrl // iOS will show this as a link
+          message: viewerUrl,
+          title: `Shift Report - ${activeShift.siteName}`
         });
       }
     } catch (e) {

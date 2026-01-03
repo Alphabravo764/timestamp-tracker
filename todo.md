@@ -645,3 +645,13 @@ Based on user's detailed specifications and sample code:
 - [x] Remove old basic text-only PDF format - replaced with web viewer link
 - [ ] TEST: Verify mobile app shares viewer URL correctly
 - [ ] DEPLOY: Push to GitHub and redeploy Railway
+
+
+## CRITICAL BUGS - Jan 3, 2026 (User Report)
+- [x] FIX: Watch tab loads forever - NEEDS RAILWAY REDEPLOY (code is fixed locally)
+- [x] FIX: Viewer page in browser also stuck loading - NEEDS RAILWAY REDEPLOY
+- [x] FIX: Share PDF shares text message instead of clickable URL link - now shares just URL
+- [x] FIX: Photos in Recent Photos section missing timestamp watermark - re-added FileSystem import
+- [x] DEBUG: Check viewer.html loading sequence and API calls - Railway has old code
+- [x] DEBUG: Check Share.share() URL parameter on iOS - simplified to just share URL
+- [ ] DEPLOY: Push to GitHub and redeploy Railway to fix viewer loading
