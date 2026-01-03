@@ -534,6 +534,9 @@ export default function HomeScreen() {
     }
     
     try {
+      // Set loading to prevent navigation during watermark processing
+      setIsLoading(true);
+      
       if (Platform.OS !== "web") {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
@@ -744,6 +747,9 @@ export default function HomeScreen() {
     } catch (e: any) {
       console.error("Photo error:", e);
       alert(`Camera error: ${e.message || "Unknown error"}. Try flipping the camera or restarting the app.`);
+    } finally {
+      // Always clear loading state
+      setIsLoading(false);
     }
   };
 
@@ -752,7 +758,23 @@ export default function HomeScreen() {
 
   // ========== PHOTO VIEWER MODAL ==========
   const PhotoViewerModal = () => {
-    if (!selectedPhoto) return null;
+    if (!selectedPhoto || !activeShift) return null;
+    
+    const currentIndex = activeShift.photos.findIndex(p => p.id === selectedPhoto.id);
+    const hasPrevious = currentIndex > 0;
+    const hasNext = currentIndex < activeShift.photos.length - 1;
+    
+    const goToPrevious = () => {
+      if (hasPrevious) {
+        setSelectedPhoto(activeShift.photos[currentIndex - 1]);
+      }
+    };
+    
+    const goToNext = () => {
+      if (hasNext) {
+        setSelectedPhoto(activeShift.photos[currentIndex + 1]);
+      }
+    };
     
     return (
       <Modal
@@ -772,6 +794,9 @@ export default function HomeScreen() {
               >
                 <Text style={[styles.modalClose, { color: colors.primary }]}>✕ Close</Text>
               </TouchableOpacity>
+              <Text style={[styles.modalCounter, { color: colors.muted }]}>
+                {currentIndex + 1} / {activeShift.photos.length}
+              </Text>
               <TouchableOpacity 
                 onPress={() => sharePhoto(selectedPhoto)}
                 hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
@@ -781,8 +806,33 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
             
-            {/* Photo */}
-            <Image source={{ uri: selectedPhoto.uri }} style={styles.modalImage} resizeMode="contain" />
+            {/* Photo with navigation arrows */}
+            <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
+              {/* Previous button */}
+              {hasPrevious && (
+                <TouchableOpacity 
+                  onPress={goToPrevious}
+                  style={styles.navButton}
+                  hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                >
+                  <Text style={{ color: "#FFF", fontSize: 32 }}>‹</Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* Photo */}
+              <Image source={{ uri: selectedPhoto.uri }} style={{ flex: 1 }} resizeMode="contain" />
+              
+              {/* Next button */}
+              {hasNext && (
+                <TouchableOpacity 
+                  onPress={goToNext}
+                  style={styles.navButton}
+                  hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                >
+                  <Text style={{ color: "#FFF", fontSize: 32 }}>›</Text>
+                </TouchableOpacity>
+              )}
+            </View>
             
             {/* Info */}
             <View style={[styles.modalInfo, { backgroundColor: colors.surface }]}>
@@ -1062,11 +1112,12 @@ export default function HomeScreen() {
         {/* Top bar with close button - positioned safely using safe area insets */}
         <View style={{ position: "absolute", top: Math.max(insets.top, 20) + 10, left: 16, right: 16, zIndex: 10, flexDirection: "row", justifyContent: "space-between" }}>
           <TouchableOpacity
-            style={[styles.backBtn, { backgroundColor: "rgba(0,0,0,0.7)", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 }]}
-            onPress={() => setAppState("active")}
+            style={[styles.backBtn, { backgroundColor: "rgba(0,0,0,0.7)", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, opacity: isLoading ? 0.5 : 1 }]}
+            onPress={() => !isLoading && setAppState("active")}
+            disabled={isLoading}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 16 }}>✕ Close</Text>
+            <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 16 }}>{isLoading ? "Processing..." : "✕ Close"}</Text>
           </TouchableOpacity>
           {activeShift && activeShift.photos.length > 0 && (
             <View style={{ backgroundColor: "rgba(0,0,0,0.7)", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 }}>
@@ -1075,11 +1126,19 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* Last photo preview */}
-        {lastPhoto && (
-          <View style={[styles.lastPhotoContainer, { position: "absolute" }]}>
+        {/* Last photo preview - tap to open gallery */}
+        {lastPhoto && activeShift && activeShift.photos.length > 0 && (
+          <TouchableOpacity 
+            style={[styles.lastPhotoContainer, { position: "absolute" }]}
+            onPress={() => {
+              // Open the most recent photo in the viewer
+              const latestPhoto = activeShift.photos[activeShift.photos.length - 1];
+              setSelectedPhoto(latestPhoto);
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Image source={{ uri: lastPhoto }} style={styles.lastPhotoThumb} />
-          </View>
+          </TouchableOpacity>
         )}
 
         {/* Camera controls */}
@@ -1369,6 +1428,8 @@ const styles = StyleSheet.create({
   headerButton: { padding: 12, minWidth: 80 },
   modalClose: { fontSize: 17, fontWeight: "600" },
   modalShare: { fontSize: 17, fontWeight: "600" },
+  modalCounter: { fontSize: 15, fontWeight: "500" },
+  navButton: { padding: 16, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 24 },
   modalImage: { flex: 1, width: "100%" },
   modalInfo: { padding: 20 },
   modalTime: { fontSize: 16, fontWeight: "600", marginBottom: 8 },

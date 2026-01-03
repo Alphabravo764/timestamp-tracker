@@ -18,6 +18,7 @@ import { useFocusEffect } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
+import { getApiBaseUrl } from "@/constants/oauth";
 import {
   getShiftHistory,
   deleteShift,
@@ -544,9 +545,20 @@ export default function HistoryScreen() {
           {/* Action Buttons */}
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.primary }]}
+            onPress={() => {
+              const apiUrl = getApiBaseUrl();
+              const viewerUrl = `${apiUrl}/viewer/${selectedShift.pairCode}`;
+              Linking.openURL(viewerUrl);
+            }}
+          >
+            <Text style={styles.actionButtonText}>🔗 View Web Report</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: "#8b5cf6" }]}
             onPress={() => viewPDFReport(selectedShift)}
           >
-            <Text style={styles.actionButtonText}>📄 View PDF Report</Text>
+            <Text style={styles.actionButtonText}>📄 Download PDF</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

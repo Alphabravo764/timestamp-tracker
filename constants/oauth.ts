@@ -25,15 +25,27 @@ export const OWNER_OPEN_ID = env.ownerId;
 export const OWNER_NAME = env.ownerName;
 export const API_BASE_URL = env.apiBaseUrl;
 
-// HARDCODE Railway URL - this ensures all sync and share links use production backend
+// Railway production URL for deployed app
 const RAILWAY_URL = 'https://timestamp-tracker-production.up.railway.app';
 
 /**
  * Get the API base URL.
- * ALWAYS returns Railway production URL to ensure data syncs to the permanent database.
+ * In development: uses local server (http://127.0.0.1:3000)
+ * In production: uses Railway production URL
  */
 export function getApiBaseUrl(): string {
-  console.log("[getApiBaseUrl] Using Railway production:", RAILWAY_URL);
+  // Check if we're in development mode
+  const isDevelopment = __DEV__ || process.env.NODE_ENV === 'development';
+  
+  if (isDevelopment) {
+    // In development, use local server
+    const localUrl = env.apiBaseUrl || 'http://127.0.0.1:3000';
+    console.log("[getApiBaseUrl] Development mode, using local:", localUrl);
+    return localUrl;
+  }
+  
+  // In production, use Railway
+  console.log("[getApiBaseUrl] Production mode, using Railway:", RAILWAY_URL);
   return RAILWAY_URL;
 }
 

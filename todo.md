@@ -768,3 +768,13 @@ Based on user's detailed specifications and sample code:
 - [x] Add visual feedback (spinner, checkmark, error icon)
 - [x] Integrate into active shift screen header
 - [x] Test sync indicator with real shift data
+
+
+## CRITICAL BUGS - Jan 3, 2026 (Evening)
+- [x] Fix watermark only applying if user stays on camera screen until alert
+- [x] Fix photos not syncing to server/viewer (showing 0 photos in Watch tab)
+- [x] Implement gallery thumbnail tap to open photo viewer with swipe
+- [x] Fix Watch tab "Download Report" button (added to web viewer HTML)
+- [x] Fix History tab by adding separate "View Web Report" and "Download PDF" buttons
+- [x] Clarify and document data expiration policy (24-hour expiry)
+- [ ] Test photo sync end-to-end with real shift
