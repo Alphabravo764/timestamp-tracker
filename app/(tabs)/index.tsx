@@ -607,7 +607,7 @@ export default function HomeScreen() {
         siteName: activeShift.siteName,
       };
       
-      // Add watermark - use canvas on web, PhotoWatermark on native
+      // Add watermark - use canvas on web, PhotoWatermark on native with server fallback
       if (Platform.OS === "web") {
         // On web, use canvas-based watermark (more reliable)
         try {
@@ -625,14 +625,77 @@ export default function HomeScreen() {
         } catch (wmError) {
           console.log("[Watermark] Canvas error, using original:", wmError);
         }
-      } else if (watermarkRef.current) {
-        // On native, use PhotoWatermark component
-        try {
-          console.log("[Watermark] Using PhotoWatermark component...");
-          finalUri = await watermarkRef.current.addWatermark(photo.uri, watermarkData);
-          console.log("[Watermark] Done:", finalUri?.substring(0, 50));
-        } catch (wmError) {
-          console.log("[Watermark] Error, using original:", wmError);
+      } else {
+        // On native (iOS/Android), try local watermark first, then server fallback
+        let watermarkSuccess = false;
+        
+        // Try local PhotoWatermark component first
+        if (watermarkRef.current) {
+          try {
+            console.log("[Watermark] Trying local PhotoWatermark component...");
+            const localResult = await watermarkRef.current.addWatermark(photo.uri, watermarkData);
+            
+            // Check if watermark was actually applied (not just returned original)
+            if (localResult && localResult !== photo.uri) {
+              finalUri = localResult;
+              watermarkSuccess = true;
+              console.log("[Watermark] Local success:", finalUri?.substring(0, 50));
+            } else {
+              console.log("[Watermark] Local returned original, trying server...");
+            }
+          } catch (localError) {
+            console.log("[Watermark] Local error:", localError);
+          }
+        }
+        
+        // If local failed, try server-side watermark API
+        if (!watermarkSuccess) {
+          try {
+            console.log("[Watermark] Using server-side watermark API...");
+            const { getApiBaseUrl } = await import("@/constants/oauth");
+            const apiUrl = getApiBaseUrl();
+            
+            // Read photo as base64
+            const base64 = await FileSystem.readAsStringAsync(photo.uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            
+            // Call server watermark API
+            const response = await fetch(`${apiUrl}/api/watermark`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                imageBase64: base64,
+                timestamp: `${watermarkData.timestamp} ${watermarkData.date}`,
+                address: watermarkData.address,
+                latitude: watermarkData.latitude,
+                longitude: watermarkData.longitude,
+                staffName: watermarkData.staffName,
+                siteName: watermarkData.siteName,
+              }),
+            });
+            
+            const result = await response.json();
+            
+            if (result.success && result.watermarkedBase64) {
+              // Save watermarked image to file
+              const watermarkedPath = `${FileSystem.cacheDirectory}watermarked_${Date.now()}.jpg`;
+              await FileSystem.writeAsStringAsync(watermarkedPath, result.watermarkedBase64, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+              finalUri = watermarkedPath;
+              watermarkSuccess = true;
+              console.log("[Watermark] Server success:", finalUri?.substring(0, 50));
+            } else {
+              console.log("[Watermark] Server failed:", result.error);
+            }
+          } catch (serverError) {
+            console.log("[Watermark] Server error:", serverError);
+          }
+        }
+        
+        if (!watermarkSuccess) {
+          console.log("[Watermark] All methods failed, using original photo");
         }
       }
       

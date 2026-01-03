@@ -237,14 +237,14 @@ describe("PDF Report Generation", () => {
     expect(result).toBeDefined();
     expect(result.pdfUrl).toBeDefined();
     expect(result.pdfUrl).toContain("shift-");
-  });
+  }, 30000); // Increase timeout for PDF generation with geocoding
 
   it("should return existing PDF if already generated", async () => {
     const result1 = await testCaller.reports.generate({ shiftId });
     const result2 = await testCaller.reports.generate({ shiftId });
 
     expect(result1.pdfUrl).toBe(result2.pdfUrl);
-  });
+  }, 30000); // Increase timeout for PDF generation with geocoding
 
   it("should retrieve PDF report record", async () => {
     const report = await testCaller.reports.get({ shiftId });

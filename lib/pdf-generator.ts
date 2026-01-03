@@ -113,7 +113,7 @@ const formatDate = (timestamp: string): string => {
   });
 };
 
-// Generate HTML report with Google Maps trail
+// Generate HTML report with Google Maps trail - NEW PROFESSIONAL TEMPLATE
 export const generatePDFReport = async (shift: Shift, isInterim: boolean = false): Promise<string> => {
   const duration = formatDuration(shift);
   const startDate = formatDate(shift.startTime);
@@ -124,15 +124,12 @@ export const generatePDFReport = async (shift: Shift, isInterim: boolean = false
   // Batch reverse geocode locations that don't have addresses
   const geocodedLocations = await batchReverseGeocode(shift.locations);
   
-  // Update shift with geocoded locations for this report
-  const shiftWithAddresses = { ...shift, locations: geocodedLocations };
-  
-  // Generate Google Maps static image with trail - high quality (1200x700 for better detail)
+  // Generate Google Maps static image with trail - high quality
   const mapUrl = geocodedLocations.length > 0 
     ? generateStaticMapUrlEncoded(geocodedLocations, 1200, 700) 
     : "";
   
-  // Get start and end addresses - MUST show address not coords
+  // Get start and end addresses
   const startLoc = geocodedLocations[0];
   const endLoc = geocodedLocations.length > 1 
     ? geocodedLocations[geocodedLocations.length - 1] 
@@ -154,26 +151,24 @@ export const generatePDFReport = async (shift: Shift, isInterim: boolean = false
     
     const photoItems = limitedPhotos.map((photo, index) => {
       const photoTime = formatTime(photo.timestamp);
-      const photoDate = formatDate(photo.timestamp);
       const photoAddress = photo.address || photo.location?.address || "Location not recorded";
       
       // Use the converted base64 data URI
       const dataUri = photoDataUris[index];
       const hasValidPhoto = dataUri && dataUri.startsWith('data:');
       
-      const photoContent = hasValidPhoto 
-        ? `<img src="${dataUri}" alt="Photo ${index + 1}" class="photo-image" />`
-        : `<div class="photo-placeholder">
-             <div class="photo-icon">📷</div>
-             <div class="photo-number">Photo ${index + 1}</div>
-           </div>`;
-      
       return `
         <div class="photo-card">
-          ${photoContent}
-          <div class="photo-info">
-            <div class="photo-time">🕐 ${photoDate} at ${photoTime}</div>
-            <div class="photo-address">📍 ${photoAddress}</div>
+          ${hasValidPhoto 
+            ? `<img src="${dataUri}" alt="Photo ${index + 1}" class="photo-image" />`
+            : `<div class="photo-placeholder">
+                 <span class="photo-icon">📷</span>
+                 <span>Photo ${index + 1}</span>
+               </div>`
+          }
+          <div class="photo-meta">
+            <div class="photo-time">${photoTime}</div>
+            <div class="photo-address">${photoAddress}</div>
           </div>
         </div>
       `;
@@ -184,7 +179,7 @@ export const generatePDFReport = async (shift: Shift, isInterim: boolean = false
       : "";
     
     photosHtml = `
-      <div class="section">
+      <div class="section photo-section">
         <h2>📷 Photo Evidence${photoCountNote}</h2>
         <div class="photos-grid">${photoItems}</div>
       </div>
@@ -192,21 +187,28 @@ export const generatePDFReport = async (shift: Shift, isInterim: boolean = false
   }
 
   // Build combined activity timeline with locations AND notes merged chronologically
-  let activityHtml = "";
+  let timelineHtml = "";
   if (geocodedLocations.length > 0 || (shift.notes && shift.notes.length > 0)) {
-    // Create timeline events from locations and notes
     interface TimelineEvent {
-      type: 'location' | 'note';
+      type: 'location' | 'note' | 'photo';
       timestamp: string;
-      data: LocationPoint | { text: string };
+      data: LocationPoint | { text: string } | { index: number; address: string };
+      isStart?: boolean;
+      isEnd?: boolean;
     }
     
     const events: TimelineEvent[] = [];
     
     // Add significant locations to timeline
     const significantLocations = getSignificantLocations(geocodedLocations);
-    significantLocations.forEach((loc) => {
-      events.push({ type: 'location', timestamp: loc.timestamp, data: loc });
+    significantLocations.forEach((loc, i) => {
+      events.push({ 
+        type: 'location', 
+        timestamp: loc.timestamp, 
+        data: loc,
+        isStart: i === 0,
+        isEnd: i === significantLocations.length - 1
+      });
     });
     
     // Add notes to timeline
@@ -216,201 +218,208 @@ export const generatePDFReport = async (shift: Shift, isInterim: boolean = false
       });
     }
     
+    // Add photos to timeline
+    shift.photos.forEach((photo, index) => {
+      events.push({ 
+        type: 'photo', 
+        timestamp: photo.timestamp, 
+        data: { index: index + 1, address: photo.address || "Photo taken" }
+      });
+    });
+    
     // Sort by timestamp
     events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     
-    const activityItems = events.map((event, index) => {
+    const timelineItems = events.map((event, index) => {
       const time = formatTime(event.timestamp);
+      const isLast = index === events.length - 1;
       
       if (event.type === 'note') {
         const note = event.data as { text: string };
         return `
-          <div class="timeline-item note">
-            <div class="timeline-marker">📝</div>
+          <div class="timeline-item">
+            ${!isLast ? '<div class="timeline-line"></div>' : ''}
+            <div class="timeline-dot note"></div>
             <div class="timeline-content">
               <div class="timeline-header">
-                <span class="timeline-label">NOTE</span>
                 <span class="timeline-time">${time}</span>
+                <span class="badge badge-yellow">Note</span>
               </div>
-              <div class="timeline-text">${note.text}</div>
+              <div class="timeline-note">"${note.text}"</div>
+            </div>
+          </div>
+        `;
+      } else if (event.type === 'photo') {
+        const photo = event.data as { index: number; address: string };
+        return `
+          <div class="timeline-item">
+            ${!isLast ? '<div class="timeline-line"></div>' : ''}
+            <div class="timeline-dot photo"></div>
+            <div class="timeline-content">
+              <div class="timeline-header">
+                <span class="timeline-time">${time}</span>
+                <span class="badge badge-blue">Photo ${photo.index}</span>
+              </div>
+              <div class="timeline-text">${photo.address}</div>
             </div>
           </div>
         `;
       } else {
         const loc = event.data as LocationPoint;
-        const isStart = index === 0 && event.type === 'location';
-        const isEnd = index === events.length - 1 && event.type === 'location';
+        let dotClass = "";
+        let badgeClass = "badge-gray";
+        let label = "Point";
         
-        let label = "LOCATION";
-        let icon = "📍";
-        let className = "";
-        
-        if (isStart) { label = "START"; icon = "🟢"; className = "start"; }
-        else if (isEnd) { label = shift.isActive ? "CURRENT" : "END"; icon = shift.isActive ? "🟢" : "🔴"; className = "end"; }
-        
-        const locationDisplay = formatLocationDisplay(loc);
+        if (event.isStart) { dotClass = "start"; badgeClass = "badge-green"; label = "START"; }
+        else if (event.isEnd) { dotClass = shift.isActive ? "current" : "end"; badgeClass = shift.isActive ? "badge-green" : "badge-red"; label = shift.isActive ? "CURRENT" : "END"; }
         
         return `
-          <div class="timeline-item location ${className}">
-            <div class="timeline-marker">${icon}</div>
+          <div class="timeline-item">
+            ${!isLast ? '<div class="timeline-line"></div>' : ''}
+            <div class="timeline-dot ${dotClass}"></div>
             <div class="timeline-content">
               <div class="timeline-header">
-                <span class="timeline-label">${label}</span>
                 <span class="timeline-time">${time}</span>
+                <span class="badge ${badgeClass}">${label}</span>
               </div>
-              <div class="timeline-address">${locationDisplay}</div>
+              <div class="timeline-text">${formatLocationDisplay(loc)}</div>
             </div>
           </div>
         `;
       }
     }).join("");
     
-    const noteCount = shift.notes?.length || 0;
-    const locationCount = significantLocations.length;
-    
-    activityHtml = `
-      <div class="section">
+    timelineHtml = `
+      <div class="section timeline-section">
         <h2>📊 Activity Timeline</h2>
-        <p class="section-subtitle">${locationCount} locations, ${noteCount} notes</p>
-        <div class="activity-timeline">${activityItems}</div>
+        <p class="section-subtitle">${events.length} events recorded</p>
+        <div class="timeline">${timelineItems}</div>
       </div>
     `;
   }
-  
-  // Keep notesHtml empty since notes are now in activity timeline
-  const notesHtml = "";
-  const locationsHtml = "";
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shift Report - ${shift.siteName}</title>
+  <title>Shift Report - ${shift.pairCode}</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
+    
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       line-height: 1.6;
       color: #1e293b;
       background: #f8fafc;
-      padding: 20px;
+      padding: 24px;
     }
+    
     .container {
       max-width: 800px;
       margin: 0 auto;
       background: white;
-      border-radius: 16px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-      overflow: hidden;
-    }
-    .header {
-      background: linear-gradient(135deg, #0a7ea4 0%, #0891b2 100%);
-      color: white;
-      padding: 32px;
-      text-align: center;
-    }
-    .header h1 { 
-      font-size: 28px; 
-      font-weight: 700; 
-      margin-bottom: 8px; 
-    }
-    .header .site-name {
-      font-size: 22px;
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-    .header .staff { 
-      font-size: 16px; 
-      opacity: 0.9; 
-    }
-    .header .pair-code {
-      display: inline-block;
-      background: rgba(255,255,255,0.2);
-      padding: 6px 16px;
-      border-radius: 20px;
-      font-family: monospace;
-      font-size: 14px;
-      margin-top: 12px;
     }
     
-    /* Interim banner */
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 32px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .header-left h1 {
+      font-size: 32px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 4px;
+    }
+    .header-left .subtitle {
+      font-size: 14px;
+      color: #64748b;
+    }
+    .header-right {
+      text-align: right;
+    }
+    .header-right .code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 24px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+    .header-right .staff {
+      font-size: 16px;
+      color: #64748b;
+    }
+    
+    /* Interim Banner */
     .interim-banner {
       background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
       color: #92400e;
-      padding: 14px 24px;
-      font-size: 15px;
+      padding: 12px 24px;
+      font-size: 14px;
       font-weight: 700;
       text-align: center;
       border-bottom: 2px solid #f59e0b;
     }
     
-    .summary {
+    /* Stats Grid */
+    .stats-grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 16px;
       padding: 24px;
-      background: #f1f5f9;
-    }
-    .summary-item {
-      background: white;
-      padding: 16px;
-      border-radius: 12px;
-      text-align: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-    }
-    .summary-item .value {
-      font-size: 28px;
-      font-weight: 700;
-      color: #0a7ea4;
-    }
-    .summary-item .label {
-      font-size: 13px;
-      color: #64748b;
-      margin-top: 4px;
-    }
-    
-    .info-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
-      padding: 24px;
+      background: #f8fafc;
       border-bottom: 1px solid #e2e8f0;
     }
-    .info-item {
-      padding: 12px;
-      background: #f8fafc;
-      border-radius: 8px;
+    .stat-card {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
     }
-    .info-item .label {
-      font-size: 12px;
-      color: #64748b;
+    .stat-label {
+      font-size: 11px;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      margin-bottom: 4px;
+      color: #9ca3af;
+      margin-bottom: 8px;
     }
-    .info-item .value {
+    .stat-value {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .stat-icon {
+      font-size: 18px;
+    }
+    .stat-text {
       font-size: 15px;
-      font-weight: 500;
+      font-weight: 600;
       color: #1e293b;
-      word-break: break-word;
     }
     
+    /* Map Section */
     .map-section {
       padding: 24px;
       border-bottom: 1px solid #e2e8f0;
-      page-break-inside: avoid;
-      break-inside: avoid;
     }
     .map-section h2 {
       font-size: 18px;
+      font-weight: 700;
       margin-bottom: 16px;
-      color: #1e293b;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
     .map-container {
       border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+      border: 1px solid #e2e8f0;
     }
     .map-container img {
       width: 100%;
@@ -419,8 +428,11 @@ export const generatePDFReport = async (shift: Shift, isInterim: boolean = false
     }
     .map-legend {
       display: flex;
-      gap: 20px;
+      gap: 24px;
       margin-top: 12px;
+      padding: 12px 16px;
+      background: #f8fafc;
+      border-radius: 8px;
       font-size: 13px;
       color: #64748b;
     }
@@ -429,18 +441,77 @@ export const generatePDFReport = async (shift: Shift, isInterim: boolean = false
       align-items: center;
       gap: 6px;
     }
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .legend-dot.green { background: #22c55e; }
+    .legend-dot.blue { background: #3b82f6; }
+    .legend-dot.red { background: #ef4444; }
     
+    /* Location Cards */
+    .location-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      padding: 24px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .location-card {
+      padding: 16px;
+      background: #f8fafc;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+    }
+    .location-card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .location-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .location-dot.green { background: #22c55e; }
+    .location-dot.red { background: #ef4444; }
+    .location-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+    }
+    .location-address {
+      font-size: 14px;
+      font-weight: 500;
+      color: #1e293b;
+      margin-bottom: 4px;
+    }
+    .location-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #9ca3af;
+    }
+    
+    /* Section */
     .section {
       padding: 24px;
       border-bottom: 1px solid #e2e8f0;
+      page-break-inside: avoid;
     }
     .section:last-child {
       border-bottom: none;
     }
     .section h2 {
       font-size: 18px;
+      font-weight: 700;
       margin-bottom: 16px;
-      color: #1e293b;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
     .section-subtitle {
       font-size: 13px;
@@ -449,164 +520,59 @@ export const generatePDFReport = async (shift: Shift, isInterim: boolean = false
       margin-bottom: 16px;
     }
     
-    .location-timeline {
-      position: relative;
-      padding-left: 40px;
-    }
-    .location-timeline::before {
-      content: '';
-      position: absolute;
-      left: 15px;
-      top: 0;
-      bottom: 0;
-      width: 2px;
-      background: linear-gradient(to bottom, #22c55e, #0a7ea4, #ef4444);
-    }
-    .location-item {
-      position: relative;
-      margin-bottom: 20px;
-      padding: 14px 16px;
-      background: #f8fafc;
-      border-radius: 10px;
-      border-left: 3px solid #0a7ea4;
-    }
-    .location-item.start {
-      border-left-color: #22c55e;
-      background: #f0fdf4;
-    }
-    .location-item.end {
-      border-left-color: #ef4444;
-      background: #fef2f2;
-    }
-    .location-marker {
-      position: absolute;
-      left: -33px;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 16px;
-    }
-    .location-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 6px;
-    }
-    .location-label {
-      font-weight: 600;
-      font-size: 13px;
-      color: #0a7ea4;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .location-item.start .location-label { color: #22c55e; }
-    .location-item.end .location-label { color: #ef4444; }
-    .location-time {
-      font-size: 14px;
-      font-weight: 600;
-      color: #1e293b;
-    }
-    .location-address {
-      font-size: 14px;
-      color: #475569;
-      line-height: 1.5;
-    }
-    
-    .photos-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 16px;
-    }
-    .photo-card {
-      background: #f8fafc;
-      border-radius: 12px;
-      overflow: hidden;
-      border: 1px solid #e2e8f0;
-    }
-    .photo-image {
-      width: 100%;
-      height: 180px;
-      object-fit: cover;
-      display: block;
-    }
-    .photo-placeholder {
-      height: 140px;
-      background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+    /* Timeline */
+    .timeline {
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      color: #64748b;
-    }
-    .photo-icon {
-      font-size: 36px;
-      margin-bottom: 8px;
-    }
-    .photo-number {
-      font-weight: 600;
-      font-size: 14px;
-    }
-    .photo-info {
-      padding: 12px;
-    }
-    .photo-time {
-      font-size: 13px;
-      font-weight: 500;
-      color: #1e293b;
-      margin-bottom: 4px;
-    }
-    .photo-address {
-      font-size: 12px;
-      color: #64748b;
-      line-height: 1.4;
-    }
-    
-    /* Activity Timeline Styles */
-    .activity-timeline {
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-      position: relative;
-      padding-left: 24px;
-    }
-    .activity-timeline::before {
-      content: '';
-      position: absolute;
-      left: 11px;
-      top: 20px;
-      bottom: 20px;
-      width: 2px;
-      background: #e2e8f0;
     }
     .timeline-item {
-      display: flex;
-      gap: 12px;
-      padding: 12px 0;
       position: relative;
+      padding-left: 32px;
+      padding-bottom: 16px;
     }
-    .timeline-marker {
-      font-size: 16px;
-      width: 24px;
-      text-align: center;
-      position: relative;
-      z-index: 1;
+    .timeline-line {
+      position: absolute;
+      left: 9px;
+      top: 24px;
+      bottom: 0;
+      width: 2px;
+      background: #e5e7eb;
+    }
+    .timeline-dot {
+      position: absolute;
+      left: 0;
+      top: 4px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid #d1d5db;
       background: white;
     }
+    .timeline-dot::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #d1d5db;
+    }
+    .timeline-dot.start { border-color: #22c55e; }
+    .timeline-dot.start::after { background: #22c55e; }
+    .timeline-dot.end, .timeline-dot.current { border-color: #ef4444; }
+    .timeline-dot.end::after, .timeline-dot.current::after { background: #ef4444; }
+    .timeline-dot.note { border-color: #f59e0b; }
+    .timeline-dot.note::after { background: #f59e0b; }
+    .timeline-dot.photo { border-color: #3b82f6; }
+    .timeline-dot.photo::after { background: #3b82f6; }
+    
     .timeline-content {
-      flex: 1;
       padding: 12px 16px;
       background: #f8fafc;
-      border-radius: 10px;
-      border-left: 3px solid #0a7ea4;
-    }
-    .timeline-item.note .timeline-content {
-      background: #fffbeb;
-      border-left-color: #f59e0b;
-    }
-    .timeline-item.start .timeline-content {
-      border-left-color: #22c55e;
-    }
-    .timeline-item.end .timeline-content {
-      border-left-color: #ef4444;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
     }
     .timeline-header {
       display: flex;
@@ -614,72 +580,118 @@ export const generatePDFReport = async (shift: Shift, isInterim: boolean = false
       align-items: center;
       margin-bottom: 6px;
     }
-    .timeline-label {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #0a7ea4;
-    }
-    .timeline-item.note .timeline-label {
-      color: #b45309;
-    }
-    .timeline-item.start .timeline-label {
-      color: #16a34a;
-    }
-    .timeline-item.end .timeline-label {
-      color: #dc2626;
-    }
     .timeline-time {
+      font-family: 'JetBrains Mono', monospace;
       font-size: 12px;
+      font-weight: 500;
       color: #64748b;
-      font-family: monospace;
-    }
-    .timeline-address {
-      font-size: 14px;
-      color: #334155;
-      line-height: 1.4;
     }
     .timeline-text {
       font-size: 14px;
+      color: #334155;
+    }
+    .timeline-note {
+      font-size: 14px;
+      font-style: italic;
       color: #78350f;
-      line-height: 1.5;
-    }
-    
-    .notes-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .note-item {
-      padding: 14px;
       background: #fffbeb;
-      border-radius: 10px;
+      padding: 8px 12px;
+      border-radius: 6px;
       border-left: 3px solid #f59e0b;
     }
-    .note-time {
-      font-size: 12px;
-      color: #92400e;
-      font-weight: 500;
-      margin-bottom: 6px;
-    }
-    .note-text {
-      font-size: 14px;
-      color: #78350f;
-      line-height: 1.5;
-    }
     
-    .footer {
-      padding: 20px;
-      text-align: center;
-      background: #f1f5f9;
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-red { background: #fee2e2; color: #991b1b; }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .badge-yellow { background: #fef3c7; color: #92400e; }
+    .badge-gray { background: #f3f4f6; color: #374151; }
+    
+    /* Photos Grid */
+    .photos-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .photo-card {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+      background: white;
+    }
+    .photo-image {
+      width: 100%;
+      height: 150px;
+      object-fit: cover;
+      display: block;
+    }
+    .photo-placeholder {
+      width: 100%;
+      height: 150px;
+      background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #94a3b8;
+      gap: 8px;
+    }
+    .photo-icon {
+      font-size: 32px;
+    }
+    .photo-meta {
+      padding: 12px;
+      background: #f8fafc;
+    }
+    .photo-time {
+      font-family: 'JetBrains Mono', monospace;
       font-size: 12px;
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: 4px;
+    }
+    .photo-address {
+      font-size: 11px;
       color: #64748b;
+      line-height: 1.4;
     }
     
+    /* Footer */
+    .footer {
+      padding: 20px 24px;
+      text-align: center;
+      background: #f8fafc;
+      font-size: 12px;
+      color: #94a3b8;
+      border-top: 1px solid #e2e8f0;
+    }
+    
+    /* Print Styles */
     @media print {
-      body { background: white; padding: 0; }
-      .container { box-shadow: none; }
+      body { 
+        background: white; 
+        padding: 0; 
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .container { 
+        max-width: 100%; 
+      }
+      .section {
+        page-break-inside: avoid;
+      }
+      .photo-section {
+        page-break-before: always;
+      }
     }
   </style>
 </head>
@@ -690,70 +702,87 @@ export const generatePDFReport = async (shift: Shift, isInterim: boolean = false
       ⚠️ INTERIM REPORT - Shift Still Active
     </div>
     ` : ''}
+    
     <div class="header">
-      <h1>📋 ${isInterim ? 'Interim ' : ''}Shift Report</h1>
-      <div class="site-name">${shift.siteName}</div>
-      <div class="staff">Staff: ${shift.staffName}</div>
-      <div class="pair-code">Code: ${shift.pairCode}</div>
-    </div>
-    
-    <div class="summary">
-      <div class="summary-item">
-        <div class="value">${duration}</div>
-        <div class="label">Duration</div>
+      <div class="header-left">
+        <h1>Shift Report</h1>
+        <div class="subtitle">Generated on ${new Date().toLocaleDateString("en-GB", { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</div>
       </div>
-      <div class="summary-item">
-        <div class="value">${shift.locations.length}</div>
-        <div class="label">Locations</div>
-      </div>
-      <div class="summary-item">
-        <div class="value">${shift.photos.length}</div>
-        <div class="label">Photos</div>
-      </div>
-      <div class="summary-item">
-        <div class="value">${distance} km</div>
-        <div class="label">Distance</div>
+      <div class="header-right">
+        <div class="code">${shift.pairCode}</div>
+        <div class="staff">${shift.staffName}</div>
       </div>
     </div>
     
-    <div class="info-grid">
-      <div class="info-item">
-        <div class="label">Date</div>
-        <div class="value">${startDate}</div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Staff</div>
+        <div class="stat-value">
+          <span class="stat-icon">👤</span>
+          <span class="stat-text">${shift.staffName}</span>
+        </div>
       </div>
-      <div class="info-item">
-        <div class="label">Time</div>
-        <div class="value">${startTime} - ${endTime}</div>
+      <div class="stat-card">
+        <div class="stat-label">Date</div>
+        <div class="stat-value">
+          <span class="stat-icon">📅</span>
+          <span class="stat-text">${startDate}</span>
+        </div>
       </div>
-      <div class="info-item">
-        <div class="label">Start Location</div>
-        <div class="value">${startAddress}</div>
+      <div class="stat-card">
+        <div class="stat-label">Duration</div>
+        <div class="stat-value">
+          <span class="stat-icon">⏱️</span>
+          <span class="stat-text">${duration}</span>
+        </div>
       </div>
-      <div class="info-item">
-        <div class="label">End Location</div>
-        <div class="value">${endAddress}</div>
+      <div class="stat-card">
+        <div class="stat-label">Distance</div>
+        <div class="stat-value">
+          <span class="stat-icon">📍</span>
+          <span class="stat-text">${distance} km</span>
+        </div>
       </div>
     </div>
     
     ${mapUrl ? `
     <div class="map-section">
-      <h2>🗺️ Route Map</h2>
+      <h2>🗺️ Route Overview</h2>
       <div class="map-container">
         <img src="${mapUrl}" alt="Route Map" />
       </div>
       <div class="map-legend">
-        <span>🟢 Start Point</span>
-        <span>🔴 End Point</span>
-        <span>━━ Trail Path</span>
+        <span><div class="legend-dot green"></div> Start Point</span>
+        <span><div class="legend-dot blue"></div> Route Points</span>
+        <span><div class="legend-dot red"></div> End Point</span>
       </div>
     </div>
     ` : ""}
     
-    ${activityHtml}
+    <div class="location-grid">
+      <div class="location-card">
+        <div class="location-card-header">
+          <div class="location-dot green"></div>
+          <span class="location-label">Start Location</span>
+        </div>
+        <div class="location-address">${startAddress}</div>
+        <div class="location-time">${startTime}</div>
+      </div>
+      <div class="location-card">
+        <div class="location-card-header">
+          <div class="location-dot red"></div>
+          <span class="location-label">${shift.isActive ? 'Current Location' : 'End Location'}</span>
+        </div>
+        <div class="location-address">${endAddress}</div>
+        <div class="location-time">${endTime}</div>
+      </div>
+    </div>
+    
+    ${timelineHtml}
     ${photosHtml}
     
     <div class="footer">
-      Generated on ${new Date().toLocaleString("en-GB")} • Timestamp Camera App
+      Timestamp Camera App • ${shift.siteName}
     </div>
   </div>
 </body>

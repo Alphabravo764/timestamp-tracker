@@ -405,3 +405,41 @@ Based on developer analysis:
 - [x] Fixed shift/active.tsx share link to use Railway URL
 - [x] Fixed shift/complete.tsx share and view links to use Railway URL
 - [x] All viewer links now point to https://timestamp-tracker-production.up.railway.app/viewer/[pairCode]
+
+
+## PRODUCTION APK CRITICAL ISSUES - Jan 3, 2026 (User Testing)
+- [ ] Watermark not showing on photos taken in production APK build
+- [ ] Photos appear as broken placeholders in PDF report (gray box with "Photo 1" text)
+- [ ] Picture "blinking" when viewing saved photos in gallery
+- [ ] Share link using wrong URL (timestamp-tracker.app instead of Railway production URL)
+- [ ] PDF report photos corrupted/not displaying properly
+
+
+## NEW PROFESSIONAL TEMPLATE - Jan 3, 2026
+Based on user-provided React template design:
+
+### Live Viewer Enhancements
+- [x] Replace viewer.html with new React-based interactive template
+- [x] Add summary stats grid (Staff, Date, Duration, Distance)
+- [x] Add interactive map with Google Maps static image
+- [x] Merge timeline with photos, notes, and locations chronologically
+- [x] Add tabs for different views (Map, Timeline, Photos)
+- [x] Add hover effects and animations
+- [x] Hide unnecessary information from live view
+- [x] Add "Preview PDF" and "Download PDF" buttons
+
+### PDF Generation Enhancements
+- [x] Update PDF layout to match new professional template
+- [x] Add clean header with staff name and code
+- [x] Add summary stats grid at top
+- [x] Large map visualization
+- [x] Organized timeline with icons for different event types
+- [x] Photo gallery grid with proper images
+- [x] Print optimization with @media print styles
+- [x] A4 portrait layout
+
+### Bug Fixes (Production APK)
+- [x] Fix watermark not showing on photos (added server-side fallback)
+- [x] Fix PDF photos appearing as broken placeholders (improved base64 conversion)
+- [x] Fix share link using wrong URL (Railway URL hardcoded)
+- [x] Fix picture "blinking" in gallery (improved watermark flow)

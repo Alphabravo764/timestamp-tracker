@@ -1,180 +1,556 @@
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Live Viewer</title>
-    <style>
-      body { font-family: system-ui, Arial; padding: 18px; max-width: 900px; margin: 0 auto; }
-      .top { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-      .card { border: 1px solid #ddd; border-radius: 12px; padding: 12px; margin-top: 12px; }
-      .muted { color: #666; }
-      .grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
-      @media (min-width: 860px) { .grid { grid-template-columns: 1.2fr 0.8fr; } }
-      pre { white-space: pre-wrap; word-break: break-word; }
-      a { color: inherit; }
-      .err { color: #b00020; }
-      img { max-width: 100%; border-radius: 10px; border: 1px solid #eee; }
-      .small { font-size: 13px; }
-    </style>
-  </head>
-  <body>
-    <div class="top">
-      <div>
-        <h2 style="margin:0">Live Viewer</h2>
-        <div class="muted small">Pair code: <span id="pair"></span></div>
-      </div>
-      <div class="small muted">Auto-refresh: <span id="sec">10</span>s</div>
-    </div>
-
-    <div class="grid">
-      <div>
-        <div class="card">
-          <div><b>Shift</b></div>
-          <div id="shift" class="muted small">Loading…</div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shift Report</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    
+    @media print {
+      @page { margin: 0.5cm; size: A4 portrait; }
+      body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+      .print-break { page-break-inside: avoid; }
+    }
+    
+    .timeline-line { 
+      position: absolute; 
+      left: 9px; 
+      top: 24px; 
+      bottom: -12px; 
+      width: 2px; 
+      background: #e5e7eb; 
+    }
+    
+    .timeline-dot {
+      position: absolute;
+      left: 0;
+      top: 6px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid #d1d5db;
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .timeline-dot-inner {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #d1d5db;
+    }
+    
+    .timeline-dot.start { border-color: #22c55e; }
+    .timeline-dot.start .timeline-dot-inner { background: #22c55e; }
+    .timeline-dot.end { border-color: #ef4444; }
+    .timeline-dot.end .timeline-dot-inner { background: #ef4444; }
+    .timeline-dot.note { border-color: #f59e0b; }
+    .timeline-dot.note .timeline-dot-inner { background: #f59e0b; }
+    .timeline-dot.photo { border-color: #3b82f6; }
+    .timeline-dot.photo .timeline-dot-inner { background: #3b82f6; }
+    
+    .badge {
+      display: inline-flex;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-red { background: #fee2e2; color: #991b1b; }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .badge-yellow { background: #fef3c7; color: #92400e; }
+    .badge-gray { background: #f3f4f6; color: #374151; }
+    
+    .stat-card {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+    }
+    
+    .map-container {
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      border-radius: 12px;
+      position: relative;
+      min-height: 400px;
+    }
+    
+    .loading-spinner {
+      border: 3px solid #e5e7eb;
+      border-top: 3px solid #6366f1;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    .photo-grid img {
+      width: 100%;
+      height: 150px;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  
+  <!-- Header -->
+  <header class="bg-white border-b sticky top-0 z-20 px-4 py-3 shadow-sm no-print">
+    <div class="max-w-6xl mx-auto flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
+          SR
         </div>
+        <div>
+          <h1 class="text-lg font-bold leading-tight">Shift Report</h1>
+          <p class="text-xs text-gray-500 mono" id="headerCode">Loading...</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="window.print()" class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          <span class="hidden sm:inline">Download PDF</span>
+        </button>
+        <div class="text-xs text-gray-400 ml-2">
+          <span id="refreshTimer">10</span>s
+        </div>
+      </div>
+    </div>
+  </header>
 
-        <div class="card">
-          <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-            <b>Latest Location</b>
-            <a id="gmaps" class="small muted" href="#" target="_blank" rel="noreferrer">Open in Google Maps</a>
+  <!-- Print Header -->
+  <div class="hidden print-only p-8 pb-4 border-b mb-6">
+    <div class="max-w-6xl mx-auto flex justify-between items-end">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">Shift Report</h1>
+        <p class="text-gray-500 mt-1" id="printDate">Generated on ...</p>
+      </div>
+      <div class="text-right">
+        <p class="text-xl mono font-bold text-gray-900" id="printCode">---</p>
+        <p class="text-gray-600" id="printStaff">---</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div id="loadingState" class="flex flex-col items-center justify-center py-20">
+    <div class="loading-spinner mb-4"></div>
+    <p class="text-gray-500">Loading shift data...</p>
+  </div>
+
+  <!-- Error State -->
+  <div id="errorState" class="hidden flex flex-col items-center justify-center py-20">
+    <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+      <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+    </div>
+    <h3 class="text-lg font-semibold text-gray-900 mb-2">Shift Not Found</h3>
+    <p class="text-gray-500 text-center max-w-md" id="errorMessage">The shift with this pair code could not be found. Make sure the shift has been started and synced to the server.</p>
+  </div>
+
+  <!-- Main Content -->
+  <main id="mainContent" class="hidden max-w-6xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    
+    <!-- Left Column: Summary & Map -->
+    <div class="lg:col-span-2 space-y-6">
+      
+      <!-- Summary Stats Grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4" id="statsGrid">
+        <div class="stat-card">
+          <span class="text-gray-400 text-xs uppercase font-bold tracking-wider">Staff</span>
+          <div class="flex items-center gap-2 mt-2">
+            <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+            <span class="font-semibold" id="statStaff">---</span>
           </div>
-          <div id="loc" class="muted small">Loading…</div>
         </div>
-
-        <div class="card">
-          <b>Timeline</b>
-          <div id="timeline" class="muted small">Loading…</div>
+        <div class="stat-card">
+          <span class="text-gray-400 text-xs uppercase font-bold tracking-wider">Date</span>
+          <div class="flex items-center gap-2 mt-2">
+            <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            <span class="font-semibold text-sm" id="statDate">---</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <span class="text-gray-400 text-xs uppercase font-bold tracking-wider">Duration</span>
+          <div class="flex items-center gap-2 mt-2">
+            <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span class="font-semibold" id="statDuration">---</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <span class="text-gray-400 text-xs uppercase font-bold tracking-wider">Distance</span>
+          <div class="flex items-center gap-2 mt-2">
+            <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <span class="font-semibold" id="statDistance">---</span>
+          </div>
         </div>
       </div>
 
-      <div>
-        <div class="card">
-          <b>Latest Photo</b>
-          <div id="photoWrap" class="muted small" style="margin-top:10px;">No photo yet</div>
+      <!-- Map Section -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="border-b px-4 py-3 flex justify-between items-center bg-gray-50/50">
+          <h2 class="font-bold flex items-center gap-2">
+            <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+            Route Overview
+          </h2>
+          <a id="mapLink" href="#" target="_blank" class="text-sm text-indigo-600 hover:text-indigo-800 no-print">
+            Open in Google Maps →
+          </a>
         </div>
+        <div class="map-container" id="mapContainer">
+          <img id="mapImage" class="w-full h-full object-cover" alt="Route Map" style="min-height: 400px;" />
+          <div class="absolute top-4 left-4 bg-white/90 backdrop-blur rounded-lg border border-gray-200 p-3 text-xs space-y-2">
+            <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-green-500"></div> Start Point</div>
+            <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-blue-500"></div> Route Points</div>
+            <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-red-500"></div> Current/End</div>
+          </div>
+        </div>
+      </div>
 
-        <div class="card">
-          <b>Debug (raw JSON)</b>
-          <pre id="raw" class="small muted">Loading…</pre>
+      <!-- Location Info -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="stat-card">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-3 h-3 rounded-full bg-green-500"></div>
+            <span class="text-xs font-bold text-gray-500 uppercase">Start Location</span>
+          </div>
+          <p class="text-sm font-medium" id="startLocation">---</p>
+          <p class="text-xs text-gray-400 mono mt-1" id="startTime">---</p>
+        </div>
+        <div class="stat-card">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-3 h-3 rounded-full bg-red-500"></div>
+            <span class="text-xs font-bold text-gray-500 uppercase" id="endLabel">Current Location</span>
+          </div>
+          <p class="text-sm font-medium" id="endLocation">---</p>
+          <p class="text-xs text-gray-400 mono mt-1" id="endTime">---</p>
+        </div>
+      </div>
+
+      <!-- Photos Section -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden print-break" id="photosSection">
+        <div class="border-b px-4 py-3 bg-gray-50/50">
+          <h2 class="font-bold flex items-center gap-2">
+            <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            Photo Evidence
+            <span class="badge badge-gray ml-2" id="photoCount">0</span>
+          </h2>
+        </div>
+        <div class="p-4 photo-grid grid grid-cols-2 sm:grid-cols-4 gap-4" id="photoGrid">
+          <p class="text-gray-400 text-sm col-span-full text-center py-8">No photos taken yet</p>
         </div>
       </div>
     </div>
 
-    <script>
-      const pairCode = location.pathname.split("/").pop().toUpperCase();
-      document.getElementById("pair").textContent = pairCode;
+    <!-- Right Column: Timeline -->
+    <div class="space-y-4">
+      <div class="flex items-center justify-between no-print">
+        <h3 class="font-bold text-gray-700">Activity Feed</h3>
+        <span class="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full" id="eventCount">0 Events</span>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="p-4 space-y-4 max-h-[800px] overflow-y-auto" id="timeline">
+          <p class="text-gray-400 text-sm text-center py-8">No activity yet</p>
+        </div>
+      </div>
+    </div>
+  </main>
 
-      function fmtTime(ts) {
-        if (!ts) return "";
-        try { return new Date(ts).toLocaleString(); } catch { return String(ts); }
+  <!-- Shift Notes Section (Print Only) -->
+  <div class="hidden print-only max-w-6xl mx-auto px-8 mt-8" id="notesSection">
+    <h3 class="font-bold text-lg border-b pb-2 mb-4">Shift Notes</h3>
+    <div id="notesList" class="space-y-2"></div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="max-w-6xl mx-auto px-4 py-8 text-center text-xs text-gray-400 no-print">
+    <p>Timestamp Camera App • Auto-refreshes every 10 seconds</p>
+  </footer>
+
+  <script>
+    const pairCode = location.pathname.split("/").pop().toUpperCase();
+    document.getElementById("headerCode").textContent = pairCode;
+    document.getElementById("printCode").textContent = pairCode;
+    document.getElementById("printDate").textContent = "Generated on " + new Date().toLocaleDateString("en-GB", { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+    // Helper functions
+    function esc(s) { 
+      return String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); 
+    }
+    
+    function formatTime(ts) {
+      if (!ts) return "";
+      try {
+        const d = new Date(ts);
+        return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      } catch { return String(ts); }
+    }
+    
+    function formatDate(ts) {
+      if (!ts) return "";
+      try {
+        const d = new Date(ts);
+        return d.toLocaleDateString("en-GB", { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+      } catch { return String(ts); }
+    }
+    
+    function formatDuration(startTime, endTime) {
+      if (!startTime) return "---";
+      const start = new Date(startTime);
+      const end = endTime ? new Date(endTime) : new Date();
+      const diff = end - start;
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      if (hours > 0) return `${hours}h ${minutes}m`;
+      return `${minutes}m`;
+    }
+    
+    function calculateDistance(locations) {
+      if (!locations || locations.length < 2) return "0.00 km";
+      let total = 0;
+      for (let i = 1; i < locations.length; i++) {
+        const prev = locations[i - 1];
+        const curr = locations[i];
+        const R = 6371; // Earth's radius in km
+        const dLat = ((curr.latitude - prev.latitude) * Math.PI) / 180;
+        const dLon = ((curr.longitude - prev.longitude) * Math.PI) / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos((prev.latitude * Math.PI) / 180) *
+                  Math.cos((curr.latitude * Math.PI) / 180) *
+                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        total += R * c;
       }
-
-      function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-      async function fetchShift() {
-        const r = await fetch("/api/sync/shift/" + pairCode);
-        if (!r.ok) throw new Error("Shift not found yet");
-        return r.json();
+      return total.toFixed(2) + " km";
+    }
+    
+    function generateMapUrl(locations) {
+      if (!locations || locations.length === 0) return "";
+      
+      // Use Google Maps Static API with encoded polyline
+      const apiKey = ""; // Works without key for basic usage
+      const size = "800x400";
+      const scale = "2";
+      
+      // Create path from locations
+      const pathPoints = locations.map(l => `${l.latitude},${l.longitude}`).join("|");
+      
+      // Start marker (green)
+      const start = locations[0];
+      const startMarker = `markers=color:green|label:S|${start.latitude},${start.longitude}`;
+      
+      // End marker (red)
+      const end = locations[locations.length - 1];
+      const endMarker = `markers=color:red|label:E|${end.latitude},${end.longitude}`;
+      
+      // Path
+      const path = `path=color:0x4F46E5|weight:4|${pathPoints}`;
+      
+      return `https://maps.googleapis.com/maps/api/staticmap?size=${size}&scale=${scale}&${startMarker}&${endMarker}&${path}&maptype=roadmap`;
+    }
+    
+    function generateGoogleMapsLink(locations) {
+      if (!locations || locations.length === 0) return "#";
+      if (locations.length === 1) {
+        return `https://www.google.com/maps?q=${locations[0].latitude},${locations[0].longitude}`;
       }
+      const start = locations[0];
+      const end = locations[locations.length - 1];
+      return `https://www.google.com/maps/dir/${start.latitude},${start.longitude}/${end.latitude},${end.longitude}`;
+    }
 
-      function render(shift) {
-        document.getElementById("raw").textContent = JSON.stringify(shift, null, 2);
+    async function fetchShift() {
+      const r = await fetch("/api/sync/shift/" + pairCode);
+      if (!r.ok) throw new Error("Shift not found");
+      return r.json();
+    }
 
-        // Best-effort fields (depends on your sync-db shape)
-        const staff = shift.staffName || shift.staff_name || "";
-        const site = shift.siteName || shift.site_name || "";
-        const start = shift.startTime || shift.start_time || "";
-        const end = shift.endTime || shift.end_time || "";
-
-        document.getElementById("shift").innerHTML =
-          `<div><b>Staff:</b> ${esc(staff || "—")}</div>
-           <div><b>Site:</b> ${esc(site || "—")}</div>
-           <div><b>Start:</b> ${esc(fmtTime(start) || "—")}</div>
-           <div><b>End:</b> ${esc(fmtTime(end) || "—")}</div>`;
-
-        // Latest location - check locations array first
-        const locations = shift.locations || [];
-        const latest = locations.length > 0 ? locations[locations.length - 1] : (shift.latestLocation || shift.latest_location || shift.location || null);
-        const lat = latest?.latitude ?? latest?.lat;
-        const lng = latest?.longitude ?? latest?.lng;
-        const addr = latest?.address || "";
-        const acc = latest?.accuracy;
-
-        document.getElementById("loc").innerHTML =
-          `<div><b>Time:</b> ${esc(fmtTime(latest?.timestamp) || "—")}</div>
-           <div><b>Coords:</b> ${esc(lat && lng ? `${lat}, ${lng}` : "—")}</div>
-           <div><b>Accuracy:</b> ${esc(acc != null ? acc + "m" : "—")}</div>
-           <div><b>Address:</b> ${esc(addr || "—")}</div>`;
-
-        const gmaps = document.getElementById("gmaps");
-        if (lat && lng) {
-          gmaps.href = `https://www.google.com/maps?q=${lat},${lng}`;
-          gmaps.style.pointerEvents = "auto";
-          gmaps.style.opacity = "1";
-        } else {
-          gmaps.href = "#";
-          gmaps.style.pointerEvents = "none";
-          gmaps.style.opacity = "0.5";
-        }
-
-        // Timeline - build from locations, photos, and notes
-        let items = shift.timeline || shift.events || [];
-        if (!items.length) {
-          // Build timeline from locations, photos, notes
-          const locEvents = (shift.locations || []).map(l => ({ type: 'location', timestamp: l.timestamp, text: l.address || `${l.latitude}, ${l.longitude}` }));
-          const photoEvents = (shift.photos || []).map(p => ({ type: 'photo', timestamp: p.timestamp, text: 'Photo taken' }));
-          const noteEvents = (shift.notes || []).map(n => ({ type: 'note', timestamp: n.timestamp, text: n.text }));
-          items = [...locEvents, ...photoEvents, ...noteEvents].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        }
-        if (Array.isArray(items) && items.length) {
-          document.getElementById("timeline").innerHTML =
-            items.slice().reverse().slice(0, 80).map(ev => {
-              const t = fmtTime(ev.timestamp || ev.time);
-              const type = ev.type || ev.kind || "event";
-              const text = ev.text || ev.note || ev.address || "";
-              return `<div style="margin-top:8px"><b>${esc(type)}</b> <span class="muted">${esc(t)}</span><div>${esc(text)}</div></div>`;
-            }).join("");
-        } else {
-          document.getElementById("timeline").textContent = "No events yet";
-        }
-
-        // Latest photo (expects a usable URL in your stored photoUri)
-        const photos = shift.photos || shift.photoEvents || [];
-        const latestPhoto = Array.isArray(photos) ? photos[photos.length - 1] : null;
-        const uri = latestPhoto?.photoUri || latestPhoto?.uri || "";
-        const wrap = document.getElementById("photoWrap");
-        if (uri) {
-          wrap.innerHTML = `<img src="${esc(uri)}" alt="photo" /><div class="small muted" style="margin-top:6px">${esc(fmtTime(latestPhoto.timestamp) || "")}</div>`;
-        } else {
-          wrap.textContent = "No photo yet";
-        }
+    function render(shift) {
+      // Hide loading, show content
+      document.getElementById("loadingState").classList.add("hidden");
+      document.getElementById("errorState").classList.add("hidden");
+      document.getElementById("mainContent").classList.remove("hidden");
+      
+      // Extract data
+      const staff = shift.staffName || shift.staff_name || "Unknown";
+      const site = shift.siteName || shift.site_name || "";
+      const startTime = shift.startTime || shift.start_time || "";
+      const endTime = shift.endTime || shift.end_time || "";
+      const locations = shift.locations || [];
+      const photos = shift.photos || [];
+      const notes = shift.notes || [];
+      const isActive = !endTime;
+      
+      // Update stats
+      document.getElementById("statStaff").textContent = staff;
+      document.getElementById("printStaff").textContent = staff;
+      document.getElementById("statDate").textContent = formatDate(startTime);
+      document.getElementById("statDuration").textContent = formatDuration(startTime, endTime);
+      document.getElementById("statDistance").textContent = calculateDistance(locations);
+      
+      // Update map
+      if (locations.length > 0) {
+        const mapUrl = generateMapUrl(locations);
+        document.getElementById("mapImage").src = mapUrl;
+        document.getElementById("mapLink").href = generateGoogleMapsLink(locations);
+        
+        // Start location
+        const startLoc = locations[0];
+        document.getElementById("startLocation").textContent = startLoc.address || `${startLoc.latitude.toFixed(5)}, ${startLoc.longitude.toFixed(5)}`;
+        document.getElementById("startTime").textContent = formatTime(startLoc.timestamp);
+        
+        // End/Current location
+        const endLoc = locations[locations.length - 1];
+        document.getElementById("endLabel").textContent = isActive ? "Current Location" : "End Location";
+        document.getElementById("endLocation").textContent = endLoc.address || `${endLoc.latitude.toFixed(5)}, ${endLoc.longitude.toFixed(5)}`;
+        document.getElementById("endTime").textContent = formatTime(endLoc.timestamp);
       }
-
-      async function tick() {
-        const el = document.getElementById("shift");
-        try {
-          const shift = await fetchShift();
-          render(shift);
-        } catch (e) {
-          el.innerHTML = `<span class="err">${esc(e.message || e)}</span><div class="muted small">Start a new shift and sync it to server first.</div>`;
-          document.getElementById("loc").textContent = "—";
-          document.getElementById("timeline").textContent = "—";
-          document.getElementById("photoWrap").textContent = "—";
-          document.getElementById("raw").textContent = "";
-        }
+      
+      // Update photos
+      document.getElementById("photoCount").textContent = photos.length;
+      if (photos.length > 0) {
+        document.getElementById("photoGrid").innerHTML = photos.slice(0, 12).map((photo, i) => `
+          <div class="relative">
+            <img src="${esc(photo.photoUri || photo.uri || '')}" alt="Photo ${i + 1}" onerror="this.parentElement.innerHTML='<div class=\\'h-[150px] bg-gray-100 rounded-lg flex items-center justify-center text-gray-400\\'>Photo ${i + 1}</div>'" />
+            <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 rounded-b-lg">
+              <p class="text-white text-xs mono">${esc(formatTime(photo.timestamp))}</p>
+            </div>
+          </div>
+        `).join("");
+      } else {
+        document.getElementById("photoGrid").innerHTML = '<p class="text-gray-400 text-sm col-span-full text-center py-8">No photos taken yet</p>';
       }
+      
+      // Build timeline
+      const events = [];
+      
+      // Add locations
+      locations.forEach((loc, i) => {
+        let label = `Point ${i + 1}`;
+        let type = "location";
+        if (i === 0) { label = "START"; type = "start"; }
+        else if (i === locations.length - 1 && !isActive) { label = "END"; type = "end"; }
+        else if (i === locations.length - 1 && isActive) { label = "CURRENT"; type = "end"; }
+        
+        events.push({
+          type,
+          timestamp: loc.timestamp,
+          label,
+          text: loc.address || `${loc.latitude.toFixed(5)}, ${loc.longitude.toFixed(5)}`
+        });
+      });
+      
+      // Add photos
+      photos.forEach((photo, i) => {
+        events.push({
+          type: "photo",
+          timestamp: photo.timestamp,
+          label: `Photo ${i + 1}`,
+          text: photo.address || "Photo taken"
+        });
+      });
+      
+      // Add notes
+      notes.forEach(note => {
+        events.push({
+          type: "note",
+          timestamp: note.timestamp,
+          label: "Note",
+          text: note.text
+        });
+      });
+      
+      // Sort by timestamp
+      events.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      
+      // Update event count
+      document.getElementById("eventCount").textContent = `${events.length} Events`;
+      
+      // Render timeline
+      if (events.length > 0) {
+        document.getElementById("timeline").innerHTML = events.map((event, i) => {
+          const isLast = i === events.length - 1;
+          let dotClass = "";
+          let badgeClass = "badge-gray";
+          
+          if (event.type === "start") { dotClass = "start"; badgeClass = "badge-green"; }
+          else if (event.type === "end") { dotClass = "end"; badgeClass = "badge-red"; }
+          else if (event.type === "photo") { dotClass = "photo"; badgeClass = "badge-blue"; }
+          else if (event.type === "note") { dotClass = "note"; badgeClass = "badge-yellow"; }
+          
+          return `
+            <div class="relative pl-8 pb-4 print-break">
+              ${!isLast ? '<div class="timeline-line"></div>' : ''}
+              <div class="timeline-dot ${dotClass}">
+                <div class="timeline-dot-inner"></div>
+              </div>
+              <div class="flex justify-between items-start mb-1">
+                <span class="text-xs font-bold mono text-gray-500">${esc(formatTime(event.timestamp))}</span>
+                <span class="badge ${badgeClass}">${esc(event.label)}</span>
+              </div>
+              ${event.type === "note" 
+                ? `<div class="bg-yellow-50 border border-yellow-100 p-2 rounded-md mt-1"><p class="text-sm text-gray-800 italic">"${esc(event.text)}"</p></div>`
+                : `<p class="text-sm text-gray-600">${esc(event.text)}</p>`
+              }
+            </div>
+          `;
+        }).join("");
+      } else {
+        document.getElementById("timeline").innerHTML = '<p class="text-gray-400 text-sm text-center py-8">No activity yet</p>';
+      }
+      
+      // Update notes section for print
+      if (notes.length > 0) {
+        document.getElementById("notesSection").classList.remove("hidden");
+        document.getElementById("notesList").innerHTML = notes.map(note => `
+          <div class="bg-yellow-50 border border-yellow-100 p-3 rounded">
+            <p class="text-sm">${esc(note.text)}</p>
+            <p class="text-xs text-gray-400 mt-1">${esc(formatTime(note.timestamp))}</p>
+          </div>
+        `).join("");
+      }
+    }
 
-      // countdown
-      let s = 10;
-      setInterval(() => {
-        s -= 1;
-        if (s <= 0) s = 10;
-        document.getElementById("sec").textContent = String(s);
-      }, 1000);
+    function showError(message) {
+      document.getElementById("loadingState").classList.add("hidden");
+      document.getElementById("mainContent").classList.add("hidden");
+      document.getElementById("errorState").classList.remove("hidden");
+      document.getElementById("errorMessage").textContent = message;
+    }
 
-      tick();
-      setInterval(tick, 10000);
-    </script>
-  </body>
+    async function tick() {
+      try {
+        const shift = await fetchShift();
+        render(shift);
+      } catch (e) {
+        showError(e.message || "Failed to load shift data. Please check the pair code and try again.");
+      }
+    }
+
+    // Countdown timer
+    let countdown = 10;
+    setInterval(() => {
+      countdown -= 1;
+      if (countdown <= 0) countdown = 10;
+      document.getElementById("refreshTimer").textContent = countdown;
+    }, 1000);
+
+    // Initial load and auto-refresh
+    tick();
+    setInterval(tick, 10000);
+  </script>
+</body>
 </html>
