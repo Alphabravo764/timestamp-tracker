@@ -176,8 +176,8 @@ export default function SettingsScreen() {
               if (Platform.OS !== "web") {
                 await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               }
-              const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
-              Linking.openURL(`${baseUrl}/policies/privacy-policy`);
+              const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
+              Linking.openURL(`${baseUrl}/policies/privacy-policy.html`);
             }}
           >
             <Text style={[styles.linkLabel, { color: colors.foreground }]}>Privacy Policy</Text>
@@ -190,8 +190,8 @@ export default function SettingsScreen() {
               if (Platform.OS !== "web") {
                 await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               }
-              const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
-              Linking.openURL(`${baseUrl}/policies/terms-of-service`);
+              const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
+              Linking.openURL(`${baseUrl}/policies/terms-of-service.html`);
             }}
           >
             <Text style={[styles.linkLabel, { color: colors.foreground }]}>Terms of Service</Text>
@@ -229,7 +229,7 @@ export default function SettingsScreen() {
                 }
                 
                 // Open export URL
-                const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+                const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
                 const exportUrl = `${baseUrl}/api/export/${pairCode}`;
                 
                 Alert.alert(

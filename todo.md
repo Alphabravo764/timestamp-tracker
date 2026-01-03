@@ -743,3 +743,9 @@ Based on user's detailed specifications and sample code:
 - [x] Add "Download Shift Report" button to viewer
 - [x] Test route replay animation with real shift data
 - [x] Test PDF generation with complete shift data
+
+## BUG FIXES - Jan 3, 2026
+- [x] Fix "Download My Data" button not working in Settings
+- [x] Fix policy links (Terms of Service, Privacy Policy) not opening in Settings
+- [x] Test data export endpoint returns valid JSON
+- [x] Test policy links open in browser correctly
