@@ -30,25 +30,28 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function startServer() {
   const app = express();
-  // Simple web pages for Railway (no Expo web build)
-const webDir = path.join(process.cwd(), "server", "web");
-
-app.get("/track", (_req, res) => res.sendFile(path.join(webDir, "track.html")));
-app.get("/viewer/:code", (_req, res) => res.sendFile(path.join(webDir, "viewer.html")));
-
 
   // Serve Expo web build in production
   if (process.env.NODE_ENV === "production") {
-    const webDir = path.join(process.cwd(), "dist", "public");
+    const webBuildDir = path.join(process.cwd(), "dist", "public");
 
-    if (fs.existsSync(webDir)) {
-      app.use(express.static(webDir));
+    if (fs.existsSync(webBuildDir)) {
+      app.use(express.static(webBuildDir));
+
+      // SPA fallback for routes like /track and /viewer/ABC123
+      app.get("*", (req, res, next) => {
+        if (req.path.startsWith("/api")) return next();
+        res.sendFile(path.join(webBuildDir, "index.html"));
+      });
     } else {
       console.warn("⚠️ Web build not found at dist/public");
     }
   }
 
   const server = createServer(app);
+
+  // ... keep the rest of your code the same
+}
 
   // Enable CORS for all routes - reflect the request origin to support credentials
   app.use((req, res, next) => {
