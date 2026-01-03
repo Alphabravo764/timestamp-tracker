@@ -15,7 +15,7 @@ RUN pnpm install --no-frozen-lockfile --prod=false
 COPY . .
 
 # Build the server
-RUN pnpm build:all
+RUN pnpm build
 
 # Expose port
 EXPOSE 3000
