@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Live Tracking - Watcher Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <!-- Static map - no API key needed -->
+  <!-- Leaflet CSS for OpenStreetMap -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
@@ -592,27 +595,11 @@
       // Create map using Leaflet (OpenStreetMap - free, no API key)
       mapDiv.innerHTML = '<div id="leaflet-map" style="width: 100%; height: 100%;"></div>';
       
-      // Load Leaflet CSS
-      if (!document.querySelector('link[href*="leaflet.css"]')) {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(link);
-      }
-      
-      // Load Leaflet JS
+      // Leaflet is pre-loaded in <head>, check if available
       if (typeof L === 'undefined') {
-        const script = document.createElement('script');
-        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-        document.head.appendChild(script);
+        mapDiv.innerHTML = '<div style="padding: 40px; text-align: center; color: #666;"><p style="font-size: 18px; margin-bottom: 8px;">📍 Route Map</p><p>' + locations.length + ' GPS points recorded</p><p style="font-size: 12px; color: #f87171; margin-top: 8px;">Leaflet library not loaded</p></div>';
+        return;
       }
-      
-      // Wait for Leaflet to load
-      setTimeout(() => {
-        if (typeof L === 'undefined') {
-          mapDiv.innerHTML = '<div style="padding: 40px; text-align: center; color: #666;"><p style="font-size: 18px; margin-bottom: 8px;">📍 Route Map</p><p>' + locations.length + ' GPS points recorded</p></div>';
-          return;
-        }
         
         const leafletMap = L.map('leaflet-map').setView([latest.latitude, latest.longitude], 15);
         
@@ -638,10 +625,9 @@
           opacity: 0.8
         }).addTo(leafletMap);
         
-        // Fit bounds
+        // Fit bounds to show entire route
         const bounds = L.latLngBounds(latlngs);
         leafletMap.fitBounds(bounds, { padding: [50, 50] });
-      }, 500);
     }
     
     // Render dashboard

@@ -573,3 +573,12 @@ Based on user's detailed specifications and sample code:
 - [x] Remove location updates from activity feed (causes clutter)
 - [x] Show only significant events: photos, notes, shift start/end
 - [ ] DEPLOY: Push to GitHub and redeploy Railway to apply all fixes
+
+
+## MAP NOT DISPLAYING - Jan 3, 2026 (CRITICAL)
+- [x] FIX: Map container is empty on Railway viewer (shows "142 GPS points recorded" but no map)
+- [x] FIX: Leaflet library not loading or initializing properly - moved to <head> pre-load
+- [x] FIX: Polyline route not visible because map isn't rendering - fixed with pre-loaded Leaflet
+- [x] DEBUG: Check Leaflet CSS/JS loading in browser console - now loads in <head> with integrity hashes
+- [x] VERIFY: initMap() function is being called with location data - simplified to use pre-loaded library
+- [ ] DEPLOY: Push to GitHub and redeploy Railway to apply map fix
