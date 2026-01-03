@@ -30,6 +30,12 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function startServer() {
   const app = express();
+  // Simple web pages for Railway (no Expo web build)
+const webDir = path.join(process.cwd(), "server", "web");
+
+app.get("/track", (_req, res) => res.sendFile(path.join(webDir, "track.html")));
+app.get("/viewer/:code", (_req, res) => res.sendFile(path.join(webDir, "viewer.html")));
+
 
   // Serve Expo web build in production
   if (process.env.NODE_ENV === "production") {
