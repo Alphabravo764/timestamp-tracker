@@ -701,3 +701,8 @@ Based on user's detailed specifications and sample code:
 - [x] Add shift end summary card (already done)
 - [x] Upload photos to cloud storage so they display in web viewer
 - [x] Fix photos showing "Photo not available (local file)" in web viewer
+
+## WEB VIEWER MOBILE LAYOUT FIXES - Jan 3, 2026
+- [x] Hide or adjust DISTANCE column on mobile to prevent cutoff
+- [x] Update Current Location to show street address + postcode first, then coordinates below
+- [x] Ensure mobile responsive layout works properly on small screens

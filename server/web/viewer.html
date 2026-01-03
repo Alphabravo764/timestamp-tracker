@@ -474,6 +474,28 @@
       .summary-grid {
         grid-template-columns: repeat(2, 1fr);
       }
+      
+      /* Hide distance column on mobile to prevent cutoff */
+      .header-stats .stat:last-child {
+        display: none;
+      }
+      
+      /* Stack header on mobile */
+      .header-content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+      }
+      
+      .header-stats {
+        width: 100%;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      
+      .stat {
+        text-align: center;
+      }
     }
     
     /* Footer */
@@ -678,6 +700,37 @@
       }
       
       const fallback = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      addressCache.set(key, fallback);
+      return fallback;
+    }
+    
+    // Get formatted address from coordinates (street + postcode)
+    async function getAddressFromCoords(lat, lng) {
+      const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+      if (addressCache.has(key)) {
+        return addressCache.get(key);
+      }
+      
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+          { headers: { 'User-Agent': 'TimestampTracker/1.0' } }
+        );
+        const data = await response.json();
+        if (data.address) {
+          const { road, house_number, postcode, city, town, village } = data.address;
+          const street = house_number ? `${house_number} ${road}` : road;
+          const area = city || town || village || '';
+          const parts = [street, postcode].filter(Boolean);
+          const formatted = parts.join(', ') || data.display_name?.split(',').slice(0, 2).join(',') || 'Unknown location';
+          addressCache.set(key, formatted);
+          return formatted;
+        }
+      } catch (error) {
+        console.log('Geocoding failed:', error);
+      }
+      
+      const fallback = 'Location unavailable';
       addressCache.set(key, fallback);
       return fallback;
     }
@@ -970,7 +1023,7 @@
           <div class="location-content">
             <div class="location-icon">📍</div>
             <div class="location-details">
-              <div class="location-address">Current Location</div>
+              <div class="location-address" id="current-address">Loading address...</div>
               <div class="location-coords">
                 ${latestLocation.latitude.toFixed(6)}, ${latestLocation.longitude.toFixed(6)}
                 ${latestLocation.accuracy ? ` • ±${Math.round(latestLocation.accuracy)}m` : ''}
@@ -1086,6 +1139,24 @@
       // Initialize map
       if (shift.locations && shift.locations.length > 0) {
         setTimeout(() => initMap(shift.locations), 100);
+      }
+      
+      // Reverse geocode current location
+      if (latestLocation) {
+        getAddressFromCoords(latestLocation.latitude, latestLocation.longitude)
+          .then(address => {
+            const addressEl = document.getElementById('current-address');
+            if (addressEl) {
+              addressEl.textContent = address;
+            }
+          })
+          .catch(err => {
+            console.error('Geocoding error:', err);
+            const addressEl = document.getElementById('current-address');
+            if (addressEl) {
+              addressEl.textContent = 'Current Location';
+            }
+          });
       }
       
       // Auto-refresh if active
