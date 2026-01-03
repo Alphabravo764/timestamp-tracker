@@ -549,3 +549,9 @@ Based on user's detailed specifications and sample code:
 - [x] Test API endpoint /api/sync/shift/V9K7DF to verify data is returned (API works, returns data)
 - [x] Check browser console for JavaScript errors (InvalidKeyMapError)
 - [x] Fix Google Maps API key issue - replaced with static map (no API key) and Nominatim geocoding
+
+
+## VIEWER ISSUES - Jan 3, 2026
+- [x] FIX: Map is too small and not visible - increased to 500px height
+- [x] FIX: Static map image not loading - replaced with Leaflet (OpenStreetMap) interactive map
+- [x] FIX: "Download Shift Report" button not working - opens print dialog for PDF
