@@ -173,8 +173,8 @@
       max-width: 1600px;
       margin: 0 auto;
       width: 100%;
-      display: grid;
-      grid-template-columns: 1fr 400px;
+      display: flex;
+      flex-direction: column;
       gap: 24px;
       padding: 24px;
     }
@@ -236,8 +236,8 @@
     
     .feed-content {
       display: flex;
+      flex-wrap: wrap;
       gap: 24px;
-      overflow-x: auto;
       padding-bottom: 16px;
     }
     
@@ -250,15 +250,7 @@
       flex-shrink: 0;
     }
     
-    .feed-item:not(:last-child)::after {
-      content: '';
-      position: absolute;
-      right: -24px;
-      top: 16px;
-      width: 24px;
-      height: 2px;
-      background: #e2e8f0;
-    }
+    /* Removed connecting lines since items now wrap */
     
     .feed-icon {
       width: 32px;

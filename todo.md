@@ -664,3 +664,11 @@ Based on user's detailed specifications and sample code:
 - [x] FIX: Removed extra closing brace at line 561 causing SyntaxError
 - [x] FIX: Skip photos with local file:// URIs (not accessible from web)
 - [ ] DEPLOY: Push fixed viewer.html to Railway
+
+
+## LAYOUT IMPROVEMENT - Jan 3, 2026 (User Request)
+- [x] Move Activity Stream below the map (vertical stacking) - changed grid to flex column
+- [x] Full width for both map and activity stream - removed 400px sidebar
+- [x] Better PDF generation - natural vertical flow - items wrap instead of scroll
+- [x] Better mobile responsiveness - stacked layout works on all screens
+- [ ] DEPLOY: Push to GitHub and redeploy Railway to see new layout
