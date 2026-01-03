@@ -33,10 +33,7 @@ import type { Shift, LocationPoint, ShiftPhoto } from "@/lib/shift-types";
 import { addNoteToShift, getShiftNotes } from "@/lib/shift-notes";
 import { batchExportPhotos } from "@/lib/batch-export";
 import { getTemplates, saveTemplate, useTemplate, type ShiftTemplate } from "@/lib/shift-templates";
-import { generatePDFReport } from "@/lib/pdf-generator";
-import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
-import * as FileSystem from "expo-file-system/legacy";
 import { syncShiftStart, syncLocation, syncPhoto, syncNote, syncShiftEnd } from "@/lib/server-sync";
 import { PhotoWatermark, PhotoWatermarkRef } from "@/components/photo-watermark";
 import { getApiBaseUrl } from "@/constants/oauth";
@@ -462,53 +459,34 @@ export default function HomeScreen() {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       
-      // Mark as interim report since shift is still active
-      const isInterim = activeShift.isActive;
+      // Get the API base URL (Railway production or local dev)
+      const apiUrl = getApiBaseUrl();
       
-      // Generate HTML report (pass isInterim for active shifts)
-      const html = await generatePDFReport(activeShift, isInterim);
+      // Build viewer URL with pair code
+      const viewerUrl = `${apiUrl}/viewer/${activeShift.pairCode}`;
       
       if (Platform.OS === "web") {
-        // On web, open HTML report in new tab
-        const blob = new Blob([html], { type: "text/html" });
-        const url = URL.createObjectURL(blob);
-        window.open(url, "_blank");
+        // On web, open viewer in new tab
+        window.open(viewerUrl, "_blank");
       } else {
-        // On mobile, generate PDF and share it
-        try {
-          // Generate PDF file from HTML
-          const { uri } = await Print.printToFileAsync({
-            html,
-            base64: false,
-          });
-          
-          // Check if sharing is available
-          const isAvailable = await Sharing.isAvailableAsync();
-          
-          if (isAvailable) {
-            await Sharing.shareAsync(uri, {
-              mimeType: "application/pdf",
-              dialogTitle: `Shift Report - ${activeShift.siteName}`,
-              UTI: "com.adobe.pdf",
-            });
-          } else {
-            alert("Sharing is not available on this device");
-          }
-        } catch (printError) {
-          console.error("Print error:", printError);
-          // Fallback to text sharing if PDF generation fails
-          const duration = formatDuration(getShiftDuration(activeShift));
-          const liveUrl = `https://timestamp-tracker.app/live/${activeShift.pairCode}`;
-          
-          const message = `📊 Shift Report - ${activeShift.siteName}\n\n` +
-            `👤 Staff: ${activeShift.staffName}\n` +
-            `⏱️ Duration: ${duration}\n` +
-            `📷 Photos: ${activeShift.photos.length}\n` +
-            `📍 Locations: ${activeShift.locations.length}\n` +
-            `\n🔗 Live Tracking: ${liveUrl}`;
-          
-          await Share.share({ message, title: `Shift Report - ${activeShift.siteName}` });
-        }
+        // On mobile, share the viewer URL
+        // User can open it in browser and use "Download Shift Report" button
+        const duration = formatDuration(getShiftDuration(activeShift));
+        
+        const message = `📊 Shift Report - ${activeShift.siteName}\n\n` +
+          `👤 Staff: ${activeShift.staffName}\n` +
+          `⏱️ Duration: ${duration}\n` +
+          `📷 Photos: ${activeShift.photos.length}\n` +
+          `📍 Locations: ${activeShift.locations.length}\n` +
+          `\n🔗 View Report: ${viewerUrl}\n\n` +
+          `Open the link above to view the full report with map, photos, and timeline. ` +
+          `Click "Download Shift Report" to save as PDF.`;
+        
+        await Share.share({ 
+          message, 
+          title: `Shift Report - ${activeShift.siteName}`,
+          url: viewerUrl // iOS will show this as a link
+        });
       }
     } catch (e) {
       console.error("Share report error:", e);

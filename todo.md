@@ -628,3 +628,20 @@ Based on user's detailed specifications and sample code:
 - [x] On mobile (iOS/Android): use WebView as intended - WebView renders on native
 - [ ] TEST: Verify Watch tab on actual iOS/Android device
 - [ ] DEPLOY: Push to GitHub and redeploy Railway
+
+
+## ACTIVITY STREAM HORIZONTAL TIMELINE - Jan 3, 2026 (User Request)
+- [x] Convert activity stream from vertical scrollable to horizontal timeline
+- [x] Remove collapse/expand button (no longer needed)
+- [x] Display all events in one horizontal row for PDF capture
+- [x] Timeline-style layout with photos, notes, and timestamps
+- [x] Ensure all events visible without scrolling for PDF
+
+## MOBILE APP PDF GENERATION - Jan 3, 2026 (User Request)
+- [x] Make mobile app "Generate PDF" match web viewer format - opens web viewer URL
+- [x] Include map with polylines in mobile PDF - uses web viewer
+- [x] Include photos, notes, and activity timeline - uses web viewer
+- [x] Use same layout as web viewer PDF - exact same viewer
+- [x] Remove old basic text-only PDF format - replaced with web viewer link
+- [ ] TEST: Verify mobile app shares viewer URL correctly
+- [ ] DEPLOY: Push to GitHub and redeploy Railway
