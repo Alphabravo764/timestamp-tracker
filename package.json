@@ -71,6 +71,8 @@
     "jose": "6.1.0",
     "mysql2": "^3.16.0",
     "nativewind": "^4.2.1",
+    "nativewind": "^4.2.1",
+    "react-native-css-interop": "*",
     "pdfkit": "^0.17.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
