@@ -38,16 +38,6 @@ async function startServer() {
     if (fs.existsSync(webBuildDir)) {
       app.use(express.static(webBuildDir));
 
-      // SPA fallback for routes like /track and /viewer/ABC123
-      app.get("*", (req, res, next) => {
-        if (req.path.startsWith("/api")) return next();
-        res.sendFile(path.join(webBuildDir, "index.html"));
-      });
-    } else {
-      console.warn("⚠️ Web build not found at dist/public");
-    }
-  }
-
   const server = createServer(app);
 
   // ... keep the rest of your code the same
