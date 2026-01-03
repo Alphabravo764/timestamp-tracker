@@ -655,3 +655,12 @@ Based on user's detailed specifications and sample code:
 - [x] DEBUG: Check viewer.html loading sequence and API calls - Railway has old code
 - [x] DEBUG: Check Share.share() URL parameter on iOS - simplified to just share URL
 - [ ] DEPLOY: Push to GitHub and redeploy Railway to fix viewer loading
+
+
+## RAILWAY DEPLOYMENT ISSUE - Jan 3, 2026
+- [x] URGENT: Railway viewer still stuck on "Loading shift data..." after deployment - FIXED
+- [x] Check if API endpoint /api/sync/shift/:pairCode is accessible on Railway - API works fine
+- [x] Check if viewer.html JavaScript is executing correctly - HAD SYNTAX ERROR (extra closing brace)
+- [x] FIX: Removed extra closing brace at line 561 causing SyntaxError
+- [x] FIX: Skip photos with local file:// URIs (not accessible from web)
+- [ ] DEPLOY: Push fixed viewer.html to Railway

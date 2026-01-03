@@ -557,9 +557,6 @@
       document.getElementById('lightbox').style.display = 'none';
     }
     
-    //   }
-    }
-    
     // Initialize WebSocket for real-time updates
     function initWebSocket() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -747,6 +744,11 @@
       // Add photos
       if (shift.photos) {
         for (const photo of shift.photos) {
+          // Skip photos with local file URIs (not accessible from web)
+          if (photo.photoUri && photo.photoUri.startsWith('file://')) {
+            continue;
+          }
+          
           let content = 'Location unavailable';
           if (photo.latitude && photo.longitude) {
             content = await reverseGeocode(photo.latitude, photo.longitude);
