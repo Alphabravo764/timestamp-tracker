@@ -21,34 +21,19 @@ function isPortAvailable(port: number): Promise<boolean> {
 
 async function findAvailablePort(startPort: number = 3000): Promise<number> {
   for (let port = startPort; port < startPort + 20; port++) {
-    if (await isPortAvailable(port)) {
-      return port;
-    }
+    if (await isPortAvailable(port)) return port;
   }
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
 async function startServer() {
   const app = express();
-
-  // Serve Expo web build in production
-  if (process.env.NODE_ENV === "production") {
-    const webBuildDir = path.join(process.cwd(), "dist", "public");
-
-    if (fs.existsSync(webBuildDir)) {
-      app.use(express.static(webBuildDir));
-
   const server = createServer(app);
 
-  // ... keep the rest of your code the same
-}
-
-  // Enable CORS for all routes - reflect the request origin to support credentials
+  // ---- CORS (keep this near the top) ----
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (origin) {
-      res.header("Access-Control-Allow-Origin", origin);
-    }
+    if (origin) res.header("Access-Control-Allow-Origin", origin);
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.header(
       "Access-Control-Allow-Headers",
@@ -66,16 +51,34 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
+  // ---- Simple HTML pages served by Railway (NO Expo Web build) ----
+  const simpleWebDir = path.join(process.cwd(), "server", "web");
+
+  // Optional: serve static assets if you add css/js later
+  if (fs.existsSync(simpleWebDir)) {
+    app.use("/web", express.static(simpleWebDir));
+  }
+
+  // Code entry page
+  app.get("/track", (_req, res) => {
+    res.sendFile(path.join(simpleWebDir, "track.html"));
+  });
+
+  // Viewer page (pair code is in URL as :code)
+  app.get("/viewer/:code", (_req, res) => {
+    res.sendFile(path.join(simpleWebDir, "viewer.html"));
+  });
+
+  // ---- OAuth + health ----
   registerOAuthRoutes(app);
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, timestamp: Date.now() });
   });
 
-  // Import database sync functions
+  // ---- Database sync APIs ----
   const syncDb = await import("../sync-db.js");
 
-  // Sync API endpoints for live viewing - now using database
   app.post("/api/sync/shift", async (req, res) => {
     try {
       const { pairCode, shiftId, staffName, siteName, startTime } = req.body;
@@ -117,10 +120,15 @@ async function startServer() {
 
   app.post("/api/sync/note", async (req, res) => {
     try {
-      const { pairCode } = req.body;
+      const { pairCode, text, timestamp } = req.body;
       if (!pairCode) return res.status(400).json({ error: "pairCode required" });
 
-      // TODO: Implement note storage in database
+      // If you already implemented note storage in sync-db, call it here.
+      // Otherwise this will remain a no-op but won't crash.
+      if (typeof syncDb.addNote === "function") {
+        await syncDb.addNote({ pairCode, text, timestamp });
+      }
+
       res.json({ success: true });
     } catch (error) {
       console.error("Sync note error:", error);
@@ -141,11 +149,11 @@ async function startServer() {
     }
   });
 
+  // Fetch full shift timeline by pair code
   app.get("/api/sync/shift/:pairCode", async (req, res) => {
     try {
       const { pairCode } = req.params;
       const shift = await syncDb.getShiftByPairCode(pairCode);
-
       if (!shift) return res.status(404).json({ error: "Shift not found" });
       res.json(shift);
     } catch (error) {
@@ -154,7 +162,7 @@ async function startServer() {
     }
   });
 
-  // Watermark API endpoint - adds timestamp watermark to photos
+  // ---- Watermark API ----
   const watermarkApi = await import("../watermark-api.js");
 
   app.post("/api/watermark", async (req, res) => {
@@ -182,6 +190,7 @@ async function startServer() {
     }
   });
 
+  // ---- tRPC ----
   app.use(
     "/api/trpc",
     createExpressMiddleware({
@@ -190,17 +199,7 @@ async function startServer() {
     }),
   );
 
-  // SPA fallback for routes like /track and /viewer/ABC123
-  if (process.env.NODE_ENV === "production") {
-    const webDir = path.join(process.cwd(), "dist", "public");
-    if (fs.existsSync(webDir)) {
-      app.get("*", (req, res, next) => {
-        if (req.path.startsWith("/api")) return next();
-        res.sendFile(path.join(webDir, "index.html"));
-      });
-    }
-  }
-
+  // ---- Start ----
   const preferredPort = parseInt(process.env.PORT || "3000", 10);
   const port = await findAvailablePort(preferredPort);
 
