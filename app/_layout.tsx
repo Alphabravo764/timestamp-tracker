@@ -30,6 +30,8 @@ const DEFAULT_WEB_FRAME: Rect = { x: 0, y: 0, width: 0, height: 0 };
 // };
 
 const TERMS_ACCEPTED_KEY = "@timestamp_tracker_terms_accepted";
+const TERMS_VERSION_KEY = "@timestamp_tracker_terms_version";
+const CURRENT_TERMS_VERSION = "1.0.0";
 
 export default function RootLayout() {
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
@@ -45,12 +47,15 @@ export default function RootLayout() {
     initManusRuntime();
   }, []);
 
-  // Check if user has accepted terms
+  // Check if user has accepted current version of terms
   useEffect(() => {
     async function checkTermsAcceptance() {
       try {
         const accepted = await AsyncStorage.getItem(TERMS_ACCEPTED_KEY);
-        if (accepted === "true") {
+        const acceptedVersion = await AsyncStorage.getItem(TERMS_VERSION_KEY);
+        
+        // Show modal if never accepted OR if version changed
+        if (accepted === "true" && acceptedVersion === CURRENT_TERMS_VERSION) {
           setTermsAccepted(true);
         } else {
           setTermsAccepted(false);
@@ -68,6 +73,7 @@ export default function RootLayout() {
   const handleAcceptTerms = async () => {
     try {
       await AsyncStorage.setItem(TERMS_ACCEPTED_KEY, "true");
+      await AsyncStorage.setItem(TERMS_VERSION_KEY, CURRENT_TERMS_VERSION);
       setTermsAccepted(true);
       setShowTermsModal(false);
     } catch (error) {

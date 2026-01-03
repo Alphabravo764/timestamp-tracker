@@ -11,13 +11,15 @@ export function TermsModal({ visible, onAccept }: TermsModalProps) {
   const [activeTab, setActiveTab] = useState<"terms" | "privacy">("terms");
 
   const openPrivacyPolicy = () => {
-    // In production, replace with your actual hosted policy URL
-    Linking.openURL("https://your-domain.com/privacy-policy");
+    // Link to server-hosted policy
+    const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+    Linking.openURL(`${baseUrl}/policies/privacy-policy`);
   };
 
   const openTerms = () => {
-    // In production, replace with your actual hosted terms URL
-    Linking.openURL("https://your-domain.com/terms-of-service");
+    // Link to server-hosted terms
+    const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+    Linking.openURL(`${baseUrl}/policies/terms-of-service`);
   };
 
   return (

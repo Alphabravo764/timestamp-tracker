@@ -70,6 +70,15 @@ async function startServer() {
     res.sendFile(path.join(simpleWebDir, "viewer.html"));
   });
 
+  // Policy pages
+  app.get("/policies/privacy-policy", (_req, res) => {
+    res.sendFile(path.join(simpleWebDir, "policies", "privacy-policy.html"));
+  });
+
+  app.get("/policies/terms-of-service", (_req, res) => {
+    res.sendFile(path.join(simpleWebDir, "policies", "terms-of-service.html"));
+  });
+
   // ---- OAuth + health ----
   registerOAuthRoutes(app);
 
@@ -187,6 +196,67 @@ async function startServer() {
     } catch (error) {
       console.error("Sync shift-end error:", error);
       res.status(500).json({ error: "Failed to end shift" });
+    }
+  });
+
+  // GDPR Data Export - Download all user data by pair code
+  app.get("/api/export/:pairCode", async (req, res) => {
+    try {
+      const { pairCode } = req.params;
+      const shift = await syncDb.getShiftByPairCode(pairCode);
+      if (!shift) return res.status(404).json({ error: "No data found for this pair code" });
+
+      // Compile all user data
+      const exportData = {
+        exportDate: new Date().toISOString(),
+        pairCode: pairCode,
+        shift: {
+          id: shift.shiftId,
+          staffName: shift.staffName,
+          siteName: shift.siteName,
+          startTime: shift.startTime,
+          endTime: shift.endTime,
+          duration: shift.endTime 
+            ? Math.round((new Date(shift.endTime).getTime() - new Date(shift.startTime).getTime()) / 1000 / 60) + " minutes"
+            : "In progress",
+        },
+        locations: shift.locations?.map((loc: any) => ({
+          timestamp: loc.timestamp,
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          accuracy: loc.accuracy,
+          address: loc.address,
+        })) || [],
+        photos: shift.photos?.map((photo: any) => ({
+          timestamp: photo.timestamp,
+          url: photo.photoUri,
+          latitude: photo.latitude,
+          longitude: photo.longitude,
+          accuracy: photo.accuracy,
+          address: photo.address,
+        })) || [],
+        notes: shift.notes?.map((note: any) => ({
+          id: note.noteId,
+          timestamp: note.timestamp,
+          text: note.text,
+          latitude: note.latitude,
+          longitude: note.longitude,
+          accuracy: note.accuracy,
+        })) || [],
+        summary: {
+          totalLocations: shift.locations?.length || 0,
+          totalPhotos: shift.photos?.length || 0,
+          totalNotes: shift.notes?.length || 0,
+        },
+      };
+
+      // Set headers for file download
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Disposition", `attachment; filename="timestamp-tracker-data-${pairCode}-${Date.now()}.json"`);
+      res.json(exportData);
+    } catch (error) {
+      console.error("Data export error:", error);
+      res.status(500).json({ error: "Failed to export data" });
     }
   });
 

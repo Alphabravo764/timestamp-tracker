@@ -715,3 +715,20 @@ Based on user's detailed specifications and sample code:
 - [x] Add policy links to Settings tab
 - [x] Add data retention information (pair code expires in 24 hours, etc.)
 - [x] Add option to view policies anytime from Settings
+
+## POLICY HOSTING & GDPR FEATURES - Jan 3, 2026
+- [x] Create HTML versions of privacy policy and terms of service
+- [x] Host policy documents on app server at /policies/ endpoints
+- [x] Update TermsModal to link to hosted policy pages
+- [x] Update Settings to link to hosted policy pages
+- [x] Add version tracking for terms acceptance (v1.0.0)
+- [x] Prompt users to re-accept when policy version changes
+- [x] Add "Download My Data" button in Settings for GDPR compliance
+- [x] Implement data export API endpoint
+- [x] Export user's shift data, photos, and locations as JSON
+
+## MAP VISUALIZATION FIX - Jan 3, 2026
+- [ ] Add polyline trail to show patrol route on map
+- [ ] Add pinpoint markers for each location point
+- [ ] Ensure map displays location tracking visually
+- [ ] Test map rendering with real shift data

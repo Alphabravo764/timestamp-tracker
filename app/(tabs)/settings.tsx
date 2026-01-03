@@ -10,6 +10,7 @@ import {
   Linking,
   Alert,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
@@ -171,13 +172,12 @@ export default function SettingsScreen() {
           
           <TouchableOpacity
             style={styles.linkRow}
-            onPress={() => {
-              // In production, replace with your actual hosted policy URL
-              Alert.alert(
-                "Privacy Policy",
-                "Your privacy matters. We comply with UK GDPR and protect your data.\n\n• Location tracked during shifts only\n• Photos stored securely in cloud\n• Pair codes expire after 24 hours\n• No third-party data sharing\n• You can request data deletion anytime",
-                [{ text: "OK" }]
-              );
+            onPress={async () => {
+              if (Platform.OS !== "web") {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }
+              const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+              Linking.openURL(`${baseUrl}/policies/privacy-policy`);
             }}
           >
             <Text style={[styles.linkLabel, { color: colors.foreground }]}>Privacy Policy</Text>
@@ -186,17 +186,71 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={styles.linkRow}
-            onPress={() => {
-              // In production, replace with your actual hosted terms URL
-              Alert.alert(
-                "Terms of Service",
-                "Key terms:\n\n• Location tracking every 30 seconds during shifts\n• Photos uploaded to secure cloud storage\n• Pair codes provide temporary access (24h expiry)\n• Use only for authorized work purposes\n• You're responsible for pair code security",
-                [{ text: "OK" }]
-              );
+            onPress={async () => {
+              if (Platform.OS !== "web") {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }
+              const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+              Linking.openURL(`${baseUrl}/policies/terms-of-service`);
             }}
           >
             <Text style={[styles.linkLabel, { color: colors.foreground }]}>Terms of Service</Text>
             <Text style={[styles.linkArrow, { color: colors.muted }]}>→</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.exportButton, { backgroundColor: colors.primary + "15", borderColor: colors.primary }]}
+            onPress={async () => {
+              if (Platform.OS !== "web") {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              }
+              
+              // Get the most recent pair code from storage
+              try {
+                const historyStr = await AsyncStorage.getItem("@shift_history");
+                if (!historyStr) {
+                  Alert.alert("No Data", "No shift data found to export. Complete at least one shift first.");
+                  return;
+                }
+                
+                const history = JSON.parse(historyStr);
+                if (history.length === 0) {
+                  Alert.alert("No Data", "No shift data found to export. Complete at least one shift first.");
+                  return;
+                }
+                
+                // Get the most recent shift's pair code
+                const latestShift = history[history.length - 1];
+                const pairCode = latestShift.pairCode;
+                
+                if (!pairCode) {
+                  Alert.alert("Error", "Could not find pair code for data export.");
+                  return;
+                }
+                
+                // Open export URL
+                const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+                const exportUrl = `${baseUrl}/api/export/${pairCode}`;
+                
+                Alert.alert(
+                  "Download Your Data",
+                  `Your shift data will be downloaded as a JSON file. This includes all locations, photos, and notes from your most recent shift (${pairCode}).`,
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    { 
+                      text: "Download", 
+                      onPress: () => Linking.openURL(exportUrl)
+                    }
+                  ]
+                );
+              } catch (error) {
+                console.error("Export error:", error);
+                Alert.alert("Error", "Failed to export data. Please try again.");
+              }
+            }}
+          >
+            <Text style={[styles.exportButtonText, { color: colors.primary }]}>⬇️ Download My Data</Text>
+            <Text style={[styles.exportButtonDesc, { color: colors.muted }]}>Export all your shift data (GDPR)</Text>
           </TouchableOpacity>
 
           <View style={[styles.infoBox, { backgroundColor: colors.background }]}>
@@ -342,5 +396,20 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 13,
+  },
+  exportButton: {
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  exportButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  exportButtonDesc: {
+    fontSize: 12,
+    marginTop: 4,
   },
 });
