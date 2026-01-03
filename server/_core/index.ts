@@ -2,6 +2,8 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import path from "path";
+import fs from "fs";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
@@ -28,27 +30,18 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function startServer() {
   const app = express();
-  import path from "path";
-import fs from "fs";
 
-// Serve Expo web build in production
-if (process.env.NODE_ENV === "production") {
-  const webDir = path.join(process.cwd(), "dist", "public");
+  // Serve Expo web build in production
+  if (process.env.NODE_ENV === "production") {
+    const webDir = path.join(process.cwd(), "dist", "public");
 
-  if (fs.existsSync(webDir)) {
-    app.use(express.static(webDir));
-
-    // SPA fallback for routes like /track and /viewer/ABC123
-    app.get("*", (req, res, next) => {
-      if (req.path.startsWith("/api") || req.path.startsWith("/trpc")) {
-        return next();
-      }
-      res.sendFile(path.join(webDir, "index.html"));
-    });
-  } else {
-    console.warn("⚠️ Web build not found at dist/public");
+    if (fs.existsSync(webDir)) {
+      app.use(express.static(webDir));
+    } else {
+      console.warn("⚠️ Web build not found at dist/public");
+    }
   }
-}
+
   const server = createServer(app);
 
   // Enable CORS for all routes - reflect the request origin to support credentials
@@ -64,7 +57,6 @@ if (process.env.NODE_ENV === "production") {
     );
     res.header("Access-Control-Allow-Credentials", "true");
 
-    // Handle preflight requests
     if (req.method === "OPTIONS") {
       res.sendStatus(200);
       return;
@@ -88,9 +80,8 @@ if (process.env.NODE_ENV === "production") {
   app.post("/api/sync/shift", async (req, res) => {
     try {
       const { pairCode, shiftId, staffName, siteName, startTime } = req.body;
-      if (!pairCode) {
-        return res.status(400).json({ error: "pairCode required" });
-      }
+      if (!pairCode) return res.status(400).json({ error: "pairCode required" });
+
       await syncDb.upsertShift({ pairCode, shiftId, staffName, siteName, startTime });
       res.json({ success: true });
     } catch (error) {
@@ -102,9 +93,8 @@ if (process.env.NODE_ENV === "production") {
   app.post("/api/sync/location", async (req, res) => {
     try {
       const { pairCode, latitude, longitude, accuracy, timestamp, address } = req.body;
-      if (!pairCode) {
-        return res.status(400).json({ error: "pairCode required" });
-      }
+      if (!pairCode) return res.status(400).json({ error: "pairCode required" });
+
       await syncDb.addLocationPoint({ pairCode, latitude, longitude, accuracy, timestamp, address });
       res.json({ success: true });
     } catch (error) {
@@ -116,9 +106,8 @@ if (process.env.NODE_ENV === "production") {
   app.post("/api/sync/photo", async (req, res) => {
     try {
       const { pairCode, photoUri, latitude, longitude, accuracy, timestamp, address } = req.body;
-      if (!pairCode) {
-        return res.status(400).json({ error: "pairCode required" });
-      }
+      if (!pairCode) return res.status(400).json({ error: "pairCode required" });
+
       await syncDb.addPhoto({ pairCode, photoUri, latitude, longitude, accuracy, timestamp, address });
       res.json({ success: true });
     } catch (error) {
@@ -129,10 +118,9 @@ if (process.env.NODE_ENV === "production") {
 
   app.post("/api/sync/note", async (req, res) => {
     try {
-      const { pairCode, text, timestamp } = req.body;
-      if (!pairCode) {
-        return res.status(400).json({ error: "pairCode required" });
-      }
+      const { pairCode } = req.body;
+      if (!pairCode) return res.status(400).json({ error: "pairCode required" });
+
       // TODO: Implement note storage in database
       res.json({ success: true });
     } catch (error) {
@@ -144,9 +132,8 @@ if (process.env.NODE_ENV === "production") {
   app.post("/api/sync/shift-end", async (req, res) => {
     try {
       const { pairCode, endTime } = req.body;
-      if (!pairCode) {
-        return res.status(400).json({ error: "pairCode required" });
-      }
+      if (!pairCode) return res.status(400).json({ error: "pairCode required" });
+
       await syncDb.endShift({ pairCode, endTime });
       res.json({ success: true });
     } catch (error) {
@@ -159,9 +146,8 @@ if (process.env.NODE_ENV === "production") {
     try {
       const { pairCode } = req.params;
       const shift = await syncDb.getShiftByPairCode(pairCode);
-      if (!shift) {
-        return res.status(404).json({ error: "Shift not found" });
-      }
+
+      if (!shift) return res.status(404).json({ error: "Shift not found" });
       res.json(shift);
     } catch (error) {
       console.error("Get shift error:", error);
@@ -171,15 +157,15 @@ if (process.env.NODE_ENV === "production") {
 
   // Watermark API endpoint - adds timestamp watermark to photos
   const watermarkApi = await import("../watermark-api.js");
-  
+
   app.post("/api/watermark", async (req, res) => {
     try {
       const { imageBase64, timestamp, address, latitude, longitude, staffName, siteName } = req.body;
-      
+
       if (!imageBase64) {
         return res.status(400).json({ success: false, error: "imageBase64 required" });
       }
-      
+
       const result = await watermarkApi.addWatermarkServer({
         imageBase64,
         timestamp: timestamp || new Date().toLocaleString(),
@@ -189,7 +175,7 @@ if (process.env.NODE_ENV === "production") {
         staffName,
         siteName,
       });
-      
+
       res.json(result);
     } catch (error) {
       console.error("Watermark API error:", error);
@@ -205,7 +191,18 @@ if (process.env.NODE_ENV === "production") {
     }),
   );
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
+  // SPA fallback for routes like /track and /viewer/ABC123
+  if (process.env.NODE_ENV === "production") {
+    const webDir = path.join(process.cwd(), "dist", "public");
+    if (fs.existsSync(webDir)) {
+      app.get("*", (req, res, next) => {
+        if (req.path.startsWith("/api")) return next();
+        res.sendFile(path.join(webDir, "index.html"));
+      });
+    }
+  }
+
+  const preferredPort = parseInt(process.env.PORT || "3000", 10);
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
