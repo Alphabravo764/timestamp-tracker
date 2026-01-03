@@ -9,7 +9,7 @@ RUN npm install -g pnpm@9.12.0
 COPY package.json pnpm-lock.yaml ./
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile --prod=false
+RUN pnpm install --no-frozen-lockfile --prod=false
 
 # Copy source code
 COPY . .
