@@ -517,3 +517,13 @@ Based on user's detailed specifications and sample code:
 - [x] Add reverse geocoding to show street addresses in activity feed
 - [x] Implement WebSocket updates for real-time auto-refresh (WebSocket client ready, falls back to 30s polling)
 - [x] Add photo lightbox for full-screen photo viewing
+
+
+## CRITICAL - Railway Crash (Jan 3, 2026)
+- [x] FIX: Server crashing on Railway - Cannot find package 'expo-file-system' imported from /app/dist/index.js
+- [x] Remove expo-file-system import from server code (made conditional with try/catch)
+
+
+## CRITICAL - Railway Crash (Jan 3, 2026)
+- [x] FIX: Server crashing on Railway - Cannot find package 'expo-file-system' imported from /app/dist/index.js
+- [x] Remove expo-file-system import from server code (made conditional with try/catch)

@@ -1,6 +1,18 @@
 import { Platform } from "react-native";
-import * as FileSystem from "expo-file-system/legacy";
-import * as ImageManipulator from "expo-image-manipulator";
+
+// Conditional imports - only load expo modules on mobile
+let FileSystem: any;
+let ImageManipulator: any;
+
+if (Platform.OS !== 'web') {
+  try {
+    FileSystem = require("expo-file-system/legacy");
+    ImageManipulator = require("expo-image-manipulator");
+  } catch (e) {
+    // Server environment - expo modules not available
+    console.log('[photo-to-base64] Running on server, expo modules not loaded');
+  }
+}
 
 /**
  * Convert a photo URI to a base64 data URI for embedding in PDF HTML.
@@ -43,6 +55,11 @@ export async function photoToBase64DataUri(
     }
 
     // On native (iOS/Android), use ImageManipulator to resize and convert
+    if (!ImageManipulator || !FileSystem) {
+      // Server environment - return original URI
+      console.log('[photo-to-base64] Expo modules not available, returning original URI');
+      return photoUri;
+    }
     
     // 1) Resize to keep PDF light + fast
     const resized = await ImageManipulator.manipulateAsync(
