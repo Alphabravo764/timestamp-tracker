@@ -1078,7 +1078,7 @@
             </div>
             
             <div class="sidebar-footer">
-              <button class="report-btn" onclick="window.open(`/api/sync/shift/${shift.pairCode}?format=pdf`, '_blank')">
+              <button class="report-btn" onclick="window.open('/api/sync/shift/' + shift.pairCode + '?format=pdf', '_blank')">
                 ${icons.download}
                 Download Shift Report
               </button>
@@ -1125,11 +1125,26 @@
     // Fetch shift data
     async function loadShift() {
       try {
-        const response = await fetch(`/api/sync/shift/${shiftCode}`);
+        // Set a timeout for the fetch
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
+        const response = await fetch(`/api/sync/shift/${shiftCode}`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
         if (!response.ok) {
           throw new Error('Shift not found');
         }
         const shift = await response.json();
+        
+        // Strip base64 data from photos to reduce payload
+        if (shift.photos && Array.isArray(shift.photos)) {
+          shift.photos = shift.photos.map(photo => ({
+            ...photo,
+            photoUri: photo.photoUri ? (photo.photoUri.startsWith('data:') ? photo.photoUri.substring(0, 50) + '...' : photo.photoUri) : undefined
+          }));
+        }
+        
         renderDashboard(shift);
         
         // Auto-refresh every 30 seconds if shift is active

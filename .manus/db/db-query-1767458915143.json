@@ -1,0 +1,40 @@
+{
+  "query": "SELECT id, shiftId, LENGTH(fileUrl) as fileUrl_length, SUBSTRING(fileUrl, 1, 100) as fileUrl_preview FROM photoEvents LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3DVLU63PrgLx5Xc.f26e505845f1 --database g2dY6bYsCPjegiRBipKkoZ --execute SELECT id, shiftId, LENGTH(fileUrl) as fileUrl_length, SUBSTRING(fileUrl, 1, 100) as fileUrl_preview FROM photoEvents LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "shiftId": "30001",
+      "fileUrl_length": "47",
+      "fileUrl_preview": "https://placeholder.com/photo-1767113109096.jpg"
+    },
+    {
+      "id": "2",
+      "shiftId": "30001",
+      "fileUrl_length": "35",
+      "fileUrl_preview": "https://example.com/final-photo.jpg"
+    },
+    {
+      "id": "3",
+      "shiftId": "30002",
+      "fileUrl_length": "47",
+      "fileUrl_preview": "https://placeholder.com/photo-1767113109226.jpg"
+    },
+    {
+      "id": "4",
+      "shiftId": "30002",
+      "fileUrl_length": "29",
+      "fileUrl_preview": "https://example.com/final.jpg"
+    },
+    {
+      "id": "5",
+      "shiftId": "30003",
+      "fileUrl_length": "47",
+      "fileUrl_preview": "https://placeholder.com/photo-1767113131911.jpg"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tshiftId\tfileUrl_length\tfileUrl_preview\n1\t30001\t47\thttps://placeholder.com/photo-1767113109096.jpg\n2\t30001\t35\thttps://example.com/final-photo.jpg\n3\t30002\t47\thttps://placeholder.com/photo-1767113109226.jpg\n4\t30002\t29\thttps://example.com/final.jpg\n5\t30003\t47\thttps://placeholder.com/photo-1767113131911.jpg\n",
+  "stderr": "",
+  "execution_time_ms": 409
+}
