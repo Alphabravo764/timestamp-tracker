@@ -1,0 +1,172 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Live Viewer</title>
+    <style>
+      body { font-family: system-ui, Arial; padding: 18px; max-width: 900px; margin: 0 auto; }
+      .top { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+      .card { border: 1px solid #ddd; border-radius: 12px; padding: 12px; margin-top: 12px; }
+      .muted { color: #666; }
+      .grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
+      @media (min-width: 860px) { .grid { grid-template-columns: 1.2fr 0.8fr; } }
+      pre { white-space: pre-wrap; word-break: break-word; }
+      a { color: inherit; }
+      .err { color: #b00020; }
+      img { max-width: 100%; border-radius: 10px; border: 1px solid #eee; }
+      .small { font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <div>
+        <h2 style="margin:0">Live Viewer</h2>
+        <div class="muted small">Pair code: <span id="pair"></span></div>
+      </div>
+      <div class="small muted">Auto-refresh: <span id="sec">10</span>s</div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <div class="card">
+          <div><b>Shift</b></div>
+          <div id="shift" class="muted small">Loading…</div>
+        </div>
+
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+            <b>Latest Location</b>
+            <a id="gmaps" class="small muted" href="#" target="_blank" rel="noreferrer">Open in Google Maps</a>
+          </div>
+          <div id="loc" class="muted small">Loading…</div>
+        </div>
+
+        <div class="card">
+          <b>Timeline</b>
+          <div id="timeline" class="muted small">Loading…</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <b>Latest Photo</b>
+          <div id="photoWrap" class="muted small" style="margin-top:10px;">No photo yet</div>
+        </div>
+
+        <div class="card">
+          <b>Debug (raw JSON)</b>
+          <pre id="raw" class="small muted">Loading…</pre>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const pairCode = location.pathname.split("/").pop().toUpperCase();
+      document.getElementById("pair").textContent = pairCode;
+
+      function fmtTime(ts) {
+        if (!ts) return "";
+        try { return new Date(ts).toLocaleString(); } catch { return String(ts); }
+      }
+
+      function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+      async function fetchShift() {
+        const r = await fetch("/api/sync/shift/" + pairCode);
+        if (!r.ok) throw new Error("Shift not found yet");
+        return r.json();
+      }
+
+      function render(shift) {
+        document.getElementById("raw").textContent = JSON.stringify(shift, null, 2);
+
+        // Best-effort fields (depends on your sync-db shape)
+        const staff = shift.staffName || shift.staff_name || "";
+        const site = shift.siteName || shift.site_name || "";
+        const start = shift.startTime || shift.start_time || "";
+        const end = shift.endTime || shift.end_time || "";
+
+        document.getElementById("shift").innerHTML =
+          `<div><b>Staff:</b> ${esc(staff || "—")}</div>
+           <div><b>Site:</b> ${esc(site || "—")}</div>
+           <div><b>Start:</b> ${esc(fmtTime(start) || "—")}</div>
+           <div><b>End:</b> ${esc(fmtTime(end) || "—")}</div>`;
+
+        // Latest location
+        const latest = shift.latestLocation || shift.latest_location || shift.location || null;
+        const lat = latest?.latitude ?? latest?.lat;
+        const lng = latest?.longitude ?? latest?.lng;
+        const addr = latest?.address || "";
+        const acc = latest?.accuracy;
+
+        document.getElementById("loc").innerHTML =
+          `<div><b>Time:</b> ${esc(fmtTime(latest?.timestamp) || "—")}</div>
+           <div><b>Coords:</b> ${esc(lat && lng ? `${lat}, ${lng}` : "—")}</div>
+           <div><b>Accuracy:</b> ${esc(acc != null ? acc + "m" : "—")}</div>
+           <div><b>Address:</b> ${esc(addr || "—")}</div>`;
+
+        const gmaps = document.getElementById("gmaps");
+        if (lat && lng) {
+          gmaps.href = `https://www.google.com/maps?q=${lat},${lng}`;
+          gmaps.style.pointerEvents = "auto";
+          gmaps.style.opacity = "1";
+        } else {
+          gmaps.href = "#";
+          gmaps.style.pointerEvents = "none";
+          gmaps.style.opacity = "0.5";
+        }
+
+        // Timeline
+        const items = shift.timeline || shift.events || [];
+        if (Array.isArray(items) && items.length) {
+          document.getElementById("timeline").innerHTML =
+            items.slice().reverse().slice(0, 80).map(ev => {
+              const t = fmtTime(ev.timestamp || ev.time);
+              const type = ev.type || ev.kind || "event";
+              const text = ev.text || ev.note || ev.address || "";
+              return `<div style="margin-top:8px"><b>${esc(type)}</b> <span class="muted">${esc(t)}</span><div>${esc(text)}</div></div>`;
+            }).join("");
+        } else {
+          document.getElementById("timeline").textContent = "No events yet";
+        }
+
+        // Latest photo (expects a usable URL in your stored photoUri)
+        const photos = shift.photos || shift.photoEvents || [];
+        const latestPhoto = Array.isArray(photos) ? photos[photos.length - 1] : null;
+        const uri = latestPhoto?.photoUri || latestPhoto?.uri || "";
+        const wrap = document.getElementById("photoWrap");
+        if (uri) {
+          wrap.innerHTML = `<img src="${esc(uri)}" alt="photo" /><div class="small muted" style="margin-top:6px">${esc(fmtTime(latestPhoto.timestamp) || "")}</div>`;
+        } else {
+          wrap.textContent = "No photo yet";
+        }
+      }
+
+      async function tick() {
+        const el = document.getElementById("shift");
+        try {
+          const shift = await fetchShift();
+          render(shift);
+        } catch (e) {
+          el.innerHTML = `<span class="err">${esc(e.message || e)}</span><div class="muted small">Start a new shift and sync it to server first.</div>`;
+          document.getElementById("loc").textContent = "—";
+          document.getElementById("timeline").textContent = "—";
+          document.getElementById("photoWrap").textContent = "—";
+          document.getElementById("raw").textContent = "";
+        }
+      }
+
+      // countdown
+      let s = 10;
+      setInterval(() => {
+        s -= 1;
+        if (s <= 0) s = 10;
+        document.getElementById("sec").textContent = String(s);
+      }, 1000);
+
+      tick();
+      setInterval(tick, 10000);
+    </script>
+  </body>
+</html>
