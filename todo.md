@@ -443,3 +443,56 @@ Based on user-provided React template design:
 - [x] Fix PDF photos appearing as broken placeholders (improved base64 conversion)
 - [x] Fix share link using wrong URL (Railway URL hardcoded)
 - [x] Fix picture "blinking" in gallery (improved watermark flow)
+
+
+## WATCHER DASHBOARD REDESIGN - Jan 3, 2026
+Based on user's detailed specifications and sample code:
+
+### Live Viewer (Watcher Dashboard) Requirements
+- [x] TOP HUD (Heads-Up Display) with End Point on top:
+  - [x] Guard name with LIVE badge
+  - [x] Site name prominently displayed
+  - [x] Device status (last update time)
+  - [x] Current time display
+  - [x] Real street address with postcode (reverse geocoded)
+  - [x] Lat/Long coordinates displayed
+  - [x] GPS accuracy indicator
+  - [x] Current task/status indicator (duration)
+
+- [x] MAP VIEW (Center/Left):
+  - [x] Guard marker with pulse animation
+  - [x] Path polyline showing route
+  - [x] Previous ping markers (small dots)
+  - [x] Map controls (fullscreen)
+  - [x] Guard name tooltip on marker
+
+- [x] ACTIVITY FEED (Right Sidebar) - FILTERED:
+  - [x] NO raw pings in feed - map marker only
+  - [x] Show only: Photos, Notes, Shift Start/End
+  - [x] Photo cards with image preview
+  - [x] Note cards with content
+  - [x] Shift start/end markers
+  - [x] Each card shows: time, title, content, location
+  - [x] Timeline line connecting events
+  - [x] "Download Shift Report" button at bottom
+
+- [x] Watcher Role (Read-Only):
+  - [x] Cannot edit notes or delete photos
+  - [x] Situational awareness only
+  - [x] Auto-refresh every 30 seconds
+
+### PDF Report Requirements
+- [x] Professional header with guard name and ID (TrustLayer style)
+- [x] Site name and shift details
+- [x] Summary stats (Officer, Site, Duration, Evidence count)
+- [x] Route map visualization with dark theme
+- [x] Activity timeline (filtered - no raw pings)
+- [x] Photo evidence gallery with timestamps, GPS, TAMPER VERIFIED badge
+- [x] Notes in timeline
+- [x] Print-optimized layout with cryptographic hash footer
+
+### API Updates
+- [x] Ensure shift data includes staffName and siteName
+- [x] Ensure locations have reverse-geocoded addresses (done in PDF generator)
+- [ ] Filter activity feed to exclude routine pings
+- [ ] Include notes in shift data response

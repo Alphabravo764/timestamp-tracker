@@ -1,0 +1,64 @@
+PDF SHIFT REPORT SAMPLE ANALYSIS
+================================
+
+PAGE 1 - HEADER & TIMELINE
+--------------------------
+HEADER:
+- Logo: "TrustLayer" with shield icon (top left)
+- Badge: "VERIFIED & LOCKED" (green, top right)
+- Report ID: "REPORT ID: GJSWCQ-SAMPLE" (monospace)
+- Date: "Thu, 1 Jan 2026"
+- Title: "SHIFT REPORT" (large, bold)
+- Subtitle: "Official Proof of Presence Document"
+
+SUMMARY CARDS (4 columns):
+- OFFICER: "Abdul K."
+- SITE: "46 Mill Road"
+- DURATION: "08:30:15" (large monospace)
+- EVIDENCE: "2 Photos"
+
+MAP SECTION:
+- Dark blue/navy background gradient
+- Label: "ROUTE MAP VISUALIZATION" (top right)
+- Shows route with dots and icons
+- Camera icons for photo locations
+- Note icon for notes
+- Dots for route points
+- Caption: "Patrol Activity Trail: 46 Mill Road"
+
+ACTIVITY TIMELINE:
+- Section header: Clock icon + "ACTIVITY TIMELINE"
+- Timeline with dots and vertical line
+- Events:
+  * 08:00:00 - SHIFT STARTED - 46 Mill Road, Lincoln, LN1 3JL
+  * 10:30:00 - PHOTO EVIDENCE LOGGED - Dixon Street, Lincoln, LN6 7DA
+  * 12:00:00 - Perimeter Check (note) - Tritton Road, Lincoln, LN6 7QY
+  * 14:45:00 - PHOTO EVIDENCE LOGGED - Newland, Lincoln, LN1 1XY
+  * 16:30:15 - SHIFT ENDED - 46 Mill Road, Lincoln, LN1 3JL
+
+PAGE 2 - EVIDENCE & FOOTER
+--------------------------
+VISUAL EVIDENCE LOG:
+- Section header: Camera icon + "VISUAL EVIDENCE LOG"
+- 2-column grid for photos
+- Each photo card:
+  * Badge: "EVIDENCE #1", "EVIDENCE #2" (blue)
+  * Photo placeholder with camera icon
+  * Timestamp badge: "10:30:00", "14:45:00"
+  * Address: "Dixon Street, Lincoln, LN6 7DA"
+  * GPS: "GPS: 53.2286°N, 0.5401°W"
+  * "TAMPER VERIFIED" label with shield icon (green)
+
+FOOTER:
+- QR code placeholder with "QR AUTH" label
+- "CRYPTOGRAPHIC INTEGRITY HASH (SHA-256)"
+- Hash: "8a7d7b2f9c1e4a5d6f8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f"
+- Disclaimer: "This document is a legally binding record of activity. All data is time-locked and encrypted."
+- Footer text: "TRUSTLAYER SYSTEMS SECURITY REPORT" | "ENCRYPTED SESSION" with lock icon
+
+COLOR SCHEME:
+- Primary: Dark navy/slate (#1e293b)
+- Accent: Blue (#3b82f6)
+- Success: Green for verified badges
+- Background: White with light gray sections
+- Map: Dark gradient background

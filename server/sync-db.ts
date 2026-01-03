@@ -221,7 +221,7 @@ export async function getShiftByPairCode(pairCode: string) {
     shiftId: shift.liveToken,
     pairCode: shift.pairCode,
     siteName: shift.siteName,
-    staffName: "Staff", // TODO: Get from user table if userId is set
+    staffName: shift.staffName || "Staff",
     startTime: shift.startTimeUtc.toISOString(),
     endTime: shift.endTimeUtc?.toISOString(),
     isActive: shift.status === "active",
