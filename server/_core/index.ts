@@ -28,6 +28,27 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function startServer() {
   const app = express();
+  import path from "path";
+import fs from "fs";
+
+// Serve Expo web build in production
+if (process.env.NODE_ENV === "production") {
+  const webDir = path.join(process.cwd(), "dist", "public");
+
+  if (fs.existsSync(webDir)) {
+    app.use(express.static(webDir));
+
+    // SPA fallback for routes like /track and /viewer/ABC123
+    app.get("*", (req, res, next) => {
+      if (req.path.startsWith("/api") || req.path.startsWith("/trpc")) {
+        return next();
+      }
+      res.sendFile(path.join(webDir, "index.html"));
+    });
+  } else {
+    console.warn("⚠️ Web build not found at dist/public");
+  }
+}
   const server = createServer(app);
 
   // Enable CORS for all routes - reflect the request origin to support credentials
