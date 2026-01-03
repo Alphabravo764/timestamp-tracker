@@ -6,8 +6,7 @@ import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Shift } from "@/lib/shift-types";
-// Use Railway production URL for API calls
-const RAILWAY_API_URL = "https://timestamp-tracker-production.up.railway.app";
+import { getApiBaseUrl } from "@/constants/oauth";
 
 interface WatchedStaff {
   pairCode: string;
@@ -19,7 +18,7 @@ interface WatchedStaff {
 
 async function fetchShiftByPairCode(pairCode: string): Promise<Shift | null> {
   try {
-    const apiUrl = RAILWAY_API_URL;
+    const apiUrl = getApiBaseUrl();
     const normalizedCode = pairCode.replace(/-/g, "").toUpperCase();
     const response = await fetch(`${apiUrl}/api/trpc/shifts.getByPairCode?input=${encodeURIComponent(JSON.stringify({ json: { pairCode: normalizedCode } }))}`, {
       method: "GET",
@@ -99,7 +98,7 @@ export default function WatcherScreen() {
   };
 
   const viewLive = (staff: WatchedStaff) => {
-    const baseUrl = Platform.OS === "web" ? window.location.origin : RAILWAY_API_URL;
+    const baseUrl = Platform.OS === "web" ? window.location.origin : getApiBaseUrl();
     Linking.openURL(`${baseUrl}/viewer/${staff.pairCode.replace(/-/g, "")}`);
   };
 

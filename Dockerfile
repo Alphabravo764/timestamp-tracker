@@ -24,5 +24,5 @@ EXPOSE 3000
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Start the server
-CMD ["pnpm", "start"]
+# Run migrations and start the server
+CMD ["sh", "-c", "pnpm db:push && pnpm start"]

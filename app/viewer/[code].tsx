@@ -7,8 +7,7 @@ import type { Shift, LocationPoint } from "@/lib/shift-types";
 import { formatDuration, getShiftDuration } from "@/lib/shift-storage";
 import { generatePDFReport } from "@/lib/pdf-generator";
 import { getGoogleMapsApiKey } from "@/lib/google-maps";
-// Use Railway production URL for API calls
-const RAILWAY_API_URL = "https://timestamp-tracker-production.up.railway.app";
+import { getApiBaseUrl } from "@/constants/oauth";
 
 // Convert API response to local Shift type
 function apiResponseToShift(data: any): Shift {
@@ -58,7 +57,7 @@ export default function LiveViewerScreen() {
     }
 
     try {
-      const apiUrl = RAILWAY_API_URL;
+      const apiUrl = getApiBaseUrl();
       const normalizedCode = code.replace(/-/g, "").toUpperCase();
       
       const response = await fetch(`${apiUrl}/api/trpc/shifts.getByPairCode?input=${encodeURIComponent(JSON.stringify({ json: { pairCode: normalizedCode } }))}`, {

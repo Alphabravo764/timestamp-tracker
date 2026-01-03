@@ -323,3 +323,15 @@ Based on developer analysis:
 - [x] Update watcher tab to use Railway production URL
 - [x] Fix tRPC input format to use {json: {pairCode}} structure
 - [x] Fix tRPC response parsing to access result.data.json
+
+## DATABASE MISMATCH FIX - Jan 3, 2026
+- [ ] Check which database mobile app is using (Manus dev or Railway prod)
+- [ ] Update viewer page to use same database as mobile app
+- [ ] Ensure mobile app and viewer use consistent API base URL
+- [ ] Test that viewer can find shifts created by mobile app
+
+## DOCKERFILE & RAILWAY MIGRATION FIX - Jan 3, 2026
+- [ ] Update Dockerfile CMD to run db:push at startup
+- [ ] Create .env file with Railway production URL
+- [ ] Redeploy Railway with migration command
+- [ ] Test viewer page with Railway database
