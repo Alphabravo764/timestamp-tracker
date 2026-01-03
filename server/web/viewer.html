@@ -463,6 +463,41 @@
     .error-icon {
       font-size: 48px;
     }
+    
+    /* Print styles */
+    @media print {
+      body {
+        background: white;
+      }
+      
+      /* Expand activity stream fully */
+      .feed-content {
+        max-height: none !important;
+        overflow: visible !important;
+      }
+      
+      /* Hide interactive elements */
+      .download-btn,
+      #heatmap-toggle,
+      .leaflet-control-zoom {
+        display: none !important;
+      }
+      
+      /* Ensure map is visible */
+      #map {
+        page-break-inside: avoid;
+      }
+      
+      /* Ensure photos are visible */
+      .feed-item img {
+        page-break-inside: avoid;
+      }
+      
+      /* Better page breaks */
+      .feed-item {
+        page-break-inside: avoid;
+      }
+    }
   </style>
 </head>
 <body>
@@ -898,10 +933,11 @@
         const printWindow = window.open(window.location.href, '_blank');
         if (printWindow) {
           // Wait for page to load, then trigger print dialog
+          // Increased delay to ensure map polyline renders fully
           printWindow.onload = () => {
             setTimeout(() => {
               printWindow.print();
-            }, 1000);
+            }, 3000); // 3 seconds to let map and polyline render
           };
         }
       } catch (error) {

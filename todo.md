@@ -612,3 +612,19 @@ Based on user's detailed specifications and sample code:
 - [x] Install react-native-webview package
 - [ ] TEST: Verify Watch tab WebView loads correctly
 - [ ] DEPLOY: Push to GitHub and redeploy Railway
+
+
+## PDF REPORT ISSUES - Jan 3, 2026 (User Feedback)
+- [x] PDF format is good (user likes current layout)
+- [x] FIX: Map polyline not showing in PDF (only map tiles visible) - increased delay to 3s
+- [x] FIX: Activity stream cut off in PDF (only 2-3 events instead of all 5) - added print CSS
+- [x] Add CSS print styles to expand activity stream fully - max-height: none !important
+- [x] Increase print delay to let polyline render before printing - 3 seconds delay
+
+## WATCH TAB WEBVIEW ERROR - Jan 3, 2026 (User Feedback)
+- [x] FIX: "React Native WebView does not support this platform" error on web - added Platform.OS check
+- [x] Add Platform.OS check to show different UI on web vs mobile - done
+- [x] On web: show link to open viewer in new tab - "Open Viewer in New Tab" button
+- [x] On mobile (iOS/Android): use WebView as intended - WebView renders on native
+- [ ] TEST: Verify Watch tab on actual iOS/Android device
+- [ ] DEPLOY: Push to GitHub and redeploy Railway

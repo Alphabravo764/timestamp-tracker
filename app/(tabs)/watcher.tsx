@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, TextInput, Platform, Alert } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, TextInput, Platform, Alert, Linking } from "react-native";
 import { WebView } from "react-native-webview";
 import { useFocusEffect } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -166,17 +166,40 @@ export default function WatcherScreen() {
           </View>
         )}
 
-        {/* WebView */}
+        {/* WebView or Link */}
         {viewerUrl ? (
-          <View style={styles.webviewContainer}>
-            <WebView
-              source={{ uri: viewerUrl }}
-              style={styles.webview}
-              startInLoadingState
-              javaScriptEnabled
-              domStorageEnabled
-            />
-          </View>
+          Platform.OS === "web" ? (
+            <View style={[styles.webLinkContainer, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.webLinkTitle, { color: colors.foreground }]}>
+                🌐 Web Preview
+              </Text>
+              <Text style={[styles.webLinkSubtitle, { color: colors.muted }]}>
+                WebView is only available on iOS and Android devices.
+                Open the viewer in a new tab instead.
+              </Text>
+              <TouchableOpacity
+                style={[styles.openButton, { backgroundColor: colors.primary }]}
+                onPress={() => Linking.openURL(viewerUrl)}
+              >
+                <Text style={[styles.openButtonText, { color: colors.background }]}>
+                  Open Viewer in New Tab
+                </Text>
+              </TouchableOpacity>
+              <Text style={[styles.viewerUrl, { color: colors.muted }]}>
+                {viewerUrl}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.webviewContainer}>
+              <WebView
+                source={{ uri: viewerUrl }}
+                style={styles.webview}
+                startInLoadingState
+                javaScriptEnabled
+                domStorageEnabled
+              />
+            </View>
+          )
         ) : (
           <View style={styles.emptyState}>
             <Text style={[styles.emptyText, { color: colors.muted }]}>
@@ -272,5 +295,35 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
+  },
+  webLinkContainer: {
+    flex: 1,
+    padding: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 16,
+  },
+  webLinkTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  webLinkSubtitle: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  openButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  openButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  viewerUrl: {
+    fontSize: 12,
+    marginTop: 8,
   },
 });
