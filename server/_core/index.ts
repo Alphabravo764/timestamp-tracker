@@ -316,6 +316,430 @@ async function startServer() {
     }
   });
 
+  // PDF Shift Report Generation
+  app.get("/api/shift-report/:pairCode", async (req, res) => {
+    try {
+      const { pairCode } = req.params;
+      const shift = await syncDb.getShiftByPairCode(pairCode);
+      if (!shift) return res.status(404).json({ error: "Shift not found" });
+
+      // Calculate shift duration
+      const startTime = new Date(shift.startTime);
+      const endTime = shift.endTime ? new Date(shift.endTime) : new Date();
+      const durationMs = endTime.getTime() - startTime.getTime();
+      const hours = Math.floor(durationMs / 1000 / 60 / 60);
+      const minutes = Math.floor((durationMs / 1000 / 60) % 60);
+      const durationText = `${hours}h ${minutes}m`;
+
+      // Calculate total distance
+      let totalDistance = 0;
+      if (shift.locations && shift.locations.length > 1) {
+        for (let i = 1; i < shift.locations.length; i++) {
+          const prev = shift.locations[i - 1];
+          const curr = shift.locations[i];
+          const R = 6371; // Earth radius in km
+          const dLat = (curr.latitude - prev.latitude) * Math.PI / 180;
+          const dLon = (curr.longitude - prev.longitude) * Math.PI / 180;
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(prev.latitude * Math.PI / 180) * Math.cos(curr.latitude * Math.PI / 180) *
+                    Math.sin(dLon/2) * Math.sin(dLon/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          totalDistance += R * c;
+        }
+      }
+
+      // Generate comprehensive PDF HTML
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Shift Report - ${shift.staffName}</title>
+  <style>
+    @page { margin: 20mm; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Arial', sans-serif;
+      font-size: 11pt;
+      line-height: 1.6;
+      color: #1e293b;
+    }
+    .header {
+      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+      color: white;
+      padding: 30px;
+      margin-bottom: 30px;
+      border-radius: 8px;
+    }
+    .header h1 {
+      font-size: 28pt;
+      margin-bottom: 10px;
+    }
+    .header p {
+      font-size: 12pt;
+      opacity: 0.9;
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .stat-card {
+      background: #f8fafc;
+      padding: 20px;
+      border-radius: 8px;
+      border-left: 4px solid #3b82f6;
+    }
+    .stat-label {
+      font-size: 10pt;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-size: 20pt;
+      font-weight: bold;
+      color: #1e293b;
+    }
+    .section {
+      margin-bottom: 30px;
+      page-break-inside: avoid;
+    }
+    .section-title {
+      font-size: 16pt;
+      font-weight: bold;
+      color: #1e293b;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .info-item {
+      padding: 12px;
+      background: #f8fafc;
+      border-radius: 6px;
+    }
+    .info-label {
+      font-size: 9pt;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+    .info-value {
+      font-size: 11pt;
+      font-weight: 600;
+      color: #1e293b;
+    }
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+      margin-top: 15px;
+    }
+    .photo-item {
+      page-break-inside: avoid;
+    }
+    .photo-item img {
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+    .photo-caption {
+      font-size: 9pt;
+      color: #64748b;
+      margin-top: 8px;
+    }
+    .note-item {
+      padding: 15px;
+      background: #fffbeb;
+      border-left: 4px solid #f59e0b;
+      border-radius: 4px;
+      margin-bottom: 12px;
+      page-break-inside: avoid;
+    }
+    .note-time {
+      font-size: 9pt;
+      color: #92400e;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .note-text {
+      font-size: 10pt;
+      color: #1e293b;
+    }
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 2px solid #e2e8f0;
+      text-align: center;
+      font-size: 9pt;
+      color: #64748b;
+    }
+    .map-placeholder {
+      background: #f1f5f9;
+      padding: 40px;
+      text-align: center;
+      border-radius: 8px;
+      border: 2px dashed #cbd5e1;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🛡️ Shift Report</h1>
+    <p>Generated on ${new Date().toLocaleString('en-GB', { dateStyle: 'full', timeStyle: 'short' })}</p>
+  </div>
+
+  <div class="summary">
+    <div class="stat-card">
+      <div class="stat-label">Duration</div>
+      <div class="stat-value">${durationText}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Locations</div>
+      <div class="stat-value">${shift.locations?.length || 0}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Photos</div>
+      <div class="stat-value">${shift.photos?.length || 0}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Distance</div>
+      <div class="stat-value">${totalDistance.toFixed(2)} km</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">📋 Shift Details</h2>
+    <div class="info-grid">
+      <div class="info-item">
+        <div class="info-label">Staff Member</div>
+        <div class="info-value">${shift.staffName}</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">Site</div>
+        <div class="info-value">${shift.siteName}</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">Start Time</div>
+        <div class="info-value">${startTime.toLocaleString('en-GB')}</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">End Time</div>
+        <div class="info-value">${shift.endTime ? endTime.toLocaleString('en-GB') : 'In Progress'}</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">Pair Code</div>
+        <div class="info-value">${pairCode}</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">Status</div>
+        <div class="info-value">${shift.endTime ? '✅ Completed' : '🔄 Active'}</div>
+      </div>
+    </div>
+  </div>
+
+  ${shift.photos && shift.photos.length > 0 ? `
+  <div class="section">
+    <h2 class="section-title">📸 Photos (${shift.photos.length})</h2>
+    <div class="photo-grid">
+      ${shift.photos.map((photo: any) => `
+        <div class="photo-item">
+          <img src="${photo.photoUri}" alt="Shift photo" />
+          <div class="photo-caption">
+            📍 ${new Date(photo.timestamp).toLocaleString('en-GB')}<br/>
+            ${photo.address || `${photo.latitude?.toFixed(6)}, ${photo.longitude?.toFixed(6)}`}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  </div>
+  ` : ''}
+
+  ${shift.notes && shift.notes.length > 0 ? `
+  <div class="section">
+    <h2 class="section-title">📝 Notes (${shift.notes.length})</h2>
+    ${shift.notes.map((note: any) => `
+      <div class="note-item">
+        <div class="note-time">⏰ ${new Date(note.timestamp).toLocaleString('en-GB')}</div>
+        <div class="note-text">${note.text}</div>
+      </div>
+    `).join('')}
+  </div>
+  ` : ''}
+
+  <div class="section">
+    <h2 class="section-title">🗺️ Route Map</h2>
+    <div class="map-placeholder">
+      <p style="font-size: 14pt; margin-bottom: 10px;">📍 Route Visualization</p>
+      <p>View the interactive map at:<br/>
+      <strong>${req.protocol}://${req.get('host')}/viewer/${pairCode}</strong></p>
+      <p style="margin-top: 15px; font-size: 10pt;">
+        ${shift.locations?.length || 0} GPS points tracked over ${durationText}
+      </p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p><strong>Timestamp Tracker</strong> | Shift Report</p>
+    <p>This document is generated automatically and contains verified GPS tracking data.</p>
+    <p style="margin-top: 8px; font-size: 8pt;">UK GDPR Compliant | Data retention policy applies</p>
+  </div>
+</body>
+</html>`;
+
+      // Generate PDF using PDFKit
+      const PDFDocument = (await import('pdfkit')).default;
+      const doc = new PDFDocument({
+        size: 'A4',
+        margins: { top: 50, bottom: 50, left: 50, right: 50 },
+        info: {
+          Title: `Shift Report - ${shift.staffName}`,
+          Author: 'Timestamp Tracker',
+          Subject: `Shift Report for ${shift.siteName}`,
+          CreationDate: new Date(),
+        },
+      });
+
+      // Set headers for PDF download
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="shift-report-${shift.staffName.replace(/\s+/g, '-')}-${pairCode}.pdf"`);
+
+      // Pipe PDF to response
+      doc.pipe(res);
+
+      // Header with gradient background
+      doc.rect(0, 0, doc.page.width, 120).fillAndStroke('#3b82f6', '#1d4ed8');
+      doc.fillColor('#ffffff').fontSize(28).font('Helvetica-Bold').text('🛡️ Shift Report', 50, 40);
+      doc.fontSize(12).font('Helvetica').text(
+        `Generated on ${new Date().toLocaleString('en-GB', { dateStyle: 'full', timeStyle: 'short' })}`,
+        50, 80
+      );
+
+      // Summary cards
+      const summaryY = 150;
+      const cardWidth = (doc.page.width - 150) / 4;
+
+      // Duration card
+      doc.fillColor('#f8fafc').rect(50, summaryY, cardWidth, 80).fill();
+      doc.fillColor('#3b82f6').rect(50, summaryY, 4, 80).fill();
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica').text('DURATION', 60, summaryY + 15);
+      doc.fillColor('#1e293b').fontSize(20).font('Helvetica-Bold').text(durationText, 60, summaryY + 35);
+
+      // Locations card
+      doc.fillColor('#f8fafc').rect(50 + cardWidth + 10, summaryY, cardWidth, 80).fill();
+      doc.fillColor('#3b82f6').rect(50 + cardWidth + 10, summaryY, 4, 80).fill();
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica').text('LOCATIONS', 60 + cardWidth + 10, summaryY + 15);
+      doc.fillColor('#1e293b').fontSize(20).font('Helvetica-Bold').text(
+        String(shift.locations?.length || 0), 60 + cardWidth + 10, summaryY + 35
+      );
+
+      // Photos card
+      doc.fillColor('#f8fafc').rect(50 + (cardWidth + 10) * 2, summaryY, cardWidth, 80).fill();
+      doc.fillColor('#3b82f6').rect(50 + (cardWidth + 10) * 2, summaryY, 4, 80).fill();
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica').text('PHOTOS', 60 + (cardWidth + 10) * 2, summaryY + 15);
+      doc.fillColor('#1e293b').fontSize(20).font('Helvetica-Bold').text(
+        String(shift.photos?.length || 0), 60 + (cardWidth + 10) * 2, summaryY + 35
+      );
+
+      // Distance card
+      doc.fillColor('#f8fafc').rect(50 + (cardWidth + 10) * 3, summaryY, cardWidth, 80).fill();
+      doc.fillColor('#3b82f6').rect(50 + (cardWidth + 10) * 3, summaryY, 4, 80).fill();
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica').text('DISTANCE', 60 + (cardWidth + 10) * 3, summaryY + 15);
+      doc.fillColor('#1e293b').fontSize(20).font('Helvetica-Bold').text(
+        `${totalDistance.toFixed(2)} km`, 60 + (cardWidth + 10) * 3, summaryY + 35
+      );
+
+      doc.moveDown(8);
+
+      // Shift Details Section
+      doc.fillColor('#1e293b').fontSize(16).font('Helvetica-Bold').text('📋 Shift Details', 50, 270);
+      doc.strokeColor('#e2e8f0').lineWidth(2).moveTo(50, 295).lineTo(doc.page.width - 50, 295).stroke();
+
+      const detailsY = 310;
+      const col1X = 50;
+      const col2X = doc.page.width / 2 + 10;
+
+      // Left column
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica').text('Staff Member', col1X, detailsY);
+      doc.fillColor('#1e293b').fontSize(11).font('Helvetica-Bold').text(shift.staffName, col1X, detailsY + 15);
+
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica').text('Start Time', col1X, detailsY + 50);
+      doc.fillColor('#1e293b').fontSize(11).font('Helvetica-Bold').text(
+        startTime.toLocaleString('en-GB'), col1X, detailsY + 65
+      );
+
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica').text('Pair Code', col1X, detailsY + 100);
+      doc.fillColor('#1e293b').fontSize(11).font('Helvetica-Bold').text(pairCode, col1X, detailsY + 115);
+
+      // Right column
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica').text('Site', col2X, detailsY);
+      doc.fillColor('#1e293b').fontSize(11).font('Helvetica-Bold').text(shift.siteName, col2X, detailsY + 15);
+
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica').text('End Time', col2X, detailsY + 50);
+      doc.fillColor('#1e293b').fontSize(11).font('Helvetica-Bold').text(
+        shift.endTime ? endTime.toLocaleString('en-GB') : 'In Progress', col2X, detailsY + 65
+      );
+
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica').text('Status', col2X, detailsY + 100);
+      doc.fillColor('#1e293b').fontSize(11).font('Helvetica-Bold').text(
+        shift.endTime ? '✅ Completed' : '🔄 Active', col2X, detailsY + 115
+      );
+
+      // Notes Section
+      if (shift.notes && shift.notes.length > 0) {
+        doc.addPage();
+        doc.fillColor('#1e293b').fontSize(16).font('Helvetica-Bold').text(`📝 Notes (${shift.notes.length})`, 50, 50);
+        doc.strokeColor('#e2e8f0').lineWidth(2).moveTo(50, 75).lineTo(doc.page.width - 50, 75).stroke();
+
+        let noteY = 95;
+        shift.notes.forEach((note: any) => {
+          if (noteY > doc.page.height - 150) {
+            doc.addPage();
+            noteY = 50;
+          }
+
+          doc.fillColor('#fffbeb').rect(50, noteY, doc.page.width - 100, 60).fill();
+          doc.fillColor('#f59e0b').rect(50, noteY, 4, 60).fill();
+          doc.fillColor('#92400e').fontSize(9).font('Helvetica-Bold').text(
+            `⏰ ${new Date(note.timestamp).toLocaleString('en-GB')}`, 60, noteY + 10
+          );
+          doc.fillColor('#1e293b').fontSize(10).font('Helvetica').text(
+            note.text, 60, noteY + 30, { width: doc.page.width - 120 }
+          );
+
+          noteY += 80;
+        });
+      }
+
+      // Footer
+      const footerY = doc.page.height - 80;
+      doc.strokeColor('#e2e8f0').lineWidth(2).moveTo(50, footerY).lineTo(doc.page.width - 50, footerY).stroke();
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica').text(
+        'Timestamp Tracker | Shift Report', 50, footerY + 15, { align: 'center' }
+      );
+      doc.fontSize(8).text(
+        'This document is generated automatically and contains verified GPS tracking data.',
+        50, footerY + 30, { align: 'center' }
+      );
+      doc.fontSize(7).text(
+        'UK GDPR Compliant | Data retention policy applies', 50, footerY + 45, { align: 'center' }
+      );
+
+      doc.end();
+    } catch (error) {
+      console.error("PDF generation error:", error);
+      res.status(500).json({ error: "Failed to generate PDF report" });
+    }
+  });
+
   // ---- Watermark API ----
   const watermarkApi = await import("../watermark-api.js");
 

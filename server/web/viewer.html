@@ -902,6 +902,120 @@
         // Fit bounds to show entire route
         const bounds = L.latLngBounds(latlngs);
         leafletMap.fitBounds(bounds, { padding: [50, 50] });
+        
+        // Add route replay animation
+        let replayMarker = null;
+        let replayInterval = null;
+        let replayIndex = 0;
+        let isPlaying = false;
+        let playbackSpeed = 1; // 1x, 2x, 4x
+        
+        const replayControl = L.control({ position: 'bottomleft' });
+        replayControl.onAdd = function() {
+          const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+          div.style.background = 'white';
+          div.style.padding = '10px';
+          div.style.borderRadius = '8px';
+          div.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+          div.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 200px;">
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button id="replay-play" style="flex: 1; background: #3b82f6; color: white; border: none; padding: 8px 12px; cursor: pointer; font-size: 14px; border-radius: 4px; font-weight: 600;">
+                  ▶️ Play Route
+                </button>
+                <button id="replay-speed" style="background: #f3f4f6; border: none; padding: 8px 12px; cursor: pointer; font-size: 12px; border-radius: 4px; font-weight: 600;">
+                  1x
+                </button>
+              </div>
+              <div id="replay-info" style="font-size: 12px; color: #64748b; text-align: center; display: none;">
+                <div id="replay-timestamp"></div>
+                <div id="replay-progress"></div>
+              </div>
+            </div>
+          `;
+          
+          // Play/Pause button
+          div.querySelector('#replay-play').onclick = function() {
+            if (isPlaying) {
+              stopReplay();
+            } else {
+              startReplay();
+            }
+          };
+          
+          // Speed button
+          div.querySelector('#replay-speed').onclick = function() {
+            playbackSpeed = playbackSpeed === 1 ? 2 : playbackSpeed === 2 ? 4 : 1;
+            this.textContent = playbackSpeed + 'x';
+            if (isPlaying) {
+              stopReplay();
+              startReplay();
+            }
+          };
+          
+          return div;
+        };
+        replayControl.addTo(leafletMap);
+        
+        function startReplay() {
+          isPlaying = true;
+          document.getElementById('replay-play').innerHTML = '⏸️ Pause';
+          document.getElementById('replay-info').style.display = 'block';
+          
+          // Create animated marker
+          if (!replayMarker) {
+            replayMarker = L.circleMarker(latlngs[0], {
+              radius: 12,
+              fillColor: '#8b5cf6',
+              color: '#ffffff',
+              weight: 3,
+              fillOpacity: 1
+            }).addTo(leafletMap);
+          }
+          
+          // Animate marker along route
+          const baseInterval = 100; // ms between updates
+          const interval = baseInterval / playbackSpeed;
+          
+          replayInterval = setInterval(() => {
+            if (replayIndex >= locations.length) {
+              stopReplay();
+              replayIndex = 0;
+              return;
+            }
+            
+            const loc = locations[replayIndex];
+            replayMarker.setLatLng([loc.latitude, loc.longitude]);
+            
+            // Update info panel
+            const timestamp = new Date(loc.timestamp).toLocaleTimeString();
+            const progress = Math.round((replayIndex / locations.length) * 100);
+            document.getElementById('replay-timestamp').textContent = `⏱️ ${timestamp}`;
+            document.getElementById('replay-progress').textContent = `📍 Point ${replayIndex + 1} / ${locations.length} (${progress}%)`;
+            
+            // Pan map to follow marker
+            leafletMap.panTo([loc.latitude, loc.longitude], { animate: true, duration: 0.3 });
+            
+            replayIndex++;
+          }, interval);
+        }
+        
+        function stopReplay() {
+          isPlaying = false;
+          document.getElementById('replay-play').innerHTML = '▶️ Play Route';
+          if (replayInterval) {
+            clearInterval(replayInterval);
+            replayInterval = null;
+          }
+          if (replayIndex >= locations.length) {
+            replayIndex = 0;
+            if (replayMarker) {
+              leafletMap.removeLayer(replayMarker);
+              replayMarker = null;
+            }
+            document.getElementById('replay-info').style.display = 'none';
+          }
+        }
     }
     
     // Render dashboard
@@ -1187,26 +1301,49 @@
       }
     }
     
-    // Download PDF - opens printable version of viewer
+    // Download PDF - generates comprehensive shift report
     async function downloadPDF() {
       if (!shiftData) return;
       
       try {
-        // Open current viewer page in new window for printing
-        // This includes the map with polylines, photos, and all data
-        const printWindow = window.open(window.location.href, '_blank');
-        if (printWindow) {
-          // Wait for page to load, then trigger print dialog
-          // Increased delay to ensure map polyline renders fully
-          printWindow.onload = () => {
-            setTimeout(() => {
-              printWindow.print();
-            }, 3000); // 3 seconds to let map and polyline render
-          };
+        // Show loading state
+        const button = document.querySelector('.pdf-button');
+        const originalText = button.innerHTML;
+        button.innerHTML = '⏳ Generating PDF...';
+        button.disabled = true;
+        
+        // Request PDF from server
+        const pairCode = window.location.pathname.split('/').pop();
+        const response = await fetch(`/api/shift-report/${pairCode}`, {
+          method: 'GET'
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to generate PDF');
         }
+        
+        // Download the PDF blob
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `shift-report-${shiftData.staffName.replace(/\s+/g, '-')}-${pairCode}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        // Reset button
+        button.innerHTML = originalText;
+        button.disabled = false;
       } catch (error) {
         console.error('PDF download failed:', error);
-        alert('Failed to open print dialog');
+        alert('Failed to generate PDF report. Please try again.');
+        
+        // Reset button
+        const button = document.querySelector('.pdf-button');
+        button.innerHTML = '📄 Download Shift Report';
+        button.disabled = false;
       }
     }
     

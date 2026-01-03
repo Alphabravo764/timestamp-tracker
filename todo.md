@@ -732,3 +732,14 @@ Based on user's detailed specifications and sample code:
 - [x] Add pinpoint markers for each location point
 - [x] Ensure map displays location tracking visually
 - [x] Test map rendering with real shift data
+
+## ROUTE REPLAY & PDF EXPORT - Jan 3, 2026
+- [x] Add "Play Route" button to map viewer
+- [x] Implement animated marker that moves along patrol path
+- [x] Show timestamp and location info during replay
+- [x] Add playback controls (play, pause, speed adjustment)
+- [x] Create PDF export endpoint for shift reports
+- [x] Include shift summary, route map, photos, and notes in PDF
+- [x] Add "Download Shift Report" button to viewer
+- [x] Test route replay animation with real shift data
+- [x] Test PDF generation with complete shift data
