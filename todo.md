@@ -500,3 +500,14 @@ Based on user's detailed specifications and sample code:
 
 ## CRITICAL BUG - Jan 3, 2026
 - [x] FIX: viewer.html not loading shift data after UI update - API call broken (was calling /api/shifts/live/ instead of /api/sync/shift/)
+
+
+## CRITICAL VIEWER BUGS - Jan 3, 2026 (User Reported)
+- [x] Map showing placeholder text instead of real Google Maps with GPS coordinates
+- [x] "Download Shift Report" button not working (PDF generation)
+- [x] Activity feed only shows 1 event instead of all locations/photos/notes
+- [x] No photos visible in viewer
+- [x] No notes visible in viewer
+- [x] Location is hardcoded "Location updating..." instead of real-time address
+- [x] Route polyline not showing on map
+- [x] Need to implement everything with REAL data from API, not placeholders

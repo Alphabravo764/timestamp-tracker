@@ -151,8 +151,19 @@ async function startServer() {
   app.get("/api/sync/shift/:pairCode", async (req, res) => {
     try {
       const { pairCode } = req.params;
+      const { format } = req.query;
       const shift = await syncDb.getShiftByPairCode(pairCode);
       if (!shift) return res.status(404).json({ error: "Shift not found" });
+      
+      // If PDF format requested, generate and return PDF
+      if (format === 'pdf') {
+        const { generatePDFReport } = await import("../../lib/pdf-generator.js");
+        const pdfHtml = await generatePDFReport(shift as any, false);
+        res.setHeader('Content-Type', 'text/html');
+        res.setHeader('Content-Disposition', `inline; filename="shift-report-${pairCode}.html"`);
+        return res.send(pdfHtml);
+      }
+      
       res.json(shift);
     } catch (error) {
       console.error("Get shift error:", error);
