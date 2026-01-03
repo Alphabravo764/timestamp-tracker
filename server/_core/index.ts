@@ -123,11 +123,9 @@ async function startServer() {
       const { pairCode, text, timestamp } = req.body;
       if (!pairCode) return res.status(400).json({ error: "pairCode required" });
 
-      // If you already implemented note storage in sync-db, call it here.
-      // Otherwise this will remain a no-op but won't crash.
-      if (typeof syncDb.addNote === "function") {
-        await syncDb.addNote({ pairCode, text, timestamp });
-      }
+      // Note storage not implemented in database yet - this is a no-op
+      // TODO: Add addNote function to sync-db.ts when note storage is needed
+      console.log("Note sync received:", { pairCode, text: text?.substring(0, 50) });
 
       res.json({ success: true });
     } catch (error) {

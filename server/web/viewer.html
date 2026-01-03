@@ -93,8 +93,9 @@
            <div><b>Start:</b> ${esc(fmtTime(start) || "—")}</div>
            <div><b>End:</b> ${esc(fmtTime(end) || "—")}</div>`;
 
-        // Latest location
-        const latest = shift.latestLocation || shift.latest_location || shift.location || null;
+        // Latest location - check locations array first
+        const locations = shift.locations || [];
+        const latest = locations.length > 0 ? locations[locations.length - 1] : (shift.latestLocation || shift.latest_location || shift.location || null);
         const lat = latest?.latitude ?? latest?.lat;
         const lng = latest?.longitude ?? latest?.lng;
         const addr = latest?.address || "";
@@ -117,8 +118,15 @@
           gmaps.style.opacity = "0.5";
         }
 
-        // Timeline
-        const items = shift.timeline || shift.events || [];
+        // Timeline - build from locations, photos, and notes
+        let items = shift.timeline || shift.events || [];
+        if (!items.length) {
+          // Build timeline from locations, photos, notes
+          const locEvents = (shift.locations || []).map(l => ({ type: 'location', timestamp: l.timestamp, text: l.address || `${l.latitude}, ${l.longitude}` }));
+          const photoEvents = (shift.photos || []).map(p => ({ type: 'photo', timestamp: p.timestamp, text: 'Photo taken' }));
+          const noteEvents = (shift.notes || []).map(n => ({ type: 'note', timestamp: n.timestamp, text: n.text }));
+          items = [...locEvents, ...photoEvents, ...noteEvents].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        }
         if (Array.isArray(items) && items.length) {
           document.getElementById("timeline").innerHTML =
             items.slice().reverse().slice(0, 80).map(ev => {

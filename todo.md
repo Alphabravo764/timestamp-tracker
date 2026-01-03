@@ -358,3 +358,13 @@ Based on developer analysis:
 ## DEVELOPER FIX - Railway Connection - Jan 3, 2026
 - [x] Hardcode Railway production URL in getApiBaseUrl() function
 - [ ] Test with new shift to verify Railway connection works
+
+
+## RAILWAY SYNC FIX - Jan 3, 2026
+- [x] Verified Railway API is working correctly
+- [x] Test shift creation via API - SUCCESS
+- [x] Test location sync via API - SUCCESS
+- [x] Verified viewer page displays shift data from Railway database
+- [x] Fixed viewer.html to read locations from locations array
+- [x] Fixed viewer.html to build timeline from locations/photos/notes arrays
+- [ ] Redeploy to Railway to apply viewer.html fixes

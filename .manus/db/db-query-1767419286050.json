@@ -1,0 +1,70 @@
+{
+  "query": "SELECT id, pairCode, siteName, status FROM shifts ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3DVLU63PrgLx5Xc.f26e505845f1 --database g2dY6bYsCPjegiRBipKkoZ --execute SELECT id, pairCode, siteName, status FROM shifts ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "660002",
+      "pairCode": "XJ6-HSV",
+      "siteName": "PDF Test Site",
+      "status": "completed"
+    },
+    {
+      "id": "660001",
+      "pairCode": "EG9-NQC",
+      "siteName": "Test Site - Main Entrance",
+      "status": "completed"
+    },
+    {
+      "id": "630002",
+      "pairCode": "S6J-5AJ",
+      "siteName": "PDF Test Site",
+      "status": "completed"
+    },
+    {
+      "id": "630001",
+      "pairCode": "C8C-WPA",
+      "siteName": "Test Site - Main Entrance",
+      "status": "completed"
+    },
+    {
+      "id": "600006",
+      "pairCode": "T4S-3EM",
+      "siteName": "PDF Test Site",
+      "status": "completed"
+    },
+    {
+      "id": "600005",
+      "pairCode": "JCT-5MW",
+      "siteName": "Test Site - Main Entrance",
+      "status": "completed"
+    },
+    {
+      "id": "600004",
+      "pairCode": "QTJ-LPP",
+      "siteName": "PDF Test Site",
+      "status": "completed"
+    },
+    {
+      "id": "600003",
+      "pairCode": "5MF-8YD",
+      "siteName": "Test Site - Main Entrance",
+      "status": "completed"
+    },
+    {
+      "id": "600002",
+      "pairCode": "APQ-PWP",
+      "siteName": "PDF Test Site",
+      "status": "completed"
+    },
+    {
+      "id": "600001",
+      "pairCode": "3K2-TXT",
+      "siteName": "Test Site - Main Entrance",
+      "status": "completed"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tpairCode\tsiteName\tstatus\n660002\tXJ6-HSV\tPDF Test Site\tcompleted\n660001\tEG9-NQC\tTest Site - Main Entrance\tcompleted\n630002\tS6J-5AJ\tPDF Test Site\tcompleted\n630001\tC8C-WPA\tTest Site - Main Entrance\tcompleted\n600006\tT4S-3EM\tPDF Test Site\tcompleted\n600005\tJCT-5MW\tTest Site - Main Entrance\tcompleted\n600004\tQTJ-LPP\tPDF Test Site\tcompleted\n600003\t5MF-8YD\tTest Site - Main Entrance\tcompleted\n600002\tAPQ-PWP\tPDF Test Site\tcompleted\n600001\t3K2-TXT\tTest Site - Main Entrance\tcompleted\n",
+  "stderr": "",
+  "execution_time_ms": 405
+}

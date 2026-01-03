@@ -1,0 +1,49 @@
+{
+  "query": "SELECT column_name FROM information_schema.columns WHERE table_name = 'shifts';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3DVLU63PrgLx5Xc.f26e505845f1 --database g2dY6bYsCPjegiRBipKkoZ --execute SELECT column_name FROM information_schema.columns WHERE table_name = 'shifts';",
+  "rows": [
+    {
+      "column_name": "id"
+    },
+    {
+      "column_name": "userId"
+    },
+    {
+      "column_name": "siteName"
+    },
+    {
+      "column_name": "notes"
+    },
+    {
+      "column_name": "status"
+    },
+    {
+      "column_name": "startTimeUtc"
+    },
+    {
+      "column_name": "endTimeUtc"
+    },
+    {
+      "column_name": "durationMinutes"
+    },
+    {
+      "column_name": "liveToken"
+    },
+    {
+      "column_name": "pairCode"
+    },
+    {
+      "column_name": "pairCodeExpiresAt"
+    },
+    {
+      "column_name": "createdAt"
+    },
+    {
+      "column_name": "updatedAt"
+    }
+  ],
+  "messages": [],
+  "stdout": "column_name\nid\nuserId\nsiteName\nnotes\nstatus\nstartTimeUtc\nendTimeUtc\ndurationMinutes\nliveToken\npairCode\npairCodeExpiresAt\ncreatedAt\nupdatedAt\n",
+  "stderr": "",
+  "execution_time_ms": 394
+}
