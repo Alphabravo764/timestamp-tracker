@@ -317,3 +317,9 @@ Based on developer analysis:
 - [x] Viewer page uses tRPC API for cross-device viewing
 - [x] Watcher tab uses server API instead of local storage
 - [x] Camera close button improved with safe-area insets
+
+## RAILWAY URL FIX - Jan 3, 2026
+- [x] Update viewer page to use Railway production URL instead of Manus dev URL
+- [x] Update watcher tab to use Railway production URL
+- [x] Fix tRPC input format to use {json: {pairCode}} structure
+- [x] Fix tRPC response parsing to access result.data.json

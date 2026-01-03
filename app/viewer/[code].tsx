@@ -7,7 +7,8 @@ import type { Shift, LocationPoint } from "@/lib/shift-types";
 import { formatDuration, getShiftDuration } from "@/lib/shift-storage";
 import { generatePDFReport } from "@/lib/pdf-generator";
 import { getGoogleMapsApiKey } from "@/lib/google-maps";
-import { getApiBaseUrl } from "@/constants/oauth";
+// Use Railway production URL for API calls
+const RAILWAY_API_URL = "https://timestamp-tracker-production.up.railway.app";
 
 // Convert API response to local Shift type
 function apiResponseToShift(data: any): Shift {
@@ -57,10 +58,10 @@ export default function LiveViewerScreen() {
     }
 
     try {
-      const apiUrl = getApiBaseUrl();
+      const apiUrl = RAILWAY_API_URL;
       const normalizedCode = code.replace(/-/g, "").toUpperCase();
       
-      const response = await fetch(`${apiUrl}/api/trpc/shifts.getByPairCode?input=${encodeURIComponent(JSON.stringify({ pairCode: normalizedCode }))}`, {
+      const response = await fetch(`${apiUrl}/api/trpc/shifts.getByPairCode?input=${encodeURIComponent(JSON.stringify({ json: { pairCode: normalizedCode } }))}`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
       });
@@ -68,7 +69,7 @@ export default function LiveViewerScreen() {
       if (!response.ok) throw new Error("Failed to fetch shift data");
 
       const result = await response.json();
-      const data = result?.result?.data;
+      const data = result?.result?.data?.json;
       
       if (!data || !data.shift) {
         setError("Shift not found. Please check the pair code.");
