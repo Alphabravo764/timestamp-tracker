@@ -31,7 +31,13 @@ export const API_BASE_URL = env.apiBaseUrl;
  * URL pattern: https://PORT-sandboxid.region.domain
  */
 export function getApiBaseUrl(): string {
-  // ALWAYS use environment variable if set (highest priority)
+  // PRODUCTION: Always use Railway URL
+  // This ensures the app connects to the permanent production database
+  const PRODUCTION_URL = "https://timestamp-tracker-production.up.railway.app";
+  console.log("[getApiBaseUrl] Using production Railway URL:", PRODUCTION_URL);
+  return PRODUCTION_URL;
+
+  // Development fallback (unreachable in production)
   if (API_BASE_URL) {
     console.log("[getApiBaseUrl] Using EXPO_PUBLIC_API_BASE_URL:", API_BASE_URL);
     return API_BASE_URL.replace(/\/$/, "");

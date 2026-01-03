@@ -354,3 +354,7 @@ Based on developer analysis:
 - [x] Switch watermark to use canvas on web platform
 - [ ] Test Railway viewer with new shift
 - [ ] Verify watermark appears on photos
+
+## DEVELOPER FIX - Railway Connection - Jan 3, 2026
+- [x] Hardcode Railway production URL in getApiBaseUrl() function
+- [ ] Test with new shift to verify Railway connection works
