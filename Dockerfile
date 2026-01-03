@@ -25,4 +25,4 @@ ENV NODE_ENV=production
 ENV PORT=3000
 
 # Start the server
-CMD ["sh", "-c", "pnpm db:push && pnpm start"]
+CMD ["pnpm", "start"]
