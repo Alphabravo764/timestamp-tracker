@@ -98,7 +98,8 @@ export default function WatcherScreen() {
   };
 
   const viewLive = (staff: WatchedStaff) => {
-    const baseUrl = Platform.OS === "web" ? window.location.origin : getApiBaseUrl();
+    // Always use Railway production URL for viewer
+    const baseUrl = "https://timestamp-tracker-production.up.railway.app";
     Linking.openURL(`${baseUrl}/viewer/${staff.pairCode.replace(/-/g, "")}`);
   };
 

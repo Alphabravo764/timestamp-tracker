@@ -394,7 +394,14 @@ Based on developer analysis:
 - [x] Verified package.json has no hanging scripts
 
 ## NEXT STEPS FOR USER
-- [ ] Clear Expo Go cache: `npx expo start -c`
-- [ ] Test Railway URL from phone browser: https://timestamp-tracker-production.up.railway.app/api/health
-- [ ] Start new shift and check console logs for sync status
+- [x] Clear Expo Go cache: `npx expo start -c`
+- [x] Test Railway URL from phone browser: https://timestamp-tracker-production.up.railway.app/api/health
+- [x] Start new shift and check console logs for sync status
 - [ ] Try APK build with: `eas build -p android --profile preview --clear-cache`
+
+## URL FIXES COMPLETED - Jan 3, 2026
+- [x] Fixed tracking.tsx share link to use Railway URL
+- [x] Fixed watcher.tsx viewLive to use Railway URL
+- [x] Fixed shift/active.tsx share link to use Railway URL
+- [x] Fixed shift/complete.tsx share and view links to use Railway URL
+- [x] All viewer links now point to https://timestamp-tracker-production.up.railway.app/viewer/[pairCode]

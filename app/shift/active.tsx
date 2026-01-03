@@ -166,7 +166,8 @@ export default function ActiveShiftScreen() {
   const handleShareLiveLink = async () => {
     if (!activeShift) return;
 
-    const liveUrl = `${window.location.origin}/live/${activeShift.liveToken}`;
+    // Always use Railway production URL
+    const liveUrl = `https://timestamp-tracker-production.up.railway.app/viewer/${activeShift.pairCode}`;
 
     try {
       await Share.share({

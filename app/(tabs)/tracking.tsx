@@ -203,10 +203,8 @@ export default function TrackingScreen() {
     const { latitude, longitude } = currentLocation.coords;
     const timestamp = new Date().toLocaleString();
     
-    // Get the base URL for our viewer
-    const baseUrl = Platform.OS === "web" 
-      ? window.location.origin 
-      : "https://8081-i4k0orawdmfzlz97qze7e-c1ad53ca.us2.manus.computer";
+    // Always use Railway production URL for viewer
+    const baseUrl = "https://timestamp-tracker-production.up.railway.app";
     const viewerUrl = `${baseUrl}/viewer/${session.pairCode}`;
     
     // Create shareable message with our own viewer link

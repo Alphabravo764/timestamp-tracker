@@ -25,7 +25,8 @@ export default function ShiftCompleteScreen() {
   const handleShareReport = async () => {
     if (!shift) return;
 
-    const reportUrl = `${window.location.origin}/live/${shift.liveToken}`;
+    // Always use Railway production URL
+    const reportUrl = `https://timestamp-tracker-production.up.railway.app/viewer/${shift.pairCode}`;
 
     try {
       await Share.share({
@@ -39,7 +40,8 @@ export default function ShiftCompleteScreen() {
 
   const handleViewReport = () => {
     if (!shift) return;
-    const reportUrl = `${window.location.origin}/live/${shift.liveToken}`;
+    // Always use Railway production URL
+    const reportUrl = `https://timestamp-tracker-production.up.railway.app/viewer/${shift.pairCode}`;
     // In a real app, open in-app browser
     window.open(reportUrl, "_blank");
   };
