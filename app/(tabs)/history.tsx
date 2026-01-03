@@ -545,34 +545,9 @@ export default function HistoryScreen() {
           {/* Action Buttons */}
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: colors.primary }]}
-            onPress={() => {
-              const apiUrl = getApiBaseUrl();
-              const viewerUrl = `${apiUrl}/viewer/${selectedShift.pairCode}`;
-              Linking.openURL(viewerUrl);
-            }}
-          >
-            <Text style={styles.actionButtonText}>🔗 View Web Report</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: "#8b5cf6" }]}
             onPress={() => viewPDFReport(selectedShift)}
           >
-            <Text style={styles.actionButtonText}>📄 Download PDF</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: "#6366f1" }]}
-            onPress={() => generateTextReport(selectedShift)}
-          >
-            <Text style={styles.actionButtonText}>📤 Share as Text</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: colors.success }]}
-            onPress={() => viewTrailOnMap(selectedShift)}
-          >
-            <Text style={styles.actionButtonText}>🗺️ View Trail on Map</Text>
+            <Text style={styles.actionButtonText}>📄 View PDF</Text>
           </TouchableOpacity>
 
           {selectedShift.photos.length > 0 && (

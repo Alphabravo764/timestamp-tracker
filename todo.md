@@ -778,3 +778,11 @@ Based on user's detailed specifications and sample code:
 - [x] Fix History tab by adding separate "View Web Report" and "Download PDF" buttons
 - [x] Clarify and document data expiration policy (24-hour expiry)
 - [ ] Test photo sync end-to-end with real shift
+
+
+## HISTORY TAB SIMPLIFICATION - Jan 3, 2026
+- [x] Remove "View Web Report" button
+- [x] Remove "Share as Text" button
+- [x] Remove "View Trail on Map" button
+- [x] Keep only 3 buttons: View PDF, Export All Photos, Delete Shift
+- [x] Rename "Download PDF" to "View PDF"
