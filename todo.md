@@ -706,3 +706,12 @@ Based on user's detailed specifications and sample code:
 - [x] Hide or adjust DISTANCE column on mobile to prevent cutoff
 - [x] Update Current Location to show street address + postcode first, then coordinates below
 - [x] Ensure mobile responsive layout works properly on small screens
+
+## PRIVACY POLICY & TERMS OF SERVICE - Jan 3, 2026
+- [x] Create comprehensive Privacy Policy document (GDPR compliant for UK)
+- [x] Create Terms of Service document
+- [x] Implement first-launch modal requiring acceptance before app use
+- [x] Store acceptance status in AsyncStorage
+- [x] Add policy links to Settings tab
+- [x] Add data retention information (pair code expires in 24 hours, etc.)
+- [x] Add option to view policies anytime from Settings

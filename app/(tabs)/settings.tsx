@@ -7,6 +7,8 @@ import {
   ScrollView,
   Platform,
   Switch,
+  Linking,
+  Alert,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -163,6 +165,46 @@ export default function SettingsScreen() {
           )}
         </View>
 
+        {/* Privacy & Legal Section */}
+        <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>🔒 Privacy & Legal</Text>
+          
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => {
+              // In production, replace with your actual hosted policy URL
+              Alert.alert(
+                "Privacy Policy",
+                "Your privacy matters. We comply with UK GDPR and protect your data.\n\n• Location tracked during shifts only\n• Photos stored securely in cloud\n• Pair codes expire after 24 hours\n• No third-party data sharing\n• You can request data deletion anytime",
+                [{ text: "OK" }]
+              );
+            }}
+          >
+            <Text style={[styles.linkLabel, { color: colors.foreground }]}>Privacy Policy</Text>
+            <Text style={[styles.linkArrow, { color: colors.muted }]}>→</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => {
+              // In production, replace with your actual hosted terms URL
+              Alert.alert(
+                "Terms of Service",
+                "Key terms:\n\n• Location tracking every 30 seconds during shifts\n• Photos uploaded to secure cloud storage\n• Pair codes provide temporary access (24h expiry)\n• Use only for authorized work purposes\n• You're responsible for pair code security",
+                [{ text: "OK" }]
+              );
+            }}
+          >
+            <Text style={[styles.linkLabel, { color: colors.foreground }]}>Terms of Service</Text>
+            <Text style={[styles.linkArrow, { color: colors.muted }]}>→</Text>
+          </TouchableOpacity>
+
+          <View style={[styles.infoBox, { backgroundColor: colors.background }]}>
+            <Text style={[styles.infoText, { color: colors.muted }]}>🇬🇧 UK GDPR Compliant</Text>
+            <Text style={[styles.infoText, { color: colors.muted, marginTop: 4 }]}>Your data rights are protected</Text>
+          </View>
+        </View>
+
         {/* About Section */}
         <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>ℹ️ About</Text>
@@ -174,6 +216,14 @@ export default function SettingsScreen() {
           <View style={styles.aboutRow}>
             <Text style={[styles.aboutLabel, { color: colors.muted }]}>Location Interval</Text>
             <Text style={[styles.aboutValue, { color: colors.foreground }]}>Every 30 seconds</Text>
+          </View>
+          <View style={styles.aboutRow}>
+            <Text style={[styles.aboutLabel, { color: colors.muted }]}>Data Retention</Text>
+            <Text style={[styles.aboutValue, { color: colors.foreground }]}>Per organization policy</Text>
+          </View>
+          <View style={styles.aboutRow}>
+            <Text style={[styles.aboutLabel, { color: colors.muted }]}>Pair Code Expiry</Text>
+            <Text style={[styles.aboutValue, { color: colors.foreground }]}>24 hours</Text>
           </View>
         </View>
 
@@ -271,5 +321,26 @@ const styles = StyleSheet.create({
   aboutValue: {
     fontSize: 14,
     fontWeight: "500",
+  },
+  linkRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  linkLabel: {
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  linkArrow: {
+    fontSize: 18,
+  },
+  infoBox: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 8,
+  },
+  infoText: {
+    fontSize: 13,
   },
 });

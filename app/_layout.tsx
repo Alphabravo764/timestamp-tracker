@@ -8,6 +8,8 @@ import "react-native-reanimated";
 import { Platform } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { TermsModal } from "@/components/terms-modal";
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
@@ -27,17 +29,51 @@ const DEFAULT_WEB_FRAME: Rect = { x: 0, y: 0, width: 0, height: 0 };
 //   anchor: "(tabs)",
 // };
 
+const TERMS_ACCEPTED_KEY = "@timestamp_tracker_terms_accepted";
+
 export default function RootLayout() {
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
   const initialFrame = initialWindowMetrics?.frame ?? DEFAULT_WEB_FRAME;
 
   const [insets, setInsets] = useState<EdgeInsets>(initialInsets);
   const [frame, setFrame] = useState<Rect>(initialFrame);
+  const [termsAccepted, setTermsAccepted] = useState<boolean | null>(null);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   // Initialize Manus runtime for cookie injection from parent container
   useEffect(() => {
     initManusRuntime();
   }, []);
+
+  // Check if user has accepted terms
+  useEffect(() => {
+    async function checkTermsAcceptance() {
+      try {
+        const accepted = await AsyncStorage.getItem(TERMS_ACCEPTED_KEY);
+        if (accepted === "true") {
+          setTermsAccepted(true);
+        } else {
+          setTermsAccepted(false);
+          setShowTermsModal(true);
+        }
+      } catch (error) {
+        console.error("Error checking terms acceptance:", error);
+        setTermsAccepted(false);
+        setShowTermsModal(true);
+      }
+    }
+    checkTermsAcceptance();
+  }, []);
+
+  const handleAcceptTerms = async () => {
+    try {
+      await AsyncStorage.setItem(TERMS_ACCEPTED_KEY, "true");
+      setTermsAccepted(true);
+      setShowTermsModal(false);
+    } catch (error) {
+      console.error("Error saving terms acceptance:", error);
+    }
+  };
 
   const handleSafeAreaUpdate = useCallback((metrics: Metrics) => {
     setInsets(metrics.insets);
@@ -96,6 +132,10 @@ export default function RootLayout() {
             <Stack.Screen name="dev/theme-lab" />
           </Stack>
           <StatusBar style="auto" />
+          {/* Terms Modal */}
+          {termsAccepted !== null && (
+            <TermsModal visible={showTermsModal} onAccept={handleAcceptTerms} />
+          )}
         </QueryClientProvider>
       </trpc.Provider>
     </GestureHandlerRootView>
