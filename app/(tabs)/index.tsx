@@ -611,10 +611,28 @@ export default function HomeScreen() {
         siteName: activeShift.siteName,
       };
       
-      // Add watermark using PhotoWatermark component (ONE method only)
-      if (watermarkRef.current) {
+      // Add watermark - use canvas on web, PhotoWatermark on native
+      if (Platform.OS === "web") {
+        // On web, use canvas-based watermark (more reliable)
         try {
-          console.log("[Watermark] Adding watermark...");
+          console.log("[Watermark] Using canvas watermark for web...");
+          const { addWatermarkToPhoto } = await import("@/lib/watermark");
+          finalUri = await addWatermarkToPhoto(photo.uri, {
+            timestamp: new Date().toISOString(),
+            address: watermarkData.address,
+            latitude: watermarkData.latitude,
+            longitude: watermarkData.longitude,
+            staffName: watermarkData.staffName,
+            siteName: watermarkData.siteName,
+          });
+          console.log("[Watermark] Canvas done:", finalUri?.substring(0, 50));
+        } catch (wmError) {
+          console.log("[Watermark] Canvas error, using original:", wmError);
+        }
+      } else if (watermarkRef.current) {
+        // On native, use PhotoWatermark component
+        try {
+          console.log("[Watermark] Using PhotoWatermark component...");
           finalUri = await watermarkRef.current.addWatermark(photo.uri, watermarkData);
           console.log("[Watermark] Done:", finalUri?.substring(0, 50));
         } catch (wmError) {

@@ -342,3 +342,15 @@ Based on developer analysis:
 - [x] Restore timestamp watermark on photos (PhotoWatermark component is working)
 - [ ] Test Railway viewer with new shift
 - [ ] Verify watermark appears on photos
+
+## LIVE VIEWER NOT WORKING - Jan 3, 2026
+- [ ] Check which API URL the mobile app is actually using
+- [ ] Verify new shifts are being created in Railway database
+- [ ] Test tRPC endpoint with actual pair code from new shift
+- [ ] Fix viewer page if data structure mismatch
+
+## FINAL FIXES - Jan 3, 2026
+- [x] Force Railway URL to always use EXPO_PUBLIC_API_BASE_URL
+- [x] Switch watermark to use canvas on web platform
+- [ ] Test Railway viewer with new shift
+- [ ] Verify watermark appears on photos
