@@ -672,3 +672,32 @@ Based on user's detailed specifications and sample code:
 - [x] Better PDF generation - natural vertical flow - items wrap instead of scroll
 - [x] Better mobile responsiveness - stacked layout works on all screens
 - [ ] DEPLOY: Push to GitHub and redeploy Railway to see new layout
+
+
+## VIEWER TIMELINE IMPROVEMENTS - Jan 3, 2026 (User Request)
+- [ ] Separate Photos Timeline - dedicated section with flow visualization
+- [ ] Separate Notes Timeline - dedicated section with flow visualization  
+- [ ] Add location to notes display (currently missing)
+- [ ] Add timestamp to notes (time + location like photos)
+- [ ] Visual flow between timeline items
+
+## SHIFT END SUMMARY CARD - Jan 3, 2026 (User Request)
+- [ ] Show summary when guard ends shift
+- [ ] Display total distance traveled
+- [ ] Display total duration
+- [ ] Display photos count
+- [ ] Display notes count
+
+## CLOUD PHOTO UPLOAD - Jan 3, 2026 (User Request)
+- [ ] Upload photos to Railway S3 storage (built-in, no extra cost)
+- [ ] Store public URL instead of local file URI
+- [ ] Photos visible in web viewer and PDF
+- [ ] Implement base64 upload from mobile app
+
+
+## CRITICAL FIXES - Jan 3, 2026
+- [x] Separate Photos and Notes into distinct timelines in viewer (already done)
+- [x] Add location display to notes in viewer (already done)
+- [x] Add shift end summary card (already done)
+- [x] Upload photos to cloud storage so they display in web viewer
+- [x] Fix photos showing "Photo not available (local file)" in web viewer

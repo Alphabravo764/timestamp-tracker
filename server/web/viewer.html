@@ -333,10 +333,154 @@
       cursor: pointer;
     }
     
+    /* Timeline Connector Styles */
+    .timeline-connector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-right: 16px;
+    }
+    
+    .timeline-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    
+    .timeline-dot.photo {
+      background: #8b5cf6;
+    }
+    
+    .timeline-dot.note {
+      background: #f59e0b;
+    }
+    
+    .timeline-line {
+      width: 2px;
+      flex: 1;
+      min-height: 40px;
+      background: #e2e8f0;
+      margin-top: 8px;
+    }
+    
+    .feed-item.photo-item,
+    .feed-item.note-item {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      min-width: auto;
+      width: 100%;
+      margin-bottom: 16px;
+    }
+    
+    .feed-card {
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 16px;
+      flex: 1;
+      border: 1px solid #e2e8f0;
+    }
+    
+    .feed-time-location {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .feed-time {
+      font-size: 13px;
+      color: #64748b;
+      font-weight: 500;
+    }
+    
+    .feed-date {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    
+    .feed-location {
+      font-size: 13px;
+      color: #475569;
+      margin-bottom: 12px;
+    }
+    
+    .note-text {
+      font-size: 15px;
+      color: #1e293b;
+      line-height: 1.5;
+      background: white;
+      padding: 12px;
+      border-radius: 8px;
+      border-left: 3px solid #f59e0b;
+    }
+    
+    .photo-placeholder {
+      background: #f1f5f9;
+      padding: 24px;
+      text-align: center;
+      border-radius: 8px;
+      color: #94a3b8;
+      font-size: 13px;
+    }
+    
+    .empty-state {
+      padding: 32px;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 14px;
+    }
+    
+    /* Shift Summary Styles */
+    .shift-summary {
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      color: white;
+    }
+    
+    .shift-summary .feed-header h2 {
+      color: white;
+    }
+    
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      padding: 16px 0;
+    }
+    
+    .summary-item {
+      text-align: center;
+      padding: 16px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 12px;
+    }
+    
+    .summary-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: white;
+    }
+    
+    .summary-label {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    @media (max-width: 768px) {
+      .summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    
     /* Footer */
     .feed-footer {
       padding: 16px;
       border-top: 1px solid #e2e8f0;
+      margin-top: 16px;
     }
     
     .pdf-button {
@@ -758,16 +902,17 @@
       // Add notes
       if (shift.notes && shift.notes.length > 0) {
         for (const note of shift.notes) {
-          let content = note.text;
+          let noteLocation = 'Location not recorded';
           if (note.location && note.location.latitude && note.location.longitude) {
-            const address = await reverseGeocode(note.location.latitude, note.location.longitude);
-            content += ` • ${address}`;
+            noteLocation = await reverseGeocode(note.location.latitude, note.location.longitude);
           }
           activities.push({
             type: 'note',
             time: note.timestamp,
             title: '📝 Note Added',
-            content: content
+            content: note.text,
+            noteText: note.text,
+            noteLocation: noteLocation
           });
         }
       }
@@ -843,41 +988,95 @@
             </div>
           </div>
           
+          <!-- Photos Timeline -->
           <div class="activity-feed">
-            <div class="feed-header" style="display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <h2>Activity Stream</h2>
-                <div class="feed-count">${activities.length} events</div>
-              </div>
+            <div class="feed-header">
+              <h2>📷 Photos Timeline</h2>
+              <div class="feed-count">${activities.filter(a => a.type === 'photo').length} photos</div>
             </div>
-            <div class="feed-content" id="activity-feed">
-              ${activities.map(activity => `
-                <div class="feed-item">
-                  <div class="feed-icon ${activity.type}">
-                    ${activity.type === 'start' ? '▶' : ''}
-                    ${activity.type === 'location' ? '📍' : ''}
-                    ${activity.type === 'photo' ? '📷' : ''}
-                    ${activity.type === 'note' ? '📝' : ''}
-                    ${activity.type === 'end' ? '⏹' : ''}
+            <div class="feed-content" id="photos-feed">
+              ${activities.filter(a => a.type === 'photo').length === 0 ? '<div class="empty-state">No photos captured yet</div>' : ''}
+              ${activities.filter(a => a.type === 'photo').map((activity, index) => `
+                <div class="feed-item photo-item">
+                  <div class="timeline-connector">
+                    <div class="timeline-dot photo"></div>
+                    ${index < activities.filter(a => a.type === 'photo').length - 1 ? '<div class="timeline-line"></div>' : ''}
                   </div>
-                  <div class="feed-details">
-                    <div class="feed-time">${new Date(activity.time).toLocaleTimeString()}</div>
-                    <div class="feed-title">${activity.title}</div>
-                    <div class="feed-content-text">${activity.content}</div>
+                  <div class="feed-card">
+                    <div class="feed-time-location">
+                      <span class="feed-time">🕐 ${new Date(activity.time).toLocaleTimeString()}</span>
+                      <span class="feed-date">${new Date(activity.time).toLocaleDateString()}</span>
+                    </div>
+                    <div class="feed-location">📍 ${activity.content}</div>
                     ${activity.photoUri && !activity.photoUri.includes('...') ? `
                       <div class="feed-photo" style="cursor: pointer;" onclick="openLightbox('${activity.photoUri}')">
                         <img src="${activity.photoUri}" alt="Photo" />
                       </div>
-                    ` : ''}
+                    ` : '<div class="photo-placeholder">Photo not available (local file)</div>'}
                   </div>
                 </div>
               `).join('')}
             </div>
-            <div class="feed-footer">
-              <button class="pdf-button" onclick="downloadPDF()">
-                📄 Download Shift Report
-              </button>
+          </div>
+          
+          <!-- Notes Timeline -->
+          <div class="activity-feed">
+            <div class="feed-header">
+              <h2>📝 Notes Timeline</h2>
+              <div class="feed-count">${activities.filter(a => a.type === 'note').length} notes</div>
             </div>
+            <div class="feed-content" id="notes-feed">
+              ${activities.filter(a => a.type === 'note').length === 0 ? '<div class="empty-state">No notes added yet</div>' : ''}
+              ${activities.filter(a => a.type === 'note').map((activity, index) => `
+                <div class="feed-item note-item">
+                  <div class="timeline-connector">
+                    <div class="timeline-dot note"></div>
+                    ${index < activities.filter(a => a.type === 'note').length - 1 ? '<div class="timeline-line"></div>' : ''}
+                  </div>
+                  <div class="feed-card">
+                    <div class="feed-time-location">
+                      <span class="feed-time">🕐 ${new Date(activity.time).toLocaleTimeString()}</span>
+                      <span class="feed-date">${new Date(activity.time).toLocaleDateString()}</span>
+                    </div>
+                    <div class="feed-location">📍 ${activity.noteLocation || 'Location not recorded'}</div>
+                    <div class="note-text">${activity.noteText || activity.content}</div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          
+          <!-- Shift Summary -->
+          ${!shift.isActive ? `
+          <div class="activity-feed shift-summary">
+            <div class="feed-header">
+              <h2>📊 Shift Summary</h2>
+            </div>
+            <div class="summary-grid">
+              <div class="summary-item">
+                <div class="summary-value">${durationText}</div>
+                <div class="summary-label">Duration</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-value">${distanceText}</div>
+                <div class="summary-label">Distance</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-value">${activities.filter(a => a.type === 'photo').length}</div>
+                <div class="summary-label">Photos</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-value">${activities.filter(a => a.type === 'note').length}</div>
+                <div class="summary-label">Notes</div>
+              </div>
+            </div>
+          </div>
+          ` : ''}
+          
+          <div class="feed-footer">
+            <button class="pdf-button" onclick="downloadPDF()">
+              📄 Download Shift Report
+            </button>
           </div>
         </div>
       `;

@@ -8,6 +8,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { storagePut } from "../storage";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -105,13 +106,49 @@ async function startServer() {
     }
   });
 
+  // Photo sync with S3 upload
   app.post("/api/sync/photo", async (req, res) => {
     try {
       const { pairCode, photoUri, latitude, longitude, accuracy, timestamp, address } = req.body;
       if (!pairCode) return res.status(400).json({ error: "pairCode required" });
 
-      await syncDb.addPhoto({ pairCode, photoUri, latitude, longitude, accuracy, timestamp, address });
-      res.json({ success: true });
+      let finalPhotoUrl = photoUri;
+
+      // If photoUri is base64 data URI, upload to S3
+      if (photoUri && photoUri.startsWith("data:image/")) {
+        try {
+          // Extract base64 data from data URI
+          const matches = photoUri.match(/^data:image\/(\w+);base64,(.+)$/);
+          if (matches) {
+            const extension = matches[1] === "jpeg" ? "jpg" : matches[1];
+            const base64Data = matches[2];
+            const buffer = Buffer.from(base64Data, "base64");
+            
+            // Generate unique filename
+            const filename = `photos/${pairCode}/${Date.now()}.${extension}`;
+            
+            // Upload to S3
+            const result = await storagePut(filename, buffer, `image/${matches[1]}`);
+            finalPhotoUrl = result.url;
+            console.log(`[Photo Upload] Uploaded to S3: ${finalPhotoUrl}`);
+          }
+        } catch (uploadError) {
+          console.error("[Photo Upload] S3 upload failed, storing URI as-is:", uploadError);
+          // Fall back to storing the original URI if upload fails
+        }
+      }
+
+      await syncDb.addPhoto({ 
+        pairCode, 
+        photoUri: finalPhotoUrl, 
+        latitude, 
+        longitude, 
+        accuracy, 
+        timestamp, 
+        address 
+      });
+      
+      res.json({ success: true, photoUrl: finalPhotoUrl });
     } catch (error) {
       console.error("Sync photo error:", error);
       res.status(500).json({ error: "Failed to sync photo" });

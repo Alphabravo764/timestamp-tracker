@@ -1,0 +1,13 @@
+{
+  "query": "SELECT COUNT(*) as count FROM shifts LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3DVLU63PrgLx5Xc.f26e505845f1 --database g2dY6bYsCPjegiRBipKkoZ --execute SELECT COUNT(*) as count FROM shifts LIMIT 1;",
+  "rows": [
+    {
+      "count": "99"
+    }
+  ],
+  "messages": [],
+  "stdout": "count\n99\n",
+  "stderr": "",
+  "execution_time_ms": 413
+}

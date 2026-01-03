@@ -306,7 +306,7 @@ export default function HomeScreen() {
           startLocation: {
             latitude: point.latitude,
             longitude: point.longitude,
-            address: point.address,
+            address: point.address || "Unknown location",
           },
         });
         console.log("[startShift] Sync successful:", result);
@@ -353,11 +353,6 @@ export default function HomeScreen() {
             shiftId: currentShift.id,
             pairCode: currentShift.pairCode,
             endTime: new Date().toISOString(),
-            endLocation: currentLocation ? {
-              latitude: currentLocation.coords.latitude,
-              longitude: currentLocation.coords.longitude,
-              address: currentAddress,
-            } : undefined,
           });
         } catch (syncError) {
           console.log("End shift sync error (non-blocking):", syncError);
@@ -703,17 +698,36 @@ export default function HomeScreen() {
       if (updated) {
         setActiveShift(updated);
         setLastPhoto(finalUri);
-        // Sync photo to server
+        // Sync photo to server with base64 data for cloud upload
         try {
-          await syncPhoto({
+          let photoDataUri = finalUri;
+          
+          // Convert file URI to base64 data URI for cloud upload
+          if (Platform.OS !== "web" && finalUri.startsWith("file://")) {
+            try {
+              const base64 = await FileSystem.readAsStringAsync(finalUri, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+              photoDataUri = `data:image/jpeg;base64,${base64}`;
+              console.log("[Photo Sync] Converted to base64 for cloud upload");
+            } catch (readError) {
+              console.log("[Photo Sync] Could not read file as base64:", readError);
+            }
+          }
+          
+          const syncResult = await syncPhoto({
             shiftId: updated.id,
             pairCode: updated.pairCode,
-            photoUri: finalUri,
+            photoUri: photoDataUri,
             latitude: photoLocation?.coords.latitude,
             longitude: photoLocation?.coords.longitude,
             address: currentAddress,
             timestamp: shiftPhoto.timestamp,
           });
+          
+          if (syncResult.photoUrl) {
+            console.log("[Photo Sync] Uploaded to cloud:", syncResult.photoUrl);
+          }
         } catch (syncError) {
           console.log("Photo sync error (non-blocking):", syncError);
         }

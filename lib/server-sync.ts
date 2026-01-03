@@ -15,6 +15,7 @@ type ShiftStartPayload = {
 };
 
 type LocationPayload = {
+  shiftId?: string;
   pairCode: string;
   latitude: number;
   longitude: number;
@@ -24,22 +25,29 @@ type LocationPayload = {
 };
 
 type PhotoPayload = {
+  shiftId?: string;
   pairCode: string;
-  photoUrl: string;
+  photoUri: string;
   latitude?: number;
-  longitude: number;
+  longitude?: number;
   accuracy?: number;
   timestamp: string;
   address?: string;
 };
 
 type NotePayload = {
+  shiftId?: string;
   pairCode: string;
-  note: string;
+  noteId?: string;
+  text: string;
   timestamp: string;
+  latitude?: number;
+  longitude?: number;
+  accuracy?: number;
 };
 
 type ShiftEndPayload = {
+  shiftId?: string;
   pairCode: string;
   endTime: string;
 };
@@ -107,17 +115,25 @@ export async function syncLocation(payload: LocationPayload) {
 }
 
 /**
- * Sync photo to server
+ * Sync photo to server - uploads base64 image and returns cloud URL
  */
-export async function syncPhoto(payload: PhotoPayload) {
-  return postJson<{ success: boolean }>("/api/sync/photo", payload);
+export async function syncPhoto(payload: PhotoPayload): Promise<{ success: boolean; photoUrl?: string }> {
+  return postJson<{ success: boolean; photoUrl?: string }>("/api/sync/photo", payload);
 }
 
 /**
  * Sync note to server
  */
 export async function syncNote(payload: NotePayload) {
-  return postJson<{ success: boolean }>("/api/sync/note", payload);
+  return postJson<{ success: boolean }>("/api/sync/note", {
+    pairCode: payload.pairCode,
+    noteId: payload.noteId,
+    text: payload.text,
+    timestamp: payload.timestamp,
+    latitude: payload.latitude,
+    longitude: payload.longitude,
+    accuracy: payload.accuracy,
+  });
 }
 
 /**
