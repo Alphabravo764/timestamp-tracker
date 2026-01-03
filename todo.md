@@ -496,3 +496,7 @@ Based on user's detailed specifications and sample code:
 - [x] Ensure locations have reverse-geocoded addresses (done in PDF generator)
 - [ ] Filter activity feed to exclude routine pings
 - [ ] Include notes in shift data response
+
+
+## CRITICAL BUG - Jan 3, 2026
+- [x] FIX: viewer.html not loading shift data after UI update - API call broken (was calling /api/shifts/live/ instead of /api/sync/shift/)

@@ -1078,7 +1078,7 @@
             </div>
             
             <div class="sidebar-footer">
-              <button class="report-btn" onclick="window.location.href='/api/shifts/pdf/${shift.pairCode}'">
+              <button class="report-btn" onclick="window.open(`/api/sync/shift/${shift.pairCode}?format=pdf`, '_blank')">
                 ${icons.download}
                 Download Shift Report
               </button>
@@ -1125,7 +1125,7 @@
     // Fetch shift data
     async function loadShift() {
       try {
-        const response = await fetch(`/api/shifts/live/${shiftCode}`);
+        const response = await fetch(`/api/sync/shift/${shiftCode}`);
         if (!response.ok) {
           throw new Error('Shift not found');
         }
