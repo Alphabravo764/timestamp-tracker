@@ -542,3 +542,10 @@ Based on user's detailed specifications and sample code:
 - [x] FIX: Server crashing - SyntaxError: Unexpected token 'typeof' in react-native/index.js
 - [x] Find where server code imports react-native (photo-to-base64.ts)
 - [x] Make react-native imports conditional (lazy-load with environment detection)
+
+
+## CRITICAL - Viewer Loading Forever - Jan 3, 2026
+- [x] FIX: Viewer stuck on "Loading shift data..." forever on Railway (Google Maps API key invalid)
+- [x] Test API endpoint /api/sync/shift/V9K7DF to verify data is returned (API works, returns data)
+- [x] Check browser console for JavaScript errors (InvalidKeyMapError)
+- [x] Fix Google Maps API key issue - replaced with static map (no API key) and Nominatim geocoding
