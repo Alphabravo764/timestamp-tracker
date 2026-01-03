@@ -236,6 +236,16 @@
       flex: 1;
       overflow-y: auto;
       padding: 16px;
+      max-height: 400px;
+      transition: max-height 0.3s ease;
+    }
+    
+    .feed-content.expanded {
+      max-height: 2000px;
+    }
+    
+    .feed-content.collapsed {
+      max-height: 200px;
     }
     
     .feed-item {
@@ -506,8 +516,27 @@
     }
     
     // Close photo lightbox
-    function closeLightbox() {
-      document.getElementById('lightbox').classList.remove('active');
+      function closeLightbox() {
+      document.getElementById('lightbox').style.display = 'none';
+    }
+    
+    // Toggle activity feed expand/collapse
+    function toggleActivityFeed() {
+      const feed = document.getElementById('activity-feed');
+      const icon = document.getElementById('toggle-icon');
+      const text = document.getElementById('toggle-text');
+      
+      if (feed.classList.contains('expanded')) {
+        feed.classList.remove('expanded');
+        feed.classList.add('collapsed');
+        icon.textContent = '▶';
+        text.textContent = 'Expand';
+      } else {
+        feed.classList.remove('collapsed');
+        feed.classList.add('expanded');
+        icon.textContent = '▼';
+        text.textContent = 'Collapse';
+      }
     }
     
     // Initialize WebSocket for real-time updates
@@ -642,22 +671,8 @@
         content: `${shift.staffName} started shift at ${shift.siteName}`
       });
       
-      // Add locations (sample every 5th to avoid clutter)
-      if (shift.locations) {
-        for (let i = 0; i < shift.locations.length; i++) {
-          if (i % 5 === 0 || i === shift.locations.length - 1) {
-            const loc = shift.locations[i];
-            const address = await reverseGeocode(loc.latitude, loc.longitude);
-            activities.push({
-              type: 'location',
-              time: loc.timestamp,
-              title: 'Location Update',
-              content: address,
-              coords: `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}`
-            });
-          }
-        }
-      }
+      // DO NOT add location pings to activity feed - causes clutter
+      // Activity feed shows only: photos, notes, shift start/end
       
       // Add photos
       if (shift.photos) {
@@ -761,11 +776,16 @@
           </div>
           
           <div class="activity-feed">
-            <div class="feed-header">
-              <h2>Activity Stream</h2>
-              <div class="feed-count">${activities.length} events</div>
+            <div class="feed-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h2>Activity Stream</h2>
+                <div class="feed-count">${activities.length} events</div>
+              </div>
+              <button onclick="toggleActivityFeed()" style="background: #f1f5f9; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; color: #475569;">
+                <span id="toggle-icon">▼</span> <span id="toggle-text">Collapse</span>
+              </button>
             </div>
-            <div class="feed-content">
+            <div class="feed-content expanded" id="activity-feed">
               ${activities.map(activity => `
                 <div class="feed-item">
                   <div class="feed-icon ${activity.type}">

@@ -564,3 +564,12 @@ Based on user's detailed specifications and sample code:
 - [x] FIX: SyntaxError in viewer.html - removed embedded script tags in template literals
 - [x] FIX: ReferenceError downloadPDF not defined - fixed template literal syntax
 - [ ] DEPLOY: Push to GitHub and redeploy on Railway to apply fixes
+
+
+## VIEWER IMPROVEMENTS - Jan 3, 2026 (User Feedback)
+- [x] FIX: Activity stream shows too many location pings - filter to show ONLY photos and notes
+- [x] FIX: Activity stream should be expandable/collapsible - added toggle button
+- [x] FIX: PDF download button works correctly (opens print dialog)
+- [x] Remove location updates from activity feed (causes clutter)
+- [x] Show only significant events: photos, notes, shift start/end
+- [ ] DEPLOY: Push to GitHub and redeploy Railway to apply all fixes
