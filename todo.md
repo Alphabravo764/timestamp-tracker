@@ -902,3 +902,10 @@ Based on user's detailed specifications and sample code:
 - [x] Rewrite mobile app pdf-generator.ts to match viewer design
 - [x] Use same CSS styles, layout, and structure
 - [x] Test PDF generation - all 110 tests passing
+
+## CRITICAL BUG - Black Photo Issue - Jan 4, 2026 (Session 7)
+- [x] ViewShot cannot capture camera feed - produces black photos with only watermark
+- [x] Reverted to camera capture + fast watermark compositing approach
+- [x] Added Skia-based local watermarking for native (no server calls)
+- [x] Server watermark as fallback with 3-second timeout
+- [ ] Test on physical device

@@ -38,7 +38,7 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { syncShiftStart, syncLocation, syncPhoto, syncNote, syncShiftEnd } from "@/lib/server-sync";
 import { PhotoWatermark, PhotoWatermarkRef } from "@/components/photo-watermark";
-import { captureRef } from "react-native-view-shot";
+// Note: captureRef from react-native-view-shot cannot capture camera feed (produces black images)
 import { getApiBaseUrl } from "@/constants/oauth";
 import { SyncStatusIndicator } from "@/components/sync-status-indicator";
 import { useSyncState } from "@/lib/sync-state";
@@ -114,7 +114,8 @@ export default function HomeScreen() {
   const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
   const cameraRef = useRef<CameraView>(null);
   const watermarkRef = useRef<PhotoWatermarkRef>(null);
-  const viewShotRef = useRef<View>(null);
+  // Note: ViewShot cannot capture camera feed (produces black images)
+  // We use camera.takePictureAsync() + fast watermark compositing instead
 
   // Update time every second
   useEffect(() => {
@@ -555,35 +556,12 @@ export default function HomeScreen() {
 
       let finalUri: string;
       
-      // ========== SNAPCHAT-STYLE CAPTURE ==========
-      // On native: Use ViewShot to capture camera + overlay together
-      // On web: Use camera + canvas watermark
+      // ========== CAMERA CAPTURE + WATERMARK ==========
+      // ViewShot cannot capture camera feed (produces black images)
+      // Always use camera.takePictureAsync() + fast watermark compositing
       
-      if (Platform.OS !== "web" && viewShotRef.current) {
-        // NATIVE: Capture the entire camera view with overlay burned in
-        console.log("[ViewShot] Capturing camera + overlay...");
-        try {
-          const capturedUri = await captureRef(viewShotRef.current, {
-            format: "jpg",
-            quality: 0.9,
-            result: "tmpfile",
-          });
-          
-          if (capturedUri) {
-            finalUri = capturedUri;
-            console.log("[ViewShot] Success:", finalUri.substring(0, 50));
-          } else {
-            throw new Error("ViewShot returned null");
-          }
-        } catch (viewShotError) {
-          console.log("[ViewShot] Failed, falling back to camera:", viewShotError);
-          // Fallback to regular camera capture + watermark
-          finalUri = await captureWithCameraAndWatermark();
-        }
-      } else {
-        // WEB: Use camera capture + canvas watermark
-        finalUri = await captureWithCameraAndWatermark();
-      }
+      console.log("[Camera] Taking picture...");
+      finalUri = await captureWithCameraAndWatermark();
       
       // Helper function for camera + watermark approach
       async function captureWithCameraAndWatermark(): Promise<string> {
@@ -1106,9 +1084,8 @@ export default function HomeScreen() {
         {/* Hidden watermark component (fallback) */}
         <PhotoWatermark ref={watermarkRef} />
         
-        {/* ViewShot wrapper - captures camera + overlay together (Snapchat-style) */}
+        {/* Camera container with overlay preview (watermark is added post-capture) */}
         <View 
-          ref={viewShotRef} 
           style={StyleSheet.absoluteFill}
           collapsable={false}
         >
