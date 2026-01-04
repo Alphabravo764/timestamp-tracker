@@ -880,3 +880,19 @@ Based on user's detailed specifications and sample code:
 ## PDF MAP BUG - Jan 4, 2026
 - [ ] Static map in PDF shows whole world instead of zoomed route with polyline
 - [x] Static map in PDF shows whole world instead of zoomed route with polyline - FIXED (using GeoJSON overlay with calculated zoom)
+
+## CRITICAL BUGS - Jan 4, 2026 (Session 5)
+- [ ] Unify PDF generation - app and viewer must use same template (viewer template)
+- [ ] Fix static map "Map image could not be loaded" error in PDF
+- [ ] Fix photo sync to server - photos not appearing in viewer
+- [ ] Fix watermarking - timestamps not being added to photos
+- [ ] Fix live view sync - data not updating from app
+
+
+## SESSION 5 FIXES - Jan 4, 2026
+- [x] Fix photo sync to server - photos now always converted to base64 data URI before upload
+- [x] Implement Snapchat-style watermark - ViewShot captures camera + overlay together on native
+- [x] Fix static map URL length - reduced points to 30, use 'auto' bounds, fallback to markers-only if too long
+- [x] Add OpenStreetMap fallback when MapBox token not available
+- [x] Add tests for all session 5 fixes (10 tests passing)
+- [ ] Unify PDF generation - app and viewer must use same template (deferred to future session)

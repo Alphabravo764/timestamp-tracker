@@ -995,65 +995,92 @@
       }
     }
     
+    // Encode polyline using Google's algorithm (for MapBox static API)
+    function encodePolyline(coordinates) {
+      let encoded = '';
+      let prevLat = 0, prevLng = 0;
+      
+      for (const [lng, lat] of coordinates) {
+        const latE5 = Math.round(lat * 1e5);
+        const lngE5 = Math.round(lng * 1e5);
+        
+        encoded += encodeNumber(latE5 - prevLat);
+        encoded += encodeNumber(lngE5 - prevLng);
+        
+        prevLat = latE5;
+        prevLng = lngE5;
+      }
+      return encoded;
+    }
+    
+    function encodeNumber(num) {
+      let sgn_num = num << 1;
+      if (num < 0) sgn_num = ~sgn_num;
+      
+      let encoded = '';
+      while (sgn_num >= 0x20) {
+        encoded += String.fromCharCode((0x20 | (sgn_num & 0x1f)) + 63);
+        sgn_num >>= 5;
+      }
+      encoded += String.fromCharCode(sgn_num + 63);
+      return encoded;
+    }
+    
     // Generate static map image for PDF print
     function generateStaticMap(locations) {
       const staticDiv = document.getElementById('staticMapPrint');
-      if (!staticDiv || !window.MAPBOX_TOKEN) return;
+      if (!staticDiv) return;
       
       const latest = locations[locations.length - 1];
       const startLoc = locations[0];
       
-      // Calculate bounding box for proper zoom
-      let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
-      locations.forEach(loc => {
-        minLat = Math.min(minLat, loc.latitude);
-        maxLat = Math.max(maxLat, loc.latitude);
-        minLng = Math.min(minLng, loc.longitude);
-        maxLng = Math.max(maxLng, loc.longitude);
-      });
+      // If no MapBox token, use OpenStreetMap fallback
+      if (!window.MAPBOX_TOKEN) {
+        const centerLat = (startLoc.latitude + latest.latitude) / 2;
+        const centerLng = (startLoc.longitude + latest.longitude) / 2;
+        const osmUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${centerLat.toFixed(5)},${centerLng.toFixed(5)}&zoom=15&size=600x400&maptype=mapnik`;
+        staticDiv.innerHTML = `<img src="${osmUrl}" alt="Route Map" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null; this.parentElement.innerHTML='<div style=padding:40px;text-align:center;color:#666;>${locations.length} GPS points recorded</div>'" />`;
+        return;
+      }
       
-      // Calculate center
-      const centerLat = (minLat + maxLat) / 2;
-      const centerLng = (minLng + maxLng) / 2;
+      // Aggressively simplify path to keep URL under 8000 chars
+      // MapBox URL limit is ~8192 chars, but we want headroom
+      let simplifiedLocs = locations;
+      const maxPoints = 30; // Reduced from 50 to ensure shorter URLs
+      if (locations.length > maxPoints) {
+        const step = Math.ceil(locations.length / maxPoints);
+        simplifiedLocs = locations.filter((_, i) => i % step === 0 || i === locations.length - 1);
+      }
       
-      // Calculate zoom level based on bounding box
-      const latDiff = maxLat - minLat;
-      const lngDiff = maxLng - minLng;
-      const maxDiff = Math.max(latDiff, lngDiff);
-      let zoom = 15; // Default for small areas
-      if (maxDiff > 0.1) zoom = 12;
-      if (maxDiff > 0.5) zoom = 10;
-      if (maxDiff > 1) zoom = 8;
-      if (maxDiff > 5) zoom = 6;
-      if (maxDiff < 0.01) zoom = 16; // Very small area, zoom in more
-      if (maxDiff < 0.001) zoom = 17; // Single point basically
-      
-      // Build GeoJSON polyline for MapBox static API
-      const geojsonPath = {
-        type: "Feature",
-        properties: { "stroke": "#f59e0b", "stroke-width": 4, "stroke-opacity": 0.9 },
-        geometry: {
-          type: "LineString",
-          coordinates: locations.map(loc => [loc.longitude, loc.latitude])
-        }
-      };
-      
-      // Encode GeoJSON for URL
-      const geojsonEncoded = encodeURIComponent(JSON.stringify(geojsonPath));
+      // Encode polyline
+      const coords = simplifiedLocs.map(loc => [loc.longitude, loc.latitude]);
+      const encodedPath = encodePolyline(coords);
       
       // Start marker (green)
-      const startMarker = `pin-s-a+10b981(${startLoc.longitude.toFixed(5)},${startLoc.latitude.toFixed(5)})`;
+      const startMarker = `pin-s-a+10b981(${startLoc.longitude.toFixed(4)},${startLoc.latitude.toFixed(4)})`;
       
       // End marker (red)  
-      const endMarker = `pin-s-b+ef4444(${latest.longitude.toFixed(5)},${latest.latitude.toFixed(5)})`;
+      const endMarker = `pin-s-b+ef4444(${latest.longitude.toFixed(4)},${latest.latitude.toFixed(4)})`;
       
       const width = 600;
       const height = 400;
       
-      // Use calculated center and zoom with GeoJSON overlay
-      const staticUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/geojson(${geojsonEncoded}),${startMarker},${endMarker}/${centerLng.toFixed(5)},${centerLat.toFixed(5)},${zoom},0/${width}x${height}@2x?access_token=${window.MAPBOX_TOKEN}&padding=50`;
+      // Use encoded polyline path
+      const pathOverlay = `path-4+f59e0b-0.8(${encodeURIComponent(encodedPath)})`;
       
-      staticDiv.innerHTML = `<img src="${staticUrl}" alt="Route Map" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.parentElement.innerHTML='<div style=padding:40px;text-align:center;color:#666;>Map image could not be loaded</div>'" />`;
+      // Use 'auto' for automatic bounds fitting instead of explicit center/zoom
+      // This is more reliable and produces better results
+      let staticUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${pathOverlay},${startMarker},${endMarker}/auto/${width}x${height}@2x?access_token=${window.MAPBOX_TOKEN}&padding=50`;
+      
+      console.log('Static map URL length:', staticUrl.length);
+      
+      // If URL is still too long, fall back to simpler version with just markers
+      if (staticUrl.length > 7500) {
+        console.log('URL too long, using simplified version');
+        staticUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${startMarker},${endMarker}/auto/${width}x${height}@2x?access_token=${window.MAPBOX_TOKEN}&padding=50`;
+      }
+      
+      staticDiv.innerHTML = `<img src="${staticUrl}" alt="Route Map" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null; this.parentElement.innerHTML='<div style=padding:40px;text-align:center;color:#666;>Map could not be loaded</div>'" />`;
     }
     
     // Render dashboard
@@ -1395,8 +1422,19 @@
       }
     }
     
+    // Check if auto-print is requested
+    const urlParams = new URLSearchParams(window.location.search);
+    const autoPrint = urlParams.get('print') === 'true';
+    
     // Start
-    loadShift();
+    loadShift().then(() => {
+      if (autoPrint) {
+        // Wait for map and images to load, then trigger print
+        setTimeout(() => {
+          window.print();
+        }, 2000);
+      }
+    });
   </script>
 </body>
 </html>
