@@ -428,7 +428,7 @@ export default function HomeScreen() {
         const updated = await getActiveShift();
         if (updated) {
           setActiveShift(updated);
-          // Sync note to server
+          // Sync note to server with location
           try {
             await syncNote({
               shiftId: updated.id,
@@ -436,6 +436,9 @@ export default function HomeScreen() {
               noteId: note.id,
               text: note.text,
               timestamp: note.timestamp,
+              latitude: note.location?.latitude,
+              longitude: note.location?.longitude,
+              accuracy: note.location?.accuracy,
             });
           } catch (syncError) {
             console.log("Note sync error (non-blocking):", syncError);

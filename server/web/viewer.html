@@ -1095,8 +1095,11 @@
       if (shift.notes && shift.notes.length > 0) {
         for (const note of shift.notes) {
           let noteLocation = 'Location not recorded';
-          if (note.location && note.location.latitude && note.location.longitude) {
-            noteLocation = await reverseGeocode(note.location.latitude, note.location.longitude);
+          // Check both formats: note.location.latitude (app format) and note.latitude (server format)
+          const noteLat = note.location?.latitude || note.latitude;
+          const noteLng = note.location?.longitude || note.longitude;
+          if (noteLat && noteLng) {
+            noteLocation = await reverseGeocode(noteLat, noteLng);
           }
           activities.push({
             type: 'note',

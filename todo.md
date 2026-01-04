@@ -848,3 +848,13 @@ Based on user's detailed specifications and sample code:
 - [x] Notes Timeline with left border styling
 - [x] Header with avatar, LIVE badge, stats (Duration, Locations, Photos)
 - [x] Download Shift Report button triggers print dialog
+
+## NOTE LOCATION FEATURE - Jan 4, 2026
+- [ ] Add GPS location recording to notes (like photos)
+- [ ] Capture current location when adding a note
+- [ ] Display note location in viewer/PDF instead of "Location not recorded"
+
+## COMPLETED - NOTE LOCATION FEATURE - Jan 4, 2026
+- [x] Fixed syncNote call to include latitude, longitude, accuracy
+- [x] Fixed viewer.html to check both note.location.latitude and note.latitude formats
+- [x] Notes now show location address instead of "Location not recorded"
