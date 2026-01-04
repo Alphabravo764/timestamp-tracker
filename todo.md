@@ -791,3 +791,10 @@ Based on user's detailed specifications and sample code:
 - [x] Fix photo viewer blinking/flickering when opening captured photos - FIXED (memoized state calculations)
 - [x] Fix thumbnail in camera app not opening photo viewer - FIXED (removed dependency on lastPhoto state)
 - [x] Fix photos not appearing in web viewer tab - FIXED (handle both photoUri and url fields)
+
+## BUGS FIXED - Rollback (Jan 4, 2026)
+- [x] Fixed app blinking/flickering - rolled back ViewShot changes
+- [x] Thumbnail working - uses activeShift.photos array
+- [x] PDF has map with polylines - viewer.html has Leaflet map with route
+- [x] Railway link working - getApiBaseUrl() returns Railway URL in production
+- [x] Removed broken ViewShot implementation
