@@ -13,7 +13,6 @@ export interface ShiftPhoto {
   location: LocationPoint | null;
   address?: string;
   note?: string;
-  syncStatus?: "synced" | "syncing" | "pending" | "failed";
 }
 
 export interface ShiftNote {
