@@ -798,3 +798,17 @@ Based on user's detailed specifications and sample code:
 - [x] PDF has map with polylines - viewer.html has Leaflet map with route
 - [x] Railway link working - getApiBaseUrl() returns Railway URL in production
 - [x] Removed broken ViewShot implementation
+
+## CRITICAL BUGS TO FIX - Jan 4, 2026 (Session 2)
+- [ ] App blinking when viewing photos in gallery/viewer
+- [ ] App blinking when closing camera and going to recent photos
+- [ ] Implement Snapchat-style camera filter (overlay burns into photo instantly)
+- [ ] PDF generation must include map with polylines and verification signature
+- [ ] PDF design must be consistent across shift PDF, history PDF, and live view
+
+## FIXES COMPLETED - Jan 4, 2026 (Session 2)
+- [x] App blinking when viewing photos - FIXED (moved hooks outside nested component)
+- [x] App blinking when closing camera - FIXED (stable callbacks with useCallback)
+- [x] Fast watermark implementation - DONE (canvas-based, 3s timeout fallback)
+- [x] PDF with route map section - DONE (waypoints, center coords, OSM link)
+- [x] PDF with verification signature - DONE (SHA-256 integrity hash)

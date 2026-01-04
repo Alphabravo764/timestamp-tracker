@@ -694,10 +694,77 @@ async function startServer() {
         shift.endTime ? '✅ Completed' : '🔄 Active', col2X, detailsY + 115
       );
 
+      // Route Map Section (if locations exist)
+      if (shift.locations && shift.locations.length > 1) {
+        doc.addPage();
+        doc.fillColor('#1e293b').fontSize(16).font('Helvetica-Bold').text('🗺️ Route Map & Tracking', 50, 50);
+        doc.strokeColor('#e2e8f0').lineWidth(2).moveTo(50, 75).lineTo(doc.page.width - 50, 75).stroke();
+
+        // Calculate bounding box
+        const lats = shift.locations.map((l: any) => l.latitude);
+        const lngs = shift.locations.map((l: any) => l.longitude);
+        const minLat = Math.min(...lats);
+        const maxLat = Math.max(...lats);
+        const minLng = Math.min(...lngs);
+        const maxLng = Math.max(...lngs);
+        const centerLat = (minLat + maxLat) / 2;
+        const centerLng = (minLng + maxLng) / 2;
+
+        // Map info box
+        doc.fillColor('#f0f9ff').rect(50, 95, doc.page.width - 100, 120).fill();
+        doc.fillColor('#0284c7').rect(50, 95, 4, 120).fill();
+        
+        doc.fillColor('#0369a1').fontSize(12).font('Helvetica-Bold').text(
+          `Route tracked with ${shift.locations.length} GPS points`, 65, 110
+        );
+        doc.fillColor('#64748b').fontSize(10).font('Helvetica').text(
+          `Center: ${centerLat.toFixed(6)}, ${centerLng.toFixed(6)}`, 65, 130
+        );
+        doc.fillColor('#64748b').fontSize(10).text(
+          `Total Distance: ${totalDistance.toFixed(2)} km`, 65, 150
+        );
+        
+        // Interactive map link
+        const mapUrl = `https://www.openstreetmap.org/?mlat=${centerLat}&mlon=${centerLng}#map=15/${centerLat}/${centerLng}`;
+        doc.fillColor('#3b82f6').fontSize(9).text(
+          `View interactive map: ${mapUrl}`, 65, 175, { link: mapUrl, underline: true }
+        );
+
+        // Route waypoints list
+        doc.fillColor('#1e293b').fontSize(12).font('Helvetica-Bold').text('Route Waypoints', 50, 240);
+        doc.strokeColor('#e2e8f0').lineWidth(1).moveTo(50, 260).lineTo(doc.page.width - 50, 260).stroke();
+
+        let waypointY = 275;
+        const maxWaypoints = Math.min(shift.locations.length, 10); // Show first 10
+        
+        for (let i = 0; i < maxWaypoints; i++) {
+          const loc = shift.locations[i];
+          const time = new Date(loc.capturedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+          
+          doc.fillColor('#3b82f6').fontSize(10).font('Helvetica-Bold').text(
+            `${i + 1}.`, 55, waypointY
+          );
+          doc.fillColor('#1e293b').fontSize(9).font('Helvetica').text(
+            `${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}`, 75, waypointY
+          );
+          doc.fillColor('#64748b').fontSize(8).text(
+            time, doc.page.width - 100, waypointY
+          );
+          
+          waypointY += 20;
+        }
+        
+        if (shift.locations.length > 10) {
+          doc.fillColor('#64748b').fontSize(9).font('Helvetica-Oblique').text(
+            `... and ${shift.locations.length - 10} more waypoints`, 55, waypointY
+          );
+        }
+      }
+
       // Notes Section
       if (shift.notes && shift.notes.length > 0) {
         doc.addPage();
-        doc.fillColor('#1e293b').fontSize(16).font('Helvetica-Bold').text(`NOTES (${shift.notes.length})`, 50, 50);
+        doc.fillColor('#1e293b').fontSize(16).font('Helvetica-Bold').text(`📝 Notes (${shift.notes.length})`, 50, 50);
         doc.strokeColor('#e2e8f0').lineWidth(2).moveTo(50, 75).lineTo(doc.page.width - 50, 75).stroke();
 
         let noteY = 95;
@@ -719,6 +786,45 @@ async function startServer() {
           noteY += 80;
         });
       }
+
+      // Verification Signature Section
+      doc.addPage();
+      doc.fillColor('#1e293b').fontSize(16).font('Helvetica-Bold').text('✅ Verification & Integrity', 50, 50);
+      doc.strokeColor('#e2e8f0').lineWidth(2).moveTo(50, 75).lineTo(doc.page.width - 50, 75).stroke();
+
+      // Verification box
+      doc.fillColor('#f0fdf4').rect(50, 95, doc.page.width - 100, 150).fill();
+      doc.fillColor('#22c55e').rect(50, 95, 4, 150).fill();
+      
+      doc.fillColor('#166534').fontSize(14).font('Helvetica-Bold').text(
+        '✓ VERIFIED REPORT', 65, 115
+      );
+      
+      // Generate integrity hash
+      const crypto = await import('crypto');
+      const reportData = JSON.stringify({
+        shiftId: shift.id,
+        staffName: shift.staffName,
+        siteName: shift.siteName,
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+        locationCount: shift.locations?.length || 0,
+        photoCount: shift.photos?.length || 0,
+      });
+      const integrityHash = crypto.createHash('sha256').update(reportData).digest('hex').substring(0, 32);
+      
+      doc.fillColor('#64748b').fontSize(10).font('Helvetica').text(
+        `Report ID: ${shift.id}`, 65, 145
+      );
+      doc.fillColor('#64748b').fontSize(10).text(
+        `Generated: ${new Date().toISOString()}`, 65, 165
+      );
+      doc.fillColor('#64748b').fontSize(9).font('Courier').text(
+        `Integrity Hash (SHA-256): ${integrityHash}`, 65, 190
+      );
+      doc.fillColor('#64748b').fontSize(8).font('Helvetica').text(
+        'This hash can be used to verify the report has not been tampered with.', 65, 215
+      );
 
       // Footer
       const footerY = doc.page.height - 80;

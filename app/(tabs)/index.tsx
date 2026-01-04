@@ -563,7 +563,7 @@ export default function HomeScreen() {
         console.log("Using cached location for photo");
       }
 
-      // Step 2: Add watermark to the photo using Skia (preferred) or fallback
+      // Step 2: Add watermark INSTANTLY using fast canvas-based watermark
       let finalUri = photo.uri;
       const watermarkData = {
         timestamp: formatTime(),
@@ -575,96 +575,14 @@ export default function HomeScreen() {
         siteName: activeShift.siteName,
       };
       
-      // Add watermark - use canvas on web, PhotoWatermark on native with server fallback
-      if (Platform.OS === "web") {
-        // On web, use canvas-based watermark (more reliable)
-        try {
-          console.log("[Watermark] Using canvas watermark for web...");
-          const { addWatermarkToPhoto } = await import("@/lib/watermark");
-          finalUri = await addWatermarkToPhoto(photo.uri, {
-            timestamp: new Date().toISOString(),
-            address: watermarkData.address,
-            latitude: watermarkData.latitude,
-            longitude: watermarkData.longitude,
-            staffName: watermarkData.staffName,
-            siteName: watermarkData.siteName,
-          });
-          console.log("[Watermark] Canvas done:", finalUri?.substring(0, 50));
-        } catch (wmError) {
-          console.log("[Watermark] Canvas error, using original:", wmError);
-        }
-      } else {
-        // On native (iOS/Android), try local watermark first, then server fallback
-        let watermarkSuccess = false;
-        
-        // Try local PhotoWatermark component first
-        if (watermarkRef.current) {
-          try {
-            console.log("[Watermark] Trying local PhotoWatermark component...");
-            const localResult = await watermarkRef.current.addWatermark(photo.uri, watermarkData);
-            
-            // Check if watermark was actually applied (not just returned original)
-            if (localResult && localResult !== photo.uri) {
-              finalUri = localResult;
-              watermarkSuccess = true;
-              console.log("[Watermark] Local success:", finalUri?.substring(0, 50));
-            } else {
-              console.log("[Watermark] Local returned original, trying server...");
-            }
-          } catch (localError) {
-            console.log("[Watermark] Local error:", localError);
-          }
-        }
-        
-        // If local failed, try server-side watermark API
-        if (!watermarkSuccess) {
-          try {
-            console.log("[Watermark] Using server-side watermark API...");
-            const { getApiBaseUrl } = await import("@/constants/oauth");
-            const apiUrl = getApiBaseUrl();
-            
-            // Read photo as base64
-            const base64 = await FileSystem.readAsStringAsync(photo.uri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-            
-            // Call server watermark API
-            const response = await fetch(`${apiUrl}/api/watermark`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                imageBase64: base64,
-                timestamp: `${watermarkData.timestamp} ${watermarkData.date}`,
-                address: watermarkData.address,
-                latitude: watermarkData.latitude,
-                longitude: watermarkData.longitude,
-                staffName: watermarkData.staffName,
-                siteName: watermarkData.siteName,
-              }),
-            });
-            
-            const result = await response.json();
-            
-            if (result.success && result.watermarkedBase64) {
-              // Save watermarked image to file
-              const watermarkedPath = `${FileSystem.cacheDirectory}watermarked_${Date.now()}.jpg`;
-              await FileSystem.writeAsStringAsync(watermarkedPath, result.watermarkedBase64, {
-                encoding: FileSystem.EncodingType.Base64,
-              });
-              finalUri = watermarkedPath;
-              watermarkSuccess = true;
-              console.log("[Watermark] Server success:", finalUri?.substring(0, 50));
-            } else {
-              console.log("[Watermark] Server failed:", result.error);
-            }
-          } catch (serverError) {
-            console.log("[Watermark] Server error:", serverError);
-          }
-        }
-        
-        if (!watermarkSuccess) {
-          console.log("[Watermark] All methods failed, using original photo");
-        }
+      // Fast watermark - no blocking, instant result
+      try {
+        console.log("[FastWatermark] Adding watermark...");
+        const { addFastWatermark } = await import("@/lib/fast-watermark");
+        finalUri = await addFastWatermark(photo.uri, watermarkData);
+        console.log("[FastWatermark] Done:", finalUri?.substring(0, 50));
+      } catch (wmError) {
+        console.log("[FastWatermark] Error, using original:", wmError);
       }
       
       // Step 3: Save to permanent file location on native
@@ -756,50 +674,55 @@ export default function HomeScreen() {
   const formatTime = () => currentTime.toLocaleTimeString("en-US", { hour12: false });
   const formatDate = () => currentTime.toLocaleDateString();
 
-  // ========== PHOTO VIEWER MODAL ==========
-  const PhotoViewerModal = () => {
+  // ========== PHOTO VIEWER - Calculate values outside render ==========
+  const photoViewerIndex = useMemo(() => {
+    if (!selectedPhoto || !activeShift) return -1;
+    return activeShift.photos.findIndex(p => p.id === selectedPhoto.id);
+  }, [selectedPhoto?.id, activeShift?.photos]);
+  
+  const photoViewerHasPrevious = photoViewerIndex > 0;
+  const photoViewerHasNext = activeShift ? photoViewerIndex < activeShift.photos.length - 1 : false;
+  
+  const goToPreviousPhoto = useCallback(() => {
+    if (activeShift && photoViewerIndex > 0) {
+      setSelectedPhoto(activeShift.photos[photoViewerIndex - 1]);
+    }
+  }, [photoViewerIndex, activeShift?.photos]);
+  
+  const goToNextPhoto = useCallback(() => {
+    if (activeShift && photoViewerIndex < activeShift.photos.length - 1) {
+      setSelectedPhoto(activeShift.photos[photoViewerIndex + 1]);
+    }
+  }, [photoViewerIndex, activeShift?.photos]);
+  
+  const closePhotoViewer = useCallback(() => {
+    setSelectedPhoto(null);
+  }, []);
+  
+  // Render photo viewer modal as inline JSX (not a nested component)
+  const renderPhotoViewerModal = () => {
     if (!selectedPhoto || !activeShift) return null;
-    
-    // Memoize to prevent recalculation on every render
-    const currentIndex = useMemo(
-      () => activeShift.photos.findIndex(p => p.id === selectedPhoto.id),
-      [selectedPhoto.id, activeShift.photos]
-    );
-    const hasPrevious = currentIndex > 0;
-    const hasNext = currentIndex < activeShift.photos.length - 1;
-    
-    const goToPrevious = useCallback(() => {
-      if (currentIndex > 0) {
-        setSelectedPhoto(activeShift.photos[currentIndex - 1]);
-      }
-    }, [currentIndex, activeShift.photos]);
-    
-    const goToNext = useCallback(() => {
-      if (currentIndex < activeShift.photos.length - 1) {
-        setSelectedPhoto(activeShift.photos[currentIndex + 1]);
-      }
-    }, [currentIndex, activeShift.photos]);
     
     return (
       <Modal
-        visible={!!selectedPhoto}
+        visible={true}
         animationType="fade"
         transparent
-        onRequestClose={() => setSelectedPhoto(null)}
+        onRequestClose={closePhotoViewer}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             {/* Header with safe area */}
             <View style={[styles.modalHeader, { paddingTop: Math.max(insets.top, 20) + 10 }]}>
               <TouchableOpacity 
-                onPress={() => setSelectedPhoto(null)}
+                onPress={closePhotoViewer}
                 hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
                 style={styles.headerButton}
               >
                 <Text style={[styles.modalClose, { color: colors.primary }]}>✕ Close</Text>
               </TouchableOpacity>
               <Text style={[styles.modalCounter, { color: colors.muted }]}>
-                {currentIndex + 1} / {activeShift.photos.length}
+                {photoViewerIndex + 1} / {activeShift.photos.length}
               </Text>
               <TouchableOpacity 
                 onPress={() => sharePhoto(selectedPhoto)}
@@ -813,9 +736,9 @@ export default function HomeScreen() {
             {/* Photo with navigation arrows */}
             <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
               {/* Previous button */}
-              {hasPrevious && (
+              {photoViewerHasPrevious && (
                 <TouchableOpacity 
-                  onPress={goToPrevious}
+                  onPress={goToPreviousPhoto}
                   style={styles.navButton}
                   hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
                 >
@@ -827,9 +750,9 @@ export default function HomeScreen() {
               <Image source={{ uri: selectedPhoto.uri }} style={{ flex: 1 }} resizeMode="contain" />
               
               {/* Next button */}
-              {hasNext && (
+              {photoViewerHasNext && (
                 <TouchableOpacity 
-                  onPress={goToNext}
+                  onPress={goToNextPhoto}
                   style={styles.navButton}
                   hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
                 >
@@ -1004,7 +927,7 @@ export default function HomeScreen() {
   if (appState === "gallery" && activeShift) {
     return (
       <ScreenContainer>
-        <PhotoViewerModal />
+        {renderPhotoViewerModal()}
         <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.galleryHeader}>
@@ -1183,7 +1106,7 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer>
-      <PhotoViewerModal />
+      {renderPhotoViewerModal()}
       <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
