@@ -1,4 +1,4 @@
-import { Shift, LocationPoint, ShiftPhoto, ShiftNote } from "./shift-types";
+import type { Shift, ShiftPhoto, LocationPoint, ShiftNote } from "./shift-types";
 import { generateStaticMapUrlEncoded } from "./google-maps";
 import { photoToBase64DataUri } from "./photo-to-base64";
 
@@ -47,7 +47,7 @@ const batchReverseGeocode = async (locations: LocationPoint[]): Promise<Location
   return results;
 };
 
-// Format duration from shift - returns HH:MM:SS format
+// Format duration from shift - returns HH:MM format
 const formatDuration = (shift: Shift): string => {
   const start = new Date(shift.startTime);
   const end = shift.endTime ? new Date(shift.endTime) : new Date();
@@ -55,9 +55,8 @@ const formatDuration = (shift: Shift): string => {
   
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
   
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 };
 
 // Calculate total distance traveled
@@ -81,15 +80,6 @@ const calculateDistance = (locations: LocationPoint[]): number => {
   return total;
 };
 
-// Format location for display - ALWAYS prefer address, show postcode prominently
-const formatLocationDisplay = (loc: LocationPoint): string => {
-  if (loc.address && loc.address !== "Unknown location" && loc.address !== "Location unavailable") {
-    return loc.address;
-  }
-  // Fallback to coordinates only if no address
-  return `Lat: ${loc.latitude.toFixed(5)}, Lng: ${loc.longitude.toFixed(5)}`;
-};
-
 // Format time for display
 const formatTime = (timestamp: string): string => {
   const date = new Date(timestamp);
@@ -111,133 +101,170 @@ const formatDate = (timestamp: string): string => {
   });
 };
 
-// Generate SHA-256 hash for document integrity
-const generateHash = (shift: Shift): string => {
-  const data = `${shift.pairCode}-${shift.startTime}-${shift.endTime || 'active'}-${shift.photos?.length || 0}`;
-  // Simple hash simulation - in production use crypto
-  let hash = '';
-  for (let i = 0; i < 64; i++) {
-    hash += '0123456789abcdef'[Math.floor(Math.random() * 16)];
+// Get address from coordinates using Nominatim
+const getAddressFromCoords = async (lat: number, lng: number): Promise<string> => {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      { headers: { "User-Agent": "TimestampCamera/1.0" } }
+    );
+    const data = await response.json();
+    
+    if (data && data.address) {
+      const addr = data.address;
+      const parts: string[] = [];
+      if (addr.road || addr.street) parts.push(addr.road || addr.street);
+      if (addr.city || addr.town || addr.village) parts.push(addr.city || addr.town || addr.village);
+      if (addr.postcode) parts.push(addr.postcode);
+      return parts.length > 0 ? parts.join(", ") : data.display_name?.split(",").slice(0, 3).join(",") || "Unknown";
+    }
+    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  } catch {
+    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
   }
-  return hash;
 };
 
-// Build activity timeline - FILTERED (no raw pings)
-interface TimelineEvent {
-  type: 'start' | 'end' | 'photo' | 'note';
+// Build activity list from shift data
+interface Activity {
+  type: 'start' | 'photo' | 'note' | 'end';
   time: string;
   title: string;
-  location: string;
-  coords?: { lat: number; lng: number };
+  content: string;
+  photoUri?: string;
+  noteText?: string;
+  noteLocation?: string;
 }
 
-const buildTimeline = (shift: Shift, locations: LocationPoint[]): TimelineEvent[] => {
-  const events: TimelineEvent[] = [];
+const buildActivities = async (shift: Shift, locations: LocationPoint[]): Promise<Activity[]> => {
+  const activities: Activity[] = [];
   
-  // Shift start
+  // Add shift start
   if (locations.length > 0) {
     const startLoc = locations[0];
-    events.push({
+    const startAddress = startLoc.address || await getAddressFromCoords(startLoc.latitude, startLoc.longitude);
+    activities.push({
       type: 'start',
       time: shift.startTime,
-      title: 'SHIFT STARTED',
-      location: formatLocationDisplay(startLoc),
-      coords: { lat: startLoc.latitude, lng: startLoc.longitude }
+      title: 'Shift Started',
+      content: startAddress
     });
   }
   
-  // Photos
+  // Add photos
   if (shift.photos) {
-    shift.photos.forEach((photo: ShiftPhoto) => {
-      events.push({
+    for (const photo of shift.photos) {
+      let content = 'Location unavailable';
+      if (photo.location?.latitude && photo.location?.longitude) {
+        content = photo.address || await getAddressFromCoords(photo.location.latitude, photo.location.longitude);
+      } else if (photo.address) {
+        content = photo.address;
+      }
+      
+      activities.push({
         type: 'photo',
         time: photo.timestamp,
-        title: 'PHOTO EVIDENCE LOGGED',
-        location: photo.address || (photo.location ? formatLocationDisplay(photo.location as LocationPoint) : 'Location recorded'),
-        coords: photo.location ? { lat: photo.location.latitude, lng: photo.location.longitude } : undefined
+        title: 'Photo Captured',
+        content: content,
+        photoUri: photo.uri
       });
-    });
+    }
   }
   
-  // Notes
-  if (shift.notes) {
-    shift.notes.forEach((note: ShiftNote) => {
-      events.push({
+  // Add notes
+  if (shift.notes && shift.notes.length > 0) {
+    for (const note of shift.notes) {
+      let noteLocation = 'Location not recorded';
+      const noteLat = note.location?.latitude;
+      const noteLng = note.location?.longitude;
+      if (noteLat && noteLng) {
+        noteLocation = await getAddressFromCoords(noteLat, noteLng);
+      }
+      
+      activities.push({
         type: 'note',
         time: note.timestamp,
-        title: note.text.substring(0, 50) + (note.text.length > 50 ? '...' : ''),
-        location: note.location ? formatLocationDisplay(note.location) : 'Location recorded',
-        coords: note.location ? { lat: note.location.latitude, lng: note.location.longitude } : undefined
+        title: 'Note Added',
+        content: noteLocation,
+        noteText: note.text,
+        noteLocation: noteLocation
       });
-    });
+    }
   }
   
-  // Shift end
-  if (!shift.isActive && shift.endTime && locations.length > 0) {
-    const endLoc = locations[locations.length - 1];
-    events.push({
+  // Add shift end
+  if (shift.endTime) {
+    const durationText = formatDuration(shift);
+    activities.push({
       type: 'end',
       time: shift.endTime,
-      title: 'SHIFT ENDED',
-      location: formatLocationDisplay(endLoc),
-      coords: { lat: endLoc.latitude, lng: endLoc.longitude }
+      title: 'Shift Ended',
+      content: `Duration: ${durationText}`
     });
   }
   
-  // Sort by time (oldest first for timeline)
-  events.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  // Sort by time
+  activities.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
   
-  return events;
+  return activities;
 };
 
-// Generate PDF HTML
-export const generatePdfHtml = async (shift: Shift, isInterim?: boolean): Promise<string> => {
-  // Reverse geocode locations that need addresses
+/**
+ * Generate PDF HTML that matches the viewer design
+ * This creates a unified look between mobile app and web viewer
+ */
+export const generatePdfHtml = async (shift: Shift): Promise<string> => {
+  // Get locations with addresses
   const locations = shift.locations ? await batchReverseGeocode(shift.locations) : [];
   
   // Calculate stats
+  const durationText = formatDuration(shift);
   const distance = calculateDistance(locations);
-  const duration = formatDuration(shift);
+  const distanceText = distance > 0 ? `${distance.toFixed(2)} km` : '0 km';
   const photoCount = shift.photos?.length || 0;
   const noteCount = shift.notes?.length || 0;
   
-  // Build timeline
-  const timeline = buildTimeline(shift, locations);
+  // Get initials
+  const initials = (shift.staffName || 'U').substring(0, 2).toUpperCase();
+  
+  // Get latest location
+  const latestLocation = locations.length > 0 ? locations[locations.length - 1] : null;
+  let latestAddress = '';
+  if (latestLocation) {
+    latestAddress = latestLocation.address || await getAddressFromCoords(latestLocation.latitude, latestLocation.longitude);
+  }
+  
+  // Build activities
+  const activities = await buildActivities(shift, locations);
   
   // Generate map URL
   let mapUrl = '';
   if (locations.length > 0) {
-    mapUrl = generateStaticMapUrlEncoded(locations, 800, 350) || '';
+    mapUrl = generateStaticMapUrlEncoded(locations, 800, 400) || '';
   }
   
   // Convert photos to base64
-  const photoDataUris: string[] = [];
+  const photoDataUris: Map<string, string> = new Map();
   if (shift.photos) {
     for (const photo of shift.photos) {
       try {
         const dataUri = await photoToBase64DataUri(photo.uri || '');
-        photoDataUris.push(dataUri || '');
+        if (dataUri) {
+          photoDataUris.set(photo.uri, dataUri);
+        }
       } catch (e) {
         console.log("Photo conversion error:", e);
-        photoDataUris.push('');
       }
     }
   }
   
-  // Generate document hash
-  const docHash = generateHash(shift);
-  
-  // Start/end locations
-  const startLoc = locations[0];
-  const endLoc = locations[locations.length - 1];
-  
+  // Generate HTML matching viewer design
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Shift Report - ${shift.pairCode}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
@@ -248,659 +275,536 @@ export const generatePdfHtml = async (shift: Shift, isInterim?: boolean): Promis
     
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: white;
+      background: #f8fafc;
       color: #1e293b;
-      font-size: 12px;
+      font-size: 14px;
       line-height: 1.5;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
     
-    .mono {
-      font-family: 'JetBrains Mono', monospace;
-    }
-    
     /* Header */
     .header {
-      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      background: white;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 20px 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    
+    .header-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .guard-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    
+    .avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
       color: white;
-      padding: 32px 40px;
+      font-weight: 700;
+      font-size: 20px;
+      border: 3px solid ${shift.endTime ? '#94a3b8' : '#22c55e'};
       position: relative;
     }
     
-    .header-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 24px;
+    .live-badge {
+      position: absolute;
+      bottom: -4px;
+      right: -4px;
+      background: ${shift.endTime ? '#94a3b8' : '#22c55e'};
+      color: white;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 10px;
+      border: 2px solid white;
     }
     
-    .logo {
+    .guard-details h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+    
+    .guard-details p {
+      font-size: 14px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+    
+    .header-stats {
+      display: flex;
+      gap: 32px;
+    }
+    
+    .stat {
+      text-align: right;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-top: 4px;
+    }
+    
+    /* Location Bar */
+    .location-bar {
+      background: #f1f5f9;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 16px 24px;
+    }
+    
+    .location-content {
+      max-width: 1200px;
+      margin: 0 auto;
       display: flex;
       align-items: center;
       gap: 12px;
     }
     
-    .logo-icon {
+    .location-icon {
       width: 40px;
       height: 40px;
-      background: rgba(255,255,255,0.15);
-      border-radius: 10px;
+      background: #3b82f6;
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
+      color: white;
+      font-size: 20px;
     }
     
-    .logo-icon svg {
-      width: 24px;
-      height: 24px;
-      fill: none;
-      stroke: white;
-      stroke-width: 2;
+    .location-details {
+      flex: 1;
     }
     
-    .logo-text {
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-    }
-    
-    .verified-badge {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(34, 197, 94, 0.2);
-      border: 1px solid rgba(34, 197, 94, 0.5);
-      color: #86efac;
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 600;
-    }
-    
-    .verified-badge svg {
-      width: 14px;
-      height: 14px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-    }
-    
-    .report-title {
-      font-size: 32px;
-      font-weight: 700;
-      letter-spacing: -1px;
-      margin-bottom: 4px;
-    }
-    
-    .report-subtitle {
-      font-size: 14px;
-      color: rgba(255,255,255,0.7);
-    }
-    
-    .report-meta {
-      text-align: right;
-      font-size: 11px;
-      color: rgba(255,255,255,0.6);
-    }
-    
-    .report-id {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
-      color: rgba(255,255,255,0.9);
-      margin-bottom: 4px;
-    }
-    
-    /* Summary Cards */
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 1px;
-      background: #e2e8f0;
-      border: 1px solid #e2e8f0;
-      margin: 0 40px;
-      margin-top: -20px;
-      position: relative;
-      z-index: 10;
-      border-radius: 12px;
-      overflow: hidden;
-    }
-    
-    .summary-card {
-      background: white;
-      padding: 16px 20px;
-    }
-    
-    .summary-label {
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #94a3b8;
-      margin-bottom: 8px;
-    }
-    
-    .summary-value {
-      font-size: 18px;
+    .location-address {
+      font-size: 16px;
       font-weight: 600;
       color: #1e293b;
     }
     
-    .summary-value.mono {
-      font-size: 20px;
-      letter-spacing: -0.5px;
+    .location-coords {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 2px;
+      font-family: 'Courier New', monospace;
     }
     
-    /* Map Section */
-    .map-section {
-      margin: 32px 40px;
+    /* Main Content */
+    .main-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
     }
     
+    /* Map */
     .map-container {
-      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      background: white;
       border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
       overflow: hidden;
       position: relative;
-    }
-    
-    .map-label {
-      position: absolute;
-      top: 16px;
-      right: 16px;
-      background: rgba(255,255,255,0.95);
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #64748b;
     }
     
     .map-image {
       width: 100%;
-      height: 280px;
+      height: 400px;
       object-fit: cover;
+      display: block;
     }
     
-    .map-caption {
-      background: rgba(0,0,0,0.7);
-      color: white;
+    .map-overlay {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: white;
       padding: 12px 16px;
-      font-size: 12px;
-      font-family: 'JetBrains Mono', monospace;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      font-size: 13px;
+      color: #64748b;
     }
     
-    /* Timeline Section */
-    .section {
-      margin: 32px 40px;
-    }
-    
-    .section-header {
+    .map-placeholder {
+      width: 100%;
+      height: 400px;
+      background: #f3f4f6;
       display: flex;
       align-items: center;
-      gap: 10px;
+      justify-content: center;
+      color: #64748b;
+      font-size: 16px;
+    }
+    
+    /* Activity Feed */
+    .activity-feed {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+    
+    .feed-header {
       margin-bottom: 20px;
-      padding-bottom: 12px;
-      border-bottom: 2px solid #e2e8f0;
     }
     
-    .section-icon {
-      width: 24px;
-      height: 24px;
-      color: #3b82f6;
-    }
-    
-    .section-icon svg {
-      width: 100%;
-      height: 100%;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-    }
-    
-    .section-title {
-      font-size: 14px;
+    .feed-header h2 {
+      font-size: 18px;
       font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
       color: #1e293b;
     }
     
-    /* Timeline */
-    .timeline {
-      position: relative;
-      padding-left: 120px;
-    }
-    
-    .timeline::before {
-      content: '';
-      position: absolute;
-      left: 108px;
-      top: 8px;
-      bottom: 8px;
-      width: 2px;
-      background: #e2e8f0;
-    }
-    
-    .timeline-item {
-      position: relative;
-      margin-bottom: 24px;
-      display: flex;
-      align-items: flex-start;
-    }
-    
-    .timeline-item:last-child {
-      margin-bottom: 0;
-    }
-    
-    .timeline-time {
-      position: absolute;
-      left: 0;
-      width: 90px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
-      font-weight: 500;
+    .feed-count {
+      font-size: 13px;
       color: #64748b;
-      text-align: right;
-      padding-right: 20px;
+      margin-top: 4px;
+    }
+    
+    .feed-content {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+    
+    .feed-item {
+      display: flex;
+      flex-direction: column;
+      min-width: 200px;
+      max-width: 280px;
+    }
+    
+    .timeline-connector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 12px;
     }
     
     .timeline-dot {
-      position: absolute;
-      left: 100px;
-      width: 16px;
-      height: 16px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
-      background: white;
-      border: 3px solid #3b82f6;
-      z-index: 1;
-    }
-    
-    .timeline-dot.start { border-color: #22c55e; }
-    .timeline-dot.end { border-color: #ef4444; }
-    .timeline-dot.photo { border-color: #8b5cf6; }
-    .timeline-dot.note { border-color: #f59e0b; }
-    
-    .timeline-content {
-      margin-left: 24px;
-      flex: 1;
-    }
-    
-    .timeline-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: #1e293b;
-      margin-bottom: 4px;
-    }
-    
-    .timeline-location {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      color: #64748b;
-    }
-    
-    .timeline-location svg {
-      width: 12px;
-      height: 12px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-    }
-    
-    /* Photo Evidence */
-    .photo-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 20px;
-    }
-    
-    .photo-card {
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      overflow: hidden;
-      background: #f8fafc;
-    }
-    
-    .photo-badge {
-      display: inline-block;
-      background: #3b82f6;
-      color: white;
-      font-size: 10px;
-      font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 0 0 8px 0;
-    }
-    
-    .photo-image-container {
-      height: 160px;
-      background: #e2e8f0;
       display: flex;
       align-items: center;
       justify-content: center;
-      position: relative;
-    }
-    
-    .photo-image {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    
-    .photo-placeholder {
-      color: #94a3b8;
-    }
-    
-    .photo-placeholder svg {
-      width: 48px;
-      height: 48px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 1.5;
-    }
-    
-    .photo-timestamp {
-      position: absolute;
-      bottom: 8px;
-      right: 8px;
-      background: rgba(0,0,0,0.7);
+      font-size: 14px;
       color: white;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      padding: 4px 8px;
-      border-radius: 4px;
     }
     
-    .photo-details {
-      padding: 14px;
+    .timeline-dot.start { background: #22c55e; }
+    .timeline-dot.photo { background: #8b5cf6; }
+    .timeline-dot.note { background: #f59e0b; }
+    .timeline-dot.end { background: #64748b; }
+    
+    .feed-card {
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 12px;
+      border: 1px solid #e2e8f0;
     }
     
-    .photo-address {
-      font-size: 12px;
-      font-weight: 600;
-      color: #1e293b;
-      margin-bottom: 4px;
-    }
-    
-    .photo-coords {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 10px;
-      color: #64748b;
+    .feed-time-location {
+      display: flex;
+      gap: 8px;
       margin-bottom: 8px;
     }
     
-    .photo-verified {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 10px;
-      font-weight: 600;
-      color: #22c55e;
-      text-transform: uppercase;
+    .feed-time {
+      font-size: 12px;
+      color: #64748b;
     }
     
-    .photo-verified svg {
-      width: 14px;
-      height: 14px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
+    .feed-date {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    
+    .feed-location {
+      font-size: 13px;
+      color: #475569;
+      margin-bottom: 8px;
+    }
+    
+    .feed-photo {
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    
+    .feed-photo img {
+      width: 100%;
+      height: 150px;
+      object-fit: cover;
+      display: block;
+    }
+    
+    .note-text {
+      font-size: 14px;
+      color: #1e293b;
+      line-height: 1.5;
+      background: white;
+      padding: 12px;
+      border-radius: 8px;
+      border-left: 3px solid #f59e0b;
+      margin-top: 8px;
+    }
+    
+    .empty-state {
+      padding: 32px;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 14px;
+      width: 100%;
+    }
+    
+    /* Shift Summary */
+    .shift-summary {
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      color: white;
+    }
+    
+    .shift-summary .feed-header h2 {
+      color: white;
+    }
+    
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    
+    .summary-item {
+      text-align: center;
+      padding: 16px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 12px;
+    }
+    
+    .summary-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: white;
+    }
+    
+    .summary-label {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
     
     /* Footer */
-    .footer {
-      margin: 40px;
+    .report-footer {
+      text-align: center;
       padding: 24px;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-    }
-    
-    .footer-content {
-      display: flex;
-      align-items: flex-start;
-      gap: 20px;
-    }
-    
-    .qr-placeholder {
-      width: 64px;
-      height: 64px;
-      background: white;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-    
-    .qr-placeholder span {
-      font-size: 8px;
-      font-weight: 700;
-      color: #94a3b8;
-      text-transform: uppercase;
-    }
-    
-    .footer-text {
-      flex: 1;
-    }
-    
-    .hash-title {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #1e293b;
-      margin-bottom: 4px;
-    }
-    
-    .hash-value {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 10px;
       color: #64748b;
-      word-break: break-all;
-      margin-bottom: 8px;
-    }
-    
-    .hash-disclaimer {
-      font-size: 10px;
-      color: #94a3b8;
-      font-style: italic;
-    }
-    
-    .footer-bottom {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 16px;
-      padding-top: 16px;
+      font-size: 12px;
       border-top: 1px solid #e2e8f0;
-      font-size: 10px;
-      color: #64748b;
+      margin-top: 24px;
     }
     
-    .footer-brand {
-      font-weight: 600;
-      color: #1e293b;
+    .report-id {
+      font-family: 'Courier New', monospace;
+      color: #94a3b8;
+      margin-top: 8px;
     }
     
-    .footer-secure {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    
-    .footer-secure svg {
-      width: 12px;
-      height: 12px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-    }
-    
-    /* Page break handling */
-    .page-break {
-      page-break-before: always;
-    }
-    
+    /* Print styles */
     @media print {
       body {
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
+        background: white;
       }
       
-      .header {
-        background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
-        -webkit-print-color-adjust: exact !important;
+      .main-content {
+        padding: 16px;
       }
       
-      .map-container {
-        background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+      .feed-item {
+        page-break-inside: avoid;
+      }
+      
+      .activity-feed {
+        page-break-inside: avoid;
       }
     }
   </style>
 </head>
 <body>
-  <!-- Header -->
-  <header class="header">
-    <div class="header-top">
-      <div class="logo">
-        <div class="logo-icon">
-          <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+  <div class="header">
+    <div class="header-content">
+      <div class="guard-info">
+        <div class="avatar">
+          ${initials}
+          <span class="live-badge">${shift.endTime ? 'ENDED' : 'LIVE'}</span>
         </div>
-        <span class="logo-text">TrustLayer</span>
+        <div class="guard-details">
+          <h1>${shift.staffName || 'Unknown Staff'}</h1>
+          <p>${shift.siteName}</p>
+        </div>
       </div>
-      <div class="verified-badge">
-        <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        VERIFIED & LOCKED
+      <div class="header-stats">
+        <div class="stat">
+          <div class="stat-label">Duration</div>
+          <div class="stat-value">${durationText}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Locations</div>
+          <div class="stat-value">${locations.length}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Photos</div>
+          <div class="stat-value">${photoCount}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Distance</div>
+          <div class="stat-value">${distanceText}</div>
+        </div>
       </div>
-    </div>
-    
-    <div style="display: flex; justify-content: space-between; align-items: flex-end;">
-      <div>
-        <h1 class="report-title">SHIFT REPORT</h1>
-        <p class="report-subtitle">Official Proof of Presence Document</p>
-      </div>
-      <div class="report-meta">
-        <div class="report-id">REPORT ID: ${shift.pairCode}</div>
-        <div>${formatDate(shift.startTime)}</div>
-      </div>
-    </div>
-  </header>
-  
-  <!-- Summary Cards -->
-  <div class="summary-grid">
-    <div class="summary-card">
-      <div class="summary-label">Officer</div>
-      <div class="summary-value">${shift.staffName || 'Security Officer'}</div>
-    </div>
-    <div class="summary-card">
-      <div class="summary-label">Site</div>
-      <div class="summary-value">${shift.siteName || startLoc?.address?.split(',')[0] || 'Patrol Site'}</div>
-    </div>
-    <div class="summary-card">
-      <div class="summary-label">Duration</div>
-      <div class="summary-value mono">${duration}</div>
-    </div>
-    <div class="summary-card">
-      <div class="summary-label">Evidence</div>
-      <div class="summary-value">${photoCount} Photo${photoCount !== 1 ? 's' : ''}</div>
     </div>
   </div>
   
-  <!-- Map Section -->
-  <div class="map-section">
-    <div class="map-container">
-      <div class="map-label">Route Map Visualization</div>
-      ${mapUrl ? `<img src="${mapUrl}" alt="Route Map" class="map-image" />` : '<div class="map-image" style="display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.5);">Map unavailable</div>'}
-      <div class="map-caption">Patrol Activity Trail: ${shift.siteName || startLoc?.address || 'Site'}</div>
-    </div>
-  </div>
-  
-  <!-- Activity Timeline -->
-  <div class="section">
-    <div class="section-header">
-      <div class="section-icon">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      </div>
-      <h2 class="section-title">Activity Timeline</h2>
-    </div>
-    
-    <div class="timeline">
-      ${timeline.map(event => `
-        <div class="timeline-item">
-          <div class="timeline-time">${formatTime(event.time)}</div>
-          <div class="timeline-dot ${event.type}"></div>
-          <div class="timeline-content">
-            <div class="timeline-title">${event.title}</div>
-            <div class="timeline-location">
-              <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-              ${event.location}
-            </div>
-          </div>
+  ${latestLocation ? `
+  <div class="location-bar">
+    <div class="location-content">
+      <div class="location-icon">📍</div>
+      <div class="location-details">
+        <div class="location-address">${latestAddress}</div>
+        <div class="location-coords">
+          ${latestLocation.latitude.toFixed(6)}, ${latestLocation.longitude.toFixed(6)}
+          ${latestLocation.accuracy ? ` • ±${Math.round(latestLocation.accuracy)}m` : ''}
         </div>
-      `).join('')}
-    </div>
-  </div>
-  
-  ${photoCount > 0 ? `
-  <!-- Visual Evidence Log -->
-  <div class="section ${photoCount > 2 ? 'page-break' : ''}">
-    <div class="section-header">
-      <div class="section-icon">
-        <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
       </div>
-      <h2 class="section-title">Visual Evidence Log</h2>
-    </div>
-    
-    <div class="photo-grid">
-      ${shift.photos?.map((photo: ShiftPhoto, index: number) => `
-        <div class="photo-card">
-          <div class="photo-badge">EVIDENCE #${index + 1}</div>
-          <div class="photo-image-container">
-            ${photoDataUris[index] ? `
-              <img src="${photoDataUris[index]}" alt="Evidence ${index + 1}" class="photo-image" />
-            ` : `
-              <div class="photo-placeholder">
-                <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              </div>
-            `}
-            <div class="photo-timestamp">${formatTime(photo.timestamp)}</div>
-          </div>
-          <div class="photo-details">
-            <div class="photo-address">${photo.address || (photo.location ? `${photo.location.latitude.toFixed(4)}, ${photo.location.longitude.toFixed(4)}` : 'Location recorded')}</div>
-            <div class="photo-coords">GPS: ${photo.location ? `${photo.location.latitude.toFixed(4)}°N, ${Math.abs(photo.location.longitude).toFixed(4)}°W` : 'N/A'}</div>
-            <div class="photo-verified">
-              <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              TAMPER VERIFIED
-            </div>
-          </div>
-        </div>
-      `).join('')}
     </div>
   </div>
   ` : ''}
   
-  <!-- Footer -->
-  <div class="footer">
-    <div class="footer-content">
-      <div class="qr-placeholder">
-        <span>QR AUTH</span>
+  <div class="main-content">
+    <!-- Map -->
+    <div class="map-container">
+      ${mapUrl ? `
+        <img class="map-image" src="${mapUrl}" alt="Route Map" />
+        <div class="map-overlay">${locations.length} GPS points recorded</div>
+      ` : `
+        <div class="map-placeholder">No location data available</div>
+      `}
+    </div>
+    
+    <!-- Photos Timeline -->
+    <div class="activity-feed">
+      <div class="feed-header">
+        <h2>📷 Photos Timeline</h2>
+        <div class="feed-count">${photoCount} photos</div>
       </div>
-      <div class="footer-text">
-        <div class="hash-title">Cryptographic Integrity Hash (SHA-256)</div>
-        <div class="hash-value">${docHash}</div>
-        <div class="hash-disclaimer">This document is a legally binding record of activity. All data is time-locked and encrypted.</div>
+      <div class="feed-content">
+        ${activities.filter(a => a.type === 'photo').length === 0 ? '<div class="empty-state">No photos captured</div>' : ''}
+        ${activities.filter(a => a.type === 'photo').map(activity => {
+          const photoUri = activity.photoUri ? (photoDataUris.get(activity.photoUri) || activity.photoUri) : '';
+          return `
+            <div class="feed-item">
+              <div class="timeline-connector">
+                <div class="timeline-dot photo">📷</div>
+              </div>
+              <div class="feed-card">
+                <div class="feed-time-location">
+                  <span class="feed-time">🕐 ${formatTime(activity.time)}</span>
+                  <span class="feed-date">${formatDate(activity.time)}</span>
+                </div>
+                <div class="feed-location">📍 ${activity.content}</div>
+                ${photoUri ? `
+                  <div class="feed-photo">
+                    <img src="${photoUri}" alt="Photo" />
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }).join('')}
       </div>
     </div>
-    <div class="footer-bottom">
-      <span class="footer-brand">TRUSTLAYER SYSTEMS SECURITY REPORT</span>
-      <span class="footer-secure">
-        <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-        ENCRYPTED SESSION
-      </span>
+    
+    <!-- Notes Timeline -->
+    <div class="activity-feed">
+      <div class="feed-header">
+        <h2>📝 Notes Timeline</h2>
+        <div class="feed-count">${noteCount} notes</div>
+      </div>
+      <div class="feed-content">
+        ${activities.filter(a => a.type === 'note').length === 0 ? '<div class="empty-state">No notes added</div>' : ''}
+        ${activities.filter(a => a.type === 'note').map(activity => `
+          <div class="feed-item">
+            <div class="timeline-connector">
+              <div class="timeline-dot note">📝</div>
+            </div>
+            <div class="feed-card">
+              <div class="feed-time-location">
+                <span class="feed-time">🕐 ${formatTime(activity.time)}</span>
+                <span class="feed-date">${formatDate(activity.time)}</span>
+              </div>
+              <div class="feed-location">📍 ${activity.noteLocation || 'Location not recorded'}</div>
+              <div class="note-text">${activity.noteText || activity.content}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    
+    <!-- Shift Summary -->
+    ${shift.endTime ? `
+    <div class="activity-feed shift-summary">
+      <div class="feed-header">
+        <h2>📊 Shift Summary</h2>
+      </div>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-value">${durationText}</div>
+          <div class="summary-label">Duration</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-value">${distanceText}</div>
+          <div class="summary-label">Distance</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-value">${photoCount}</div>
+          <div class="summary-label">Photos</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-value">${noteCount}</div>
+          <div class="summary-label">Notes</div>
+        </div>
+      </div>
+    </div>
+    ` : ''}
+    
+    <!-- Report Footer -->
+    <div class="report-footer">
+      <p>Generated by Timestamp Tracker</p>
+      <p class="report-id">Report ID: ${shift.pairCode} • ${new Date().toLocaleString()}</p>
     </div>
   </div>
 </body>

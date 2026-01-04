@@ -896,3 +896,9 @@ Based on user's detailed specifications and sample code:
 - [x] Add OpenStreetMap fallback when MapBox token not available
 - [x] Add tests for all session 5 fixes (10 tests passing)
 - [ ] Unify PDF generation - app and viewer must use same template (deferred to future session)
+
+## PDF UNIFICATION - Jan 4, 2026 (Session 6)
+- [x] Analyze viewer.html PDF design (header, stats, map, activity feed)
+- [x] Rewrite mobile app pdf-generator.ts to match viewer design
+- [x] Use same CSS styles, layout, and structure
+- [x] Test PDF generation - all 110 tests passing
