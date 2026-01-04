@@ -1,11 +1,10 @@
 /**
- * Fast Watermark - Instant local watermarking
- * Works on both web and native platforms
- * NO server calls - everything is done locally for speed
+ * Fast Watermark - Instant native watermarking using react-native-image-marker
+ * This is the same approach used by Timestamp Camera app
+ * NO server calls - everything is done locally on device for instant results
  */
 
 import { Platform } from "react-native";
-import * as FileSystem from "expo-file-system/legacy";
 
 export interface WatermarkData {
   timestamp: string;
@@ -18,14 +17,15 @@ export interface WatermarkData {
 }
 
 /**
- * Add watermark to photo instantly using local processing
- * Returns the watermarked image URI (data URI on web, file URI on native)
+ * Add watermark to photo instantly using native image processing
+ * Returns the watermarked image URI
  */
 export async function addFastWatermark(
   photoUri: string,
   data: WatermarkData
 ): Promise<string> {
-  console.log("[FastWatermark] Starting local watermark...");
+  console.log("[FastWatermark] Starting instant watermark...");
+  const startTime = Date.now();
   
   if (Platform.OS === "web") {
     return addWatermarkWeb(photoUri, data);
@@ -35,7 +35,75 @@ export async function addFastWatermark(
 }
 
 /**
+ * Native implementation using react-native-image-marker
+ * This is FAST - uses native code on Android/iOS
+ */
+async function addWatermarkNative(
+  photoUri: string,
+  data: WatermarkData
+): Promise<string> {
+  try {
+    const Marker = await import("react-native-image-marker");
+    
+    // Build the watermark text - multiple lines
+    const watermarkText = [
+      data.timestamp,
+      data.date,
+      `📍 ${data.address}`,
+      `🌐 ${data.latitude.toFixed(6)}, ${data.longitude.toFixed(6)}`,
+      data.siteName ? `🏢 ${data.siteName}` : "",
+      data.staffName ? `👤 ${data.staffName}` : "",
+    ].filter(Boolean).join("\n");
+    
+    console.log("[FastWatermark] Adding text watermark with react-native-image-marker...");
+    
+    // Use markText for text watermark
+    const result = await Marker.default.markText({
+      backgroundImage: {
+        src: photoUri,
+      },
+      watermarkTexts: [
+        {
+          text: watermarkText,
+          position: {
+            position: Marker.Position.topLeft,
+          },
+          style: {
+            color: "#FFFFFF",
+            fontSize: 42,
+            fontName: "Arial",
+            shadowStyle: {
+              dx: 2,
+              dy: 2,
+              radius: 4,
+              color: "#000000",
+            },
+            textBackgroundStyle: {
+              type: Marker.TextBackgroundType.stretchX,
+              paddingX: 20,
+              paddingY: 15,
+              color: "rgba(0, 0, 0, 0.7)",
+            },
+          },
+        },
+      ],
+      quality: 90,
+      saveFormat: Marker.ImageFormat.jpg,
+    });
+    
+    console.log("[FastWatermark] Native success in", Date.now() - Date.now(), "ms:", result.substring(0, 50));
+    return result;
+    
+  } catch (error) {
+    console.log("[FastWatermark] Native error:", error);
+    // Return original photo if watermarking fails
+    return photoUri;
+  }
+}
+
+/**
  * Web implementation using HTML Canvas
+ * Fast and works without any native dependencies
  */
 async function addWatermarkWeb(
   photoUri: string,
@@ -92,215 +160,6 @@ async function addWatermarkWeb(
 }
 
 /**
- * Native implementation using Skia canvas
- * Falls back to returning original photo if Skia is not available
- */
-async function addWatermarkNative(
-  photoUri: string,
-  data: WatermarkData
-): Promise<string> {
-  try {
-    console.log("[FastWatermark] Native processing...");
-    
-    // Try to use Skia for native canvas rendering
-    try {
-      const { Skia, AlphaType, ColorType } = await import("@shopify/react-native-skia");
-      
-      // Read the image file
-      const base64 = await FileSystem.readAsStringAsync(photoUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      
-      // Decode the image using Skia
-      const imageData = Skia.Data.fromBase64(base64);
-      const image = Skia.Image.MakeImageFromEncoded(imageData);
-      
-      if (!image) {
-        console.log("[FastWatermark] Could not decode image");
-        return photoUri;
-      }
-      
-      const width = image.width();
-      const height = image.height();
-      
-      // Create a surface to draw on
-      const surface = Skia.Surface.Make(width, height);
-      if (!surface) {
-        console.log("[FastWatermark] Could not create surface");
-        return photoUri;
-      }
-      
-      const canvas = surface.getCanvas();
-      
-      // Draw the original image
-      canvas.drawImage(image, 0, 0);
-      
-      // Draw watermark overlay
-      drawWatermarkSkia(canvas, Skia, width, height, data);
-      
-      // Get the result as an image
-      surface.flush();
-      const resultImage = surface.makeImageSnapshot();
-      
-      if (!resultImage) {
-        console.log("[FastWatermark] Could not create snapshot");
-        return photoUri;
-      }
-      
-      // Encode to JPEG
-      const { ImageFormat } = await import("@shopify/react-native-skia");
-      const resultData = resultImage.encodeToBase64(ImageFormat.JPEG, 90);
-      
-      if (!resultData) {
-        console.log("[FastWatermark] Could not encode result");
-        return photoUri;
-      }
-      
-      // Save to file
-      const outputPath = `${FileSystem.cacheDirectory}wm_${Date.now()}.jpg`;
-      await FileSystem.writeAsStringAsync(outputPath, resultData, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      
-      console.log("[FastWatermark] Native Skia success");
-      return outputPath;
-      
-    } catch (skiaError) {
-      console.log("[FastWatermark] Skia not available:", skiaError);
-      
-      // Fallback: Use server API with short timeout
-      return await addWatermarkServer(photoUri, data);
-    }
-    
-  } catch (error) {
-    console.log("[FastWatermark] Native error:", error);
-    return photoUri;
-  }
-}
-
-/**
- * Server-based watermarking as fallback
- */
-async function addWatermarkServer(
-  photoUri: string,
-  data: WatermarkData
-): Promise<string> {
-  try {
-    console.log("[FastWatermark] Trying server fallback...");
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
-    
-    // Read photo as base64
-    const base64 = await FileSystem.readAsStringAsync(photoUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    
-    const response = await fetch("https://timestamp-tracker-production.up.railway.app/api/watermark", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        imageBase64: base64,
-        timestamp: `${data.timestamp} ${data.date}`,
-        address: data.address,
-        latitude: data.latitude,
-        longitude: data.longitude,
-        staffName: data.staffName,
-        siteName: data.siteName,
-      }),
-      signal: controller.signal,
-    });
-    
-    clearTimeout(timeoutId);
-    
-    const result = await response.json();
-    
-    if (result.success && result.watermarkedBase64) {
-      const watermarkedPath = `${FileSystem.cacheDirectory}wm_${Date.now()}.jpg`;
-      await FileSystem.writeAsStringAsync(watermarkedPath, result.watermarkedBase64, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      console.log("[FastWatermark] Server success");
-      return watermarkedPath;
-    }
-    
-    return photoUri;
-  } catch (error: any) {
-    if (error.name === "AbortError") {
-      console.log("[FastWatermark] Server timeout");
-    } else {
-      console.log("[FastWatermark] Server error:", error);
-    }
-    return photoUri;
-  }
-}
-
-/**
- * Draw watermark using Skia canvas
- */
-function drawWatermarkSkia(
-  canvas: any,
-  Skia: any,
-  width: number,
-  height: number,
-  data: WatermarkData
-): void {
-  // Semi-transparent background at top
-  const overlayHeight = Math.min(200, height * 0.25);
-  const bgPaint = Skia.Paint();
-  bgPaint.setColor(Skia.Color("rgba(0, 0, 0, 0.7)"));
-  canvas.drawRect(Skia.XYWHRect(0, 0, width, overlayHeight), bgPaint);
-  
-  // Text settings
-  const fontSize = Math.max(16, Math.floor(width / 30));
-  const smallFontSize = Math.max(12, Math.floor(width / 40));
-  const padding = Math.max(10, Math.floor(width / 50));
-  
-  const whitePaint = Skia.Paint();
-  whitePaint.setColor(Skia.Color("#FFFFFF"));
-  
-  const grayPaint = Skia.Paint();
-  grayPaint.setColor(Skia.Color("#CCCCCC"));
-  
-  const darkGrayPaint = Skia.Paint();
-  darkGrayPaint.setColor(Skia.Color("#AAAAAA"));
-  
-  let y = padding + fontSize * 1.5;
-  
-  // Time (large)
-  const timeFont = Skia.Font(null, fontSize * 1.5);
-  canvas.drawText(data.timestamp, padding, y, whitePaint, timeFont);
-  y += fontSize * 1.8;
-  
-  // Date
-  const dateFont = Skia.Font(null, fontSize);
-  canvas.drawText(data.date, padding, y, grayPaint, dateFont);
-  y += fontSize * 1.4;
-  
-  // Address
-  const smallFont = Skia.Font(null, smallFontSize);
-  canvas.drawText(`📍 ${data.address}`, padding, y, whitePaint, smallFont);
-  y += smallFontSize * 1.3;
-  
-  // Coordinates
-  const monoFont = Skia.Font(null, smallFontSize * 0.9);
-  canvas.drawText(
-    `🌐 ${data.latitude.toFixed(6)}, ${data.longitude.toFixed(6)}`,
-    padding, y, darkGrayPaint, monoFont
-  );
-  y += smallFontSize * 1.3;
-  
-  // Site and Staff
-  if (data.siteName) {
-    canvas.drawText(`🏢 ${data.siteName}`, padding, y, grayPaint, smallFont);
-    y += smallFontSize * 1.3;
-  }
-  if (data.staffName) {
-    canvas.drawText(`👤 ${data.staffName}`, padding, y, grayPaint, smallFont);
-  }
-}
-
-/**
  * Draw watermark overlay on HTML canvas context
  */
 function drawWatermarkOverlay(
@@ -321,6 +180,12 @@ function drawWatermarkOverlay(
   
   ctx.fillStyle = "#FFFFFF";
   ctx.textBaseline = "top";
+  
+  // Add text shadow for better readability
+  ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 2;
   
   let y = padding;
   
@@ -360,6 +225,12 @@ function drawWatermarkOverlay(
   if (data.staffName) {
     ctx.fillText(`👤 ${data.staffName}`, padding, y);
   }
+  
+  // Reset shadow
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
 }
 
 /**

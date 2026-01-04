@@ -909,3 +909,10 @@ Based on user's detailed specifications and sample code:
 - [x] Added Skia-based local watermarking for native (no server calls)
 - [x] Server watermark as fallback with 3-second timeout
 - [ ] Test on physical device
+
+## CRITICAL BUGS - Jan 4, 2026 (Session 8)
+- [x] Watermarking - implemented react-native-image-marker (same as Timestamp Camera app)
+- [x] Server URLs verified - Railway production server is working correctly
+- [x] Viewer URL is /viewer/:code (not /view/:code) - already correct in app
+- [x] Instant local watermarking - no server calls, uses native code
+- [x] All 110 tests passing
