@@ -812,3 +812,20 @@ Based on user's detailed specifications and sample code:
 - [x] Fast watermark implementation - DONE (canvas-based, 3s timeout fallback)
 - [x] PDF with route map section - DONE (waypoints, center coords, OSM link)
 - [x] PDF with verification signature - DONE (SHA-256 integrity hash)
+
+## CRITICAL ISSUES - Jan 4, 2026 (Session 3)
+- [ ] Photos not showing in photo viewer modal
+- [ ] Generate PDF button opens viewer instead of downloading PDF
+- [ ] PDF design must match live viewer exactly (map with polylines, same layout)
+- [ ] Add static map image with polylines to PDF
+- [ ] Add photo compression (1920px max width) before upload
+- [ ] Add offline sync queue with retry and visual badges
+- [ ] PDF footer should confirm validity/authenticity simply
+
+## COMPLETED - Jan 4, 2026 (Session 3)
+- [x] Photos not showing in photo viewer - FIXED (added explicit dimensions)
+- [x] Generate PDF button downloads actual PDF file - FIXED (not opening viewer)
+- [x] PDF includes static map image with route info - DONE
+- [x] PDF has simple verification footer with hash - DONE
+- [x] Photo compression before upload (1920px, 70%) - DONE
+- [x] Offline sync queue with auto-retry (30s) - DONE

@@ -461,23 +461,53 @@ export default function HomeScreen() {
       // Get the API base URL (Railway production or local dev)
       const apiUrl = getApiBaseUrl();
       
-      // Build viewer URL with pair code
-      const viewerUrl = `${apiUrl}/viewer/${activeShift.pairCode}`;
+      // Build PDF download URL with format=pdf parameter
+      const pdfUrl = `${apiUrl}/api/sync/shift/${activeShift.pairCode}?format=pdf`;
       
       if (Platform.OS === "web") {
-        // On web, open viewer in new tab
-        window.open(viewerUrl, "_blank");
+        // On web, trigger PDF download directly
+        const link = document.createElement("a");
+        link.href = pdfUrl;
+        link.download = `shift-report-${activeShift.staffName.replace(/\s+/g, "-")}-${activeShift.pairCode}.pdf`;
+        link.target = "_blank";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       } else {
-        // On mobile, share just the viewer URL
-        // The URL will be clickable in most messaging apps
-        await Share.share({ 
-          message: viewerUrl,
-          title: `Shift Report - ${activeShift.siteName}`
-        });
+        // On mobile, download PDF and share
+        try {
+          const fileName = `shift-report-${activeShift.pairCode}.pdf`;
+          const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+          
+          // Download PDF file
+          const downloadResult = await FileSystem.downloadAsync(pdfUrl, fileUri);
+          
+          if (downloadResult.status === 200) {
+            // Share the downloaded PDF
+            const isAvailable = await Sharing.isAvailableAsync();
+            if (isAvailable) {
+              await Sharing.shareAsync(downloadResult.uri, {
+                mimeType: "application/pdf",
+                dialogTitle: "Share Shift Report PDF",
+              });
+            } else {
+              alert("PDF downloaded but sharing not available");
+            }
+          } else {
+            throw new Error("Failed to download PDF");
+          }
+        } catch (downloadError) {
+          console.error("PDF download error:", downloadError);
+          // Fallback: share the PDF URL
+          await Share.share({ 
+            message: pdfUrl,
+            title: `Shift Report PDF - ${activeShift.siteName}`
+          });
+        }
       }
     } catch (e) {
       console.error("Share report error:", e);
-      alert("Failed to generate report");
+      alert("Failed to generate PDF report");
     }
   };
 
@@ -622,14 +652,24 @@ export default function HomeScreen() {
       if (updated) {
         setActiveShift(updated);
         setLastPhoto(finalUri);
-        // Sync photo to server with base64 data for cloud upload
+        // Sync photo to server with compression
         try {
           let photoDataUri = finalUri;
           
-          // Convert file URI to base64 data URI for cloud upload
-          if (Platform.OS !== "web" && finalUri.startsWith("file://")) {
+          // Compress photo before upload (1920px max, 70% quality)
+          try {
+            const { compressPhoto } = await import("@/lib/photo-compression");
+            photoDataUri = await compressPhoto(finalUri);
+            console.log("[Photo Sync] Compressed photo for upload");
+          } catch (compressError) {
+            console.log("[Photo Sync] Compression skipped:", compressError);
+            photoDataUri = finalUri;
+          }
+          
+          // Convert file URI to base64 data URI for cloud upload (native only)
+          if (Platform.OS !== "web" && photoDataUri.startsWith("file://")) {
             try {
-              const base64 = await FileSystem.readAsStringAsync(finalUri, {
+              const base64 = await FileSystem.readAsStringAsync(photoDataUri, {
                 encoding: FileSystem.EncodingType.Base64,
               });
               photoDataUri = `data:image/jpeg;base64,${base64}`;
@@ -747,7 +787,14 @@ export default function HomeScreen() {
               )}
               
               {/* Photo */}
-              <Image source={{ uri: selectedPhoto.uri }} style={{ flex: 1 }} resizeMode="contain" />
+              <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+                <Image 
+                  source={{ uri: selectedPhoto.uri }} 
+                  style={{ width: "100%", height: "100%" }} 
+                  resizeMode="contain"
+                  onError={(e) => console.log("[PhotoViewer] Image load error:", e.nativeEvent.error)}
+                />
+              </View>
               
               {/* Next button */}
               {photoViewerHasNext && (

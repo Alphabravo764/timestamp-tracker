@@ -17,7 +17,13 @@ export interface OfflineState {
   isOnline: boolean;
   lastSync: string | null;
   pendingItems: number;
+  failedItems: number;
 }
+
+export type SyncStatus = "synced" | "syncing" | "pending" | "failed";
+
+let retryTimer: ReturnType<typeof setInterval> | null = null;
+let isProcessingQueue = false;
 
 // Check internet connectivity
 export const isOnline = async (): Promise<boolean> => {
@@ -154,7 +160,8 @@ export const getOfflineState = async (): Promise<OfflineState> => {
     return {
       isOnline: online,
       lastSync,
-      pendingItems: queue.length,
+      pendingItems: queue.filter(i => i.retries < 3).length,
+      failedItems: queue.filter(i => i.retries >= 3).length,
     };
   } catch (error) {
     console.error("Error getting offline state:", error);
@@ -162,6 +169,7 @@ export const getOfflineState = async (): Promise<OfflineState> => {
       isOnline: false,
       lastSync: null,
       pendingItems: 0,
+      failedItems: 0,
     };
   }
 };
@@ -196,4 +204,91 @@ export const processSyncQueue = async (): Promise<{ success: number; failed: num
     console.error("Error processing sync queue:", error);
     return { success: 0, failed: 0 };
   }
+};
+
+
+// Get sync status for a specific photo
+export const getPhotoSyncStatus = async (photoUri: string): Promise<SyncStatus> => {
+  const queue = await getSyncQueue();
+  const item = queue.find(i => i.type === "photo_added" && i.data?.photoUri === photoUri);
+  
+  if (!item) return "synced";
+  if (item.retries >= 3) return "failed";
+  if (isProcessingQueue) return "syncing";
+  return "pending";
+};
+
+// Start auto-retry timer (every 30 seconds)
+export const startAutoRetry = (
+  syncFn: (item: SyncQueueItem) => Promise<boolean>
+): void => {
+  if (retryTimer) {
+    clearInterval(retryTimer);
+  }
+  
+  retryTimer = setInterval(async () => {
+    const state = await getOfflineState();
+    if (state.pendingItems > 0 && state.isOnline) {
+      console.log(`[AutoRetry] Processing ${state.pendingItems} pending items...`);
+      await processQueueWithFn(syncFn);
+    }
+  }, 30000); // 30 seconds
+  
+  console.log("[AutoRetry] Started (30s interval)");
+};
+
+// Stop auto-retry timer
+export const stopAutoRetry = (): void => {
+  if (retryTimer) {
+    clearInterval(retryTimer);
+    retryTimer = null;
+    console.log("[AutoRetry] Stopped");
+  }
+};
+
+// Process queue with custom sync function
+export const processQueueWithFn = async (
+  syncFn: (item: SyncQueueItem) => Promise<boolean>
+): Promise<{ success: number; failed: number }> => {
+  if (isProcessingQueue) {
+    console.log("[SyncQueue] Already processing, skipping");
+    return { success: 0, failed: 0 };
+  }
+  
+  isProcessingQueue = true;
+  let success = 0;
+  let failed = 0;
+  
+  try {
+    const queue = await getSyncQueue();
+    const pendingItems = queue.filter(item => item.retries < 3);
+    
+    for (const item of pendingItems) {
+      try {
+        console.log(`[SyncQueue] Retrying ${item.id} (attempt ${item.retries + 1})`);
+        const result = await syncFn(item);
+        
+        if (result) {
+          await removeFromSyncQueue(item.id);
+          success++;
+          console.log(`[SyncQueue] ${item.id} synced successfully`);
+        } else {
+          await incrementSyncRetries(item.id);
+          failed++;
+        }
+      } catch (error: any) {
+        console.log(`[SyncQueue] ${item.id} failed:`, error.message);
+        await incrementSyncRetries(item.id);
+        failed++;
+      }
+    }
+    
+    if (success > 0) {
+      await updateLastSync();
+    }
+  } finally {
+    isProcessingQueue = false;
+  }
+  
+  return { success, failed };
 };
