@@ -876,3 +876,7 @@ Based on user's detailed specifications and sample code:
 - [x] Generate PDF should download actual PDF file, NOT open viewer - FIXED
 - [x] Photo viewer showing blank white screen when opening photos - FIXED (use native img tag on web)
 - [x] MapBox token not configured on Railway production - Added OpenStreetMap fallback
+
+## PDF MAP BUG - Jan 4, 2026
+- [ ] Static map in PDF shows whole world instead of zoomed route with polyline
+- [x] Static map in PDF shows whole world instead of zoomed route with polyline - FIXED (using GeoJSON overlay with calculated zoom)
