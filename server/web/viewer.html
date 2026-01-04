@@ -817,7 +817,23 @@
       // Set MapBox access token from injected global
       mapboxgl.accessToken = window.MAPBOX_TOKEN || '';
       if (!mapboxgl.accessToken) {
-        mapDiv.innerHTML = '<div style="padding: 40px; text-align: center; color: #666;"><p style="font-size: 18px; margin-bottom: 8px;">📍 Route Map</p><p>' + locations.length + ' GPS points recorded</p><p style="font-size: 12px; color: #f87171; margin-top: 8px;">MapBox token not configured</p></div>';
+        // Fallback to OpenStreetMap static image when MapBox not configured
+        const latest = locations[locations.length - 1];
+        const startLoc = locations[0];
+        const centerLat = (latest.latitude + startLoc.latitude) / 2;
+        const centerLon = (latest.longitude + startLoc.longitude) / 2;
+        
+        // Use OpenStreetMap static image
+        const osmUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${centerLat},${centerLon}&zoom=15&size=600x400&maptype=mapnik`;
+        
+        mapDiv.innerHTML = `
+          <div style="position: relative; width: 100%; height: 100%;">
+            <img src="${osmUrl}" alt="Map" style="width: 100%; height: 100%; object-fit: cover;" />
+            <div style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 8px 12px; border-radius: 6px; font-size: 12px;">
+              📍 ${locations.length} GPS points recorded
+            </div>
+          </div>
+        `;
         return;
       }
       

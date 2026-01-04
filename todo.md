@@ -868,3 +868,11 @@ Based on user's detailed specifications and sample code:
 - [ ] Add static MapBox map image for PDF print with polyline
 - [x] Replace Leaflet with MapBox GL JS on viewer page - DONE
 - [x] Add static MapBox map image for PDF print with polyline - DONE
+
+## CRITICAL BUGS - Jan 4, 2026 (Session 4)
+- [ ] Generate PDF should download actual PDF file, NOT open viewer
+- [ ] Photo viewer showing blank white screen when opening photos
+- [ ] MapBox token not configured on Railway production
+- [x] Generate PDF should download actual PDF file, NOT open viewer - FIXED
+- [x] Photo viewer showing blank white screen when opening photos - FIXED (use native img tag on web)
+- [x] MapBox token not configured on Railway production - Added OpenStreetMap fallback

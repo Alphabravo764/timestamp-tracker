@@ -465,24 +465,21 @@ export default function HomeScreen() {
       // Get the API base URL (Railway production)
       const apiUrl = getApiBaseUrl();
       
-      // Open the viewer page - user can print to PDF from there
-      // This produces the exact same PDF design as the live viewer
-      const viewerUrl = `${apiUrl}/viewer/${activeShift.pairCode}`;
+      // Download PDF directly from server
+      const pdfUrl = `${apiUrl}/api/sync/shift/${activeShift.pairCode}?format=pdf`;
       
       if (Platform.OS === "web") {
-        // On web, open viewer in new tab with print dialog
-        const printWindow = window.open(viewerUrl, "_blank");
-        if (printWindow) {
-          // Wait for page to load then trigger print
-          printWindow.onload = () => {
-            setTimeout(() => {
-              printWindow.print();
-            }, 2000); // Wait for map to render
-          };
-        }
+        // On web, trigger direct download
+        const link = document.createElement("a");
+        link.href = pdfUrl;
+        link.download = `shift-report-${activeShift.pairCode}.pdf`;
+        link.target = "_blank";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       } else {
-        // On mobile, open viewer in browser - user can use browser's share/print
-        await WebBrowser.openBrowserAsync(viewerUrl);
+        // On mobile, open PDF URL in browser which will download/preview
+        await WebBrowser.openBrowserAsync(pdfUrl);
       }
     } catch (e) {
       console.error("Share report error:", e);
@@ -766,13 +763,22 @@ export default function HomeScreen() {
               )}
               
               {/* Photo */}
-              <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-                <Image 
-                  source={{ uri: selectedPhoto.uri }} 
-                  style={{ width: "100%", height: "100%" }} 
-                  resizeMode="contain"
-                  onError={(e) => console.log("[PhotoViewer] Image load error:", e.nativeEvent.error)}
-                />
+              <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 10 }}>
+                {Platform.OS === "web" ? (
+                  <img 
+                    src={selectedPhoto.uri} 
+                    style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} 
+                    alt="Photo"
+                    onError={(e) => console.log("[PhotoViewer] Image load error")}
+                  />
+                ) : (
+                  <Image 
+                    source={{ uri: selectedPhoto.uri }} 
+                    style={{ width: "100%", height: "100%" }} 
+                    resizeMode="contain"
+                    onError={(e) => console.log("[PhotoViewer] Image load error:", e.nativeEvent.error)}
+                  />
+                )}
               </View>
               
               {/* Next button */}
