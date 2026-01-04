@@ -37,6 +37,7 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { syncShiftStart, syncLocation, syncPhoto, syncNote, syncShiftEnd } from "@/lib/server-sync";
 import { PhotoWatermark, PhotoWatermarkRef } from "@/components/photo-watermark";
+import ViewShot from "react-native-view-shot";
 import { getApiBaseUrl } from "@/constants/oauth";
 import { SyncStatusIndicator } from "@/components/sync-status-indicator";
 import { useSyncState } from "@/lib/sync-state";
@@ -112,11 +113,19 @@ export default function HomeScreen() {
   const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
   const cameraRef = useRef<CameraView>(null);
   const watermarkRef = useRef<PhotoWatermarkRef>(null);
+  const viewShotRef = useRef<ViewShot>(null);
 
   // Update time every second
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Start sync worker for auto-retry
+  useEffect(() => {
+    import("@/lib/sync-worker").then(({ startSyncWorker }) => {
+      startSyncWorker();
+    });
   }, []);
 
   // Load active shift on focus
@@ -537,7 +546,7 @@ export default function HomeScreen() {
   };
 
   const takePicture = async () => {
-    if (!cameraRef.current || !activeShift) {
+    if (!viewShotRef.current || !activeShift) {
       alert("Camera not ready");
       return;
     }
@@ -548,24 +557,23 @@ export default function HomeScreen() {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
       
-      // Step 1: Take the photo with the camera
-      const photo = await cameraRef.current.takePictureAsync({ 
-        quality: 0.8,
-        skipProcessing: true,
-      });
+      // Capture the entire view (camera + overlay) as a single image
+      // This burns the watermark directly into the photo - instant!
+      console.log("[Camera] Capturing with overlay...");
+      const photoUri = await viewShotRef.current?.capture?.();
       
-      if (!photo || !photo.uri) {
+      if (!photoUri) {
         alert("Failed to capture photo. Please try again.");
         return;
       }
       
-      console.log("[Camera] Photo taken:", photo.uri.substring(0, 50));
+      console.log("[Camera] Photo captured with watermark:", photoUri.substring(0, 50));
       
       // Get current location (use cached if unavailable)
       let photoLocation = currentLocation;
       
-      // Step 2: Save to permanent storage IMMEDIATELY (no watermark processing)
-      let finalUri = photo.uri;
+      // Save to permanent storage
+      let finalUri = photoUri;
       
       // Save to permanent file location on native
       if (Platform.OS !== "web" && finalUri.startsWith("file://")) {
@@ -598,6 +606,7 @@ export default function HomeScreen() {
           accuracy: photoLocation.coords.accuracy ?? undefined,
         } : null,
         address: currentAddress,
+        syncStatus: "pending", // Mark as pending initially
       };
 
       // Save photo to local storage IMMEDIATELY
@@ -619,16 +628,28 @@ export default function HomeScreen() {
           try {
             let photoDataUri = finalUri;
             
-            // Convert file URI to base64 data URI for cloud upload
+            // Compress photo before upload (resize to max 1920px width)
             if (Platform.OS !== "web" && finalUri.startsWith("file://")) {
               try {
-                const base64 = await FileSystem.readAsStringAsync(finalUri, {
+                const { manipulateAsync, SaveFormat } = await import("expo-image-manipulator");
+                
+                // Compress and resize
+                const compressed = await manipulateAsync(
+                  finalUri,
+                  [{ resize: { width: 1920 } }], // Keep aspect ratio, max 1920px width
+                  { compress: 0.7, format: SaveFormat.JPEG }
+                );
+                
+                console.log("[Background Sync] Compressed photo:", compressed.uri);
+                
+                // Convert compressed photo to base64
+                const base64 = await FileSystem.readAsStringAsync(compressed.uri, {
                   encoding: FileSystem.EncodingType.Base64,
                 });
                 photoDataUri = `data:image/jpeg;base64,${base64}`;
-                console.log("[Background Sync] Converting to base64...");
+                console.log("[Background Sync] Ready for upload");
               } catch (readError) {
-                console.log("[Background Sync] Could not read file:", readError);
+                console.log("[Background Sync] Compression failed:", readError);
                 return;
               }
             }
@@ -648,7 +669,22 @@ export default function HomeScreen() {
               console.log("[Background Sync] ✓ Uploaded:", syncResult.photoUrl);
             }
           } catch (syncError) {
-            console.log("[Background Sync] Error (will retry later):", syncError);
+            console.log("[Background Sync] Upload failed, adding to retry queue:", syncError);
+            
+            // Add to retry queue
+            const { addToSyncQueue } = await import("@/lib/sync-queue");
+            await addToSyncQueue({
+              type: "photo",
+              data: {
+                shiftId: updated.id,
+                pairCode: updated.pairCode,
+                photoUri: finalUri, // Store original URI for retry
+                latitude: photoLocation?.coords.latitude,
+                longitude: photoLocation?.coords.longitude,
+                address: currentAddress,
+                timestamp: shiftPhoto.timestamp,
+              },
+            });
           }
         }, 100); // Start sync after 100ms delay
       }
@@ -983,6 +1019,18 @@ export default function HomeScreen() {
                       {new Date(photo.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </Text>
                   </View>
+                  {/* Sync status badge */}
+                  {photo.syncStatus && photo.syncStatus !== "synced" && (
+                    <View style={[styles.syncBadge, { 
+                      backgroundColor: photo.syncStatus === "syncing" ? "#FFA500" : 
+                                      photo.syncStatus === "failed" ? "#FF4444" : "#888"
+                    }]}>
+                      <Text style={styles.syncBadgeText}>
+                        {photo.syncStatus === "syncing" ? "⏳" : 
+                         photo.syncStatus === "failed" ? "⚠" : "⏸"}
+                      </Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
@@ -1028,36 +1076,39 @@ export default function HomeScreen() {
 
     return (
       <View style={{ flex: 1, backgroundColor: "#000" }}>
-        {/* Hidden watermark component */}
-        <PhotoWatermark ref={watermarkRef} />
-        
-        {/* Camera view */}
-        <CameraView 
-          ref={cameraRef} 
-          style={StyleSheet.absoluteFill} 
-          facing={facing}
-          onCameraReady={() => console.log("Camera ready")}
+        {/* Camera view with live overlay - captured together */}
+        <ViewShot 
+          ref={viewShotRef}
+          options={{ format: "jpg", quality: 0.9 }}
+          style={{ flex: 1 }}
         >
-          {/* Live timestamp preview overlay (for reference only - not captured) */}
-          <View style={styles.cameraInfo}>
-            <View style={styles.infoBox}>
-              <Text style={styles.infoTime}>{formatTime()}</Text>
-              <Text style={styles.infoDate}>{formatDate()}</Text>
-              <Text style={styles.infoAddress}>📍 {currentAddress}</Text>
-              {currentLocation && (
-                <Text style={styles.infoCoords}>
-                  🌐 {currentLocation.coords.latitude.toFixed(6)}, {currentLocation.coords.longitude.toFixed(6)}
-                </Text>
-              )}
-              {activeShift?.siteName && (
-                <Text style={styles.infoSite}>🏢 {activeShift.siteName}</Text>
-              )}
-              {activeShift?.staffName && (
-                <Text style={styles.infoStaff}>👤 {activeShift.staffName}</Text>
-              )}
+          <CameraView 
+            ref={cameraRef} 
+            style={StyleSheet.absoluteFill} 
+            facing={facing}
+            onCameraReady={() => console.log("Camera ready")}
+          >
+            {/* Live watermark overlay - burned into photo when captured */}
+            <View style={styles.cameraOverlay}>
+              <View style={styles.overlayBox}>
+                <Text style={styles.overlayTime}>{formatTime()}</Text>
+                <Text style={styles.overlayDate}>{formatDate()}</Text>
+                <Text style={styles.overlayAddress}>📍 {currentAddress}</Text>
+                {currentLocation && (
+                  <Text style={styles.overlayCoords}>
+                    🌐 {currentLocation.coords.latitude.toFixed(6)}, {currentLocation.coords.longitude.toFixed(6)}
+                  </Text>
+                )}
+                {activeShift?.siteName && (
+                  <Text style={styles.overlaySite}>🏢 {activeShift.siteName}</Text>
+                )}
+                {activeShift?.staffName && (
+                  <Text style={styles.overlayStaff}>👤 {activeShift.staffName}</Text>
+                )}
+              </View>
             </View>
-          </View>
-        </CameraView>
+          </CameraView>
+        </ViewShot>
 
         {/* Top bar with close button - positioned safely using safe area insets */}
         <View style={{ position: "absolute", top: Math.max(insets.top, 20) + 10, left: 16, right: 16, zIndex: 10, flexDirection: "row", justifyContent: "space-between" }}>
@@ -1342,14 +1393,15 @@ const styles = StyleSheet.create({
   statHint: { fontSize: 11, marginTop: 4 },
   cameraTop: { position: "absolute", top: 50, left: 20, right: 20, zIndex: 10 },
   backBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, alignSelf: "flex-start" },
-  cameraInfo: { position: "absolute", top: 100, left: 20, right: 20, zIndex: 10 },
-  infoBox: { backgroundColor: "rgba(0,0,0,0.7)", padding: 12, borderRadius: 8 },
-  infoTime: { color: "#FFF", fontSize: 28, fontWeight: "bold" },
-  infoDate: { color: "#CCC", fontSize: 14, marginBottom: 8 },
-  infoAddress: { color: "#FFF", fontSize: 14, fontWeight: "500", marginBottom: 4 },
-  infoCoords: { color: "#AAA", fontSize: 11, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
-  infoSite: { color: "#CCC", fontSize: 12, marginTop: 4 },
-  infoStaff: { color: "#CCC", fontSize: 12 },
+  // Camera overlay (burned into photo)
+  cameraOverlay: { position: "absolute", top: 100, left: 20, right: 20, zIndex: 5 },
+  overlayBox: { backgroundColor: "rgba(0,0,0,0.75)", padding: 14, borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
+  overlayTime: { color: "#FFF", fontSize: 32, fontWeight: "bold", textShadowColor: "#000", textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 2 },
+  overlayDate: { color: "#EEE", fontSize: 16, marginBottom: 10, textShadowColor: "#000", textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 2 },
+  overlayAddress: { color: "#FFF", fontSize: 15, fontWeight: "600", marginBottom: 6, textShadowColor: "#000", textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 2 },
+  overlayCoords: { color: "#CCC", fontSize: 12, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", textShadowColor: "#000", textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 2 },
+  overlaySite: { color: "#DDD", fontSize: 13, marginTop: 6, textShadowColor: "#000", textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 2 },
+  overlayStaff: { color: "#DDD", fontSize: 13, textShadowColor: "#000", textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 2 },
   lastPhotoContainer: { position: "absolute", bottom: 140, left: 20, zIndex: 10 },
   lastPhotoThumb: { width: 60, height: 60, borderRadius: 8, borderWidth: 2, borderColor: "#FFF" },
   cameraControls: { position: "absolute", bottom: 50, left: 0, right: 0, flexDirection: "row", justifyContent: "space-around", alignItems: "center", paddingHorizontal: 50, zIndex: 10 },
@@ -1363,10 +1415,12 @@ const styles = StyleSheet.create({
   emptyGallery: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 60 },
   emptyText: { textAlign: "center", fontSize: 16, lineHeight: 24 },
   photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  photoGridItem: { width: (SCREEN_WIDTH - 56) / 3, height: (SCREEN_WIDTH - 56) / 3, borderRadius: 8, overflow: "hidden" },
+  photoGridItem: { width: "48%", aspectRatio: 1, marginBottom: 12, borderRadius: 8, overflow: "hidden" },
   photoGridImage: { width: "100%", height: "100%" },
-  photoGridOverlay: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 4 },
-  photoGridTime: { color: "#FFF", fontSize: 10, textAlign: "center" },
+  photoGridOverlay: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 8 },
+  photoGridTime: { color: "#FFF", fontSize: 12, fontWeight: "600" },
+  syncBadge: { position: "absolute", top: 8, right: 8, width: 28, height: 28, borderRadius: 14, justifyContent: "center", alignItems: "center", borderWidth: 2, borderColor: "#FFF" },
+  syncBadgeText: { fontSize: 14, color: "#FFF" },
   // Photo thumbnails in dashboard
   photoHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
   viewAllText: { fontSize: 14, fontWeight: "500" },

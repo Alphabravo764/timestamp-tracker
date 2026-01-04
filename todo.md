@@ -812,3 +812,21 @@ Based on user's detailed specifications and sample code:
 - [x] Apply watermark only when viewing/sharing photos (lazy watermarking with cache)
 - [x] Remove blocking watermark processing from camera capture flow
 - [x] Photo viewer shows original instantly, then loads watermarked version
+
+## CAMERA OVERLAY & SYNC IMPROVEMENTS - Jan 4, 2026
+- [ ] Implement real-time camera overlay (like Snapchat filter) showing timestamp, location, staff name
+- [ ] Burn overlay directly into photo during capture (no post-processing)
+- [ ] Remove lazy watermarking - overlay makes it instant
+- [ ] Add photo compression before upload (resize to max 1920px width)
+- [ ] Implement retry queue for failed uploads (AsyncStorage-based)
+- [ ] Add visual sync indicator badges on photos (synced/syncing/failed)
+- [ ] Auto-retry failed uploads when network returns
+
+## COMPLETED - Camera Overlay & Sync (Jan 4, 2026)
+- [x] Implemented real-time camera overlay showing timestamp, location, staff name, site name
+- [x] Burn overlay directly into photo using ViewShot (instant capture, no post-processing)
+- [x] Removed lazy watermarking - overlay makes watermark instant
+- [x] Added photo compression before upload (resize to 1920px width, 70% quality)
+- [x] Implemented retry queue for failed uploads (AsyncStorage-based with max 5 attempts)
+- [x] Added visual sync indicator badges on photos (pending/syncing/failed/synced)
+- [x] Auto-retry worker processes queue every 30 seconds
