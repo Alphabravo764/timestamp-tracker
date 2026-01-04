@@ -786,3 +786,8 @@ Based on user's detailed specifications and sample code:
 - [x] Remove "View Trail on Map" button
 - [x] Keep only 3 buttons: View PDF, Export All Photos, Delete Shift
 - [x] Rename "Download PDF" to "View PDF"
+
+## CRITICAL PHOTO BUGS - Jan 4, 2026
+- [x] Fix photo viewer blinking/flickering when opening captured photos - FIXED (memoized state calculations)
+- [x] Fix thumbnail in camera app not opening photo viewer - FIXED (removed dependency on lastPhoto state)
+- [x] Fix photos not appearing in web viewer tab - FIXED (handle both photoUri and url fields)

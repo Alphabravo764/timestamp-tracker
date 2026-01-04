@@ -1069,21 +1069,24 @@
       // Add photos
       if (shift.photos) {
         for (const photo of shift.photos) {
+          // Get photo URI from either photoUri or url field
+          const photoUrl = photo.photoUri || photo.url;
+          
           // Skip photos with local file URIs (not accessible from web)
-          if (photo.photoUri && photo.photoUri.startsWith('file://')) {
+          if (photoUrl && photoUrl.startsWith('file://')) {
             continue;
           }
           
           let content = 'Location unavailable';
           if (photo.latitude && photo.longitude) {
-            content = await reverseGeocode(photo.latitude, photo.longitude);
+            content = await getAddressFromCoords(photo.latitude, photo.longitude);
           }
           activities.push({
             type: 'photo',
             time: photo.timestamp,
             title: 'Photo Captured',
             content: content,
-            photoUri: photo.photoUri
+            photoUri: photoUrl
           });
         }
       }

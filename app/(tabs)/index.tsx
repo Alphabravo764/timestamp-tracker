@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -760,21 +760,25 @@ export default function HomeScreen() {
   const PhotoViewerModal = () => {
     if (!selectedPhoto || !activeShift) return null;
     
-    const currentIndex = activeShift.photos.findIndex(p => p.id === selectedPhoto.id);
+    // Memoize to prevent recalculation on every render
+    const currentIndex = useMemo(
+      () => activeShift.photos.findIndex(p => p.id === selectedPhoto.id),
+      [selectedPhoto.id, activeShift.photos]
+    );
     const hasPrevious = currentIndex > 0;
     const hasNext = currentIndex < activeShift.photos.length - 1;
     
-    const goToPrevious = () => {
-      if (hasPrevious) {
+    const goToPrevious = useCallback(() => {
+      if (currentIndex > 0) {
         setSelectedPhoto(activeShift.photos[currentIndex - 1]);
       }
-    };
+    }, [currentIndex, activeShift.photos]);
     
-    const goToNext = () => {
-      if (hasNext) {
+    const goToNext = useCallback(() => {
+      if (currentIndex < activeShift.photos.length - 1) {
         setSelectedPhoto(activeShift.photos[currentIndex + 1]);
       }
-    };
+    }, [currentIndex, activeShift.photos]);
     
     return (
       <Modal
@@ -1127,17 +1131,21 @@ export default function HomeScreen() {
         </View>
 
         {/* Last photo preview - tap to open gallery */}
-        {lastPhoto && activeShift && activeShift.photos.length > 0 && (
+        {activeShift && activeShift.photos.length > 0 && (
           <TouchableOpacity 
-            style={[styles.lastPhotoContainer, { position: "absolute" }]}
+            style={styles.lastPhotoContainer}
             onPress={() => {
               // Open the most recent photo in the viewer
               const latestPhoto = activeShift.photos[activeShift.photos.length - 1];
               setSelectedPhoto(latestPhoto);
             }}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
           >
-            <Image source={{ uri: lastPhoto }} style={styles.lastPhotoThumb} />
+            <Image 
+              source={{ uri: activeShift.photos[activeShift.photos.length - 1].uri }} 
+              style={styles.lastPhotoThumb} 
+            />
           </TouchableOpacity>
         )}
 
