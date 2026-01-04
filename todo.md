@@ -928,3 +928,13 @@ Based on user's detailed specifications and sample code:
 ## WATERMARKING - Session 8
 - [x] Added react-native-image-marker for native watermarking
 - [ ] Requires new APK build (native module added)
+
+## CRITICAL FIX - Instant Photo Capture (Jan 4, 2026 - Session 9)
+- [x] Remove all slow processing from photo capture (no base64, no compression, no watermarking)
+- [x] Use skipProcessing: true for Android fast capture
+- [x] Save photos to FileSystem.documentDirectory with stable file:// URIs
+- [x] Add file existence verification after saving
+- [x] Add overlay watermark in UI (photo viewer modal)
+- [x] Move watermark burning to export/PDF generation only
+- [x] Background photo sync (non-blocking)
+- [x] Created burn-watermark.ts for PDF/export watermarking

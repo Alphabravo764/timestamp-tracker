@@ -242,17 +242,34 @@ export const generatePdfHtml = async (shift: Shift): Promise<string> => {
     mapUrl = generateStaticMapUrlEncoded(locations, 800, 400) || '';
   }
   
-  // Convert photos to base64
+  // Convert photos to base64 and burn watermark
   const photoDataUris: Map<string, string> = new Map();
   if (shift.photos) {
+    const { burnWatermark } = await import("./burn-watermark");
+    
     for (const photo of shift.photos) {
       try {
-        const dataUri = await photoToBase64DataUri(photo.uri || '');
-        if (dataUri) {
-          photoDataUris.set(photo.uri, dataUri);
+        // First convert to base64
+        let dataUri = await photoToBase64DataUri(photo.uri || '');
+        if (!dataUri) continue;
+        
+        // Then burn watermark for PDF
+        if (photo.location) {
+          const watermarkedUri = await burnWatermark(dataUri, {
+            timestamp: formatTime(photo.timestamp),
+            date: formatDate(photo.timestamp),
+            address: photo.address || "Location unavailable",
+            latitude: photo.location.latitude,
+            longitude: photo.location.longitude,
+            staffName: shift.staffName,
+            siteName: shift.siteName,
+          });
+          dataUri = watermarkedUri;
         }
+        
+        photoDataUris.set(photo.uri, dataUri);
       } catch (e) {
-        console.log("Photo conversion error:", e);
+        console.log("Photo conversion/watermark error:", e);
       }
     }
   }

@@ -38,6 +38,7 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { syncShiftStart, syncLocation, syncPhoto, syncNote, syncShiftEnd } from "@/lib/server-sync";
 import { PhotoWatermark, PhotoWatermarkRef } from "@/components/photo-watermark";
+import { PhotoWatermarkOverlay } from "@/components/photo-watermark-overlay";
 // Note: captureRef from react-native-view-shot cannot capture camera feed (produces black images)
 import { getApiBaseUrl } from "@/constants/oauth";
 import { SyncStatusIndicator } from "@/components/sync-status-indicator";
@@ -563,44 +564,28 @@ export default function HomeScreen() {
       console.log("[Camera] Taking picture...");
       finalUri = await captureWithCameraAndWatermark();
       
-      // Helper function for camera + watermark approach
+      // Helper function for INSTANT camera capture (no watermarking)
       async function captureWithCameraAndWatermark(): Promise<string> {
         if (!cameraRef.current) {
           throw new Error("Camera not ready");
         }
         
+        // INSTANT capture: no base64, no compression, no watermarking
         const photo = await cameraRef.current.takePictureAsync({ 
           quality: 0.8,
-          skipProcessing: true,
+          base64: false,
+          exif: true,
+          skipProcessing: true, // Android: huge speedup
         });
         
         if (!photo || !photo.uri) {
           throw new Error("Failed to capture photo");
         }
         
-        console.log("[Camera] Photo taken:", photo.uri.substring(0, 50));
+        console.log("[Camera] Photo captured instantly:", photo.uri.substring(0, 50));
         
-        // Add watermark using canvas
-        const watermarkData = {
-          timestamp: formatTime(),
-          date: formatDate(),
-          address: currentAddress || "Location unavailable",
-          latitude: photoLocation?.coords.latitude || 0,
-          longitude: photoLocation?.coords.longitude || 0,
-          staffName: activeShift!.staffName,
-          siteName: activeShift!.siteName,
-        };
-        
-        try {
-          console.log("[FastWatermark] Adding watermark...");
-          const { addFastWatermark } = await import("@/lib/fast-watermark");
-          const watermarkedUri = await addFastWatermark(photo.uri, watermarkData);
-          console.log("[FastWatermark] Done:", watermarkedUri?.substring(0, 50));
-          return watermarkedUri || photo.uri;
-        } catch (wmError) {
-          console.log("[FastWatermark] Error, using original:", wmError);
-          return photo.uri;
-        }
+        // Return raw photo URI immediately - watermark will be overlay in UI
+        return photo.uri;
       }
       
       // Step 3: Save to permanent file location on native
@@ -616,8 +601,18 @@ export default function HomeScreen() {
           }
           
           await FileSystem.copyAsync({ from: finalUri, to: destPath });
+          
+          // Verify file exists and has size
+          const fileInfo = await FileSystem.getInfoAsync(destPath);
+          if (!fileInfo.exists) {
+            throw new Error("Photo save failed: file does not exist");
+          }
+          if (fileInfo.size === 0) {
+            throw new Error("Photo save failed: file is empty");
+          }
+          
           finalUri = destPath;
-          console.log("[Photo] Saved to:", finalUri);
+          console.log("[Photo] Saved to:", finalUri, "size:", fileInfo.size);
         } catch (saveError) {
           console.log("[Photo] Could not save to documents:", saveError);
         }
@@ -640,96 +635,58 @@ export default function HomeScreen() {
       if (updated) {
         setActiveShift(updated);
         setLastPhoto(finalUri);
-        // Sync photo to server with compression and base64 conversion
-        try {
-          console.log("[Photo Sync] Starting sync for:", finalUri.substring(0, 50));
-          
-          // Use photoToBase64DataUri which handles all platforms (web blob, native file://)
-          const { photoToBase64DataUri } = await import("@/lib/photo-to-base64");
-          const photoDataUri = await photoToBase64DataUri(finalUri, 1920, 0.7);
-          
-          if (!photoDataUri) {
-            console.log("[Photo Sync] Failed to convert to base64, skipping sync");
-            return;
-          }
-          
-          // Verify it's a data URI before sending
-          if (!photoDataUri.startsWith("data:image/")) {
-            console.log("[Photo Sync] Not a data URI, attempting direct conversion");
-            // Last resort: try direct canvas conversion for web
-            if (Platform.OS === "web" && typeof document !== "undefined") {
-              const dataUri = await convertBlobToDataUri(finalUri);
-              if (dataUri) {
-                await doPhotoSync(dataUri);
-                return;
-              }
-            }
-            console.log("[Photo Sync] Could not convert to data URI, skipping");
-            return;
-          }
-          
-          console.log("[Photo Sync] Data URI ready, length:", photoDataUri.length);
-          await doPhotoSync(photoDataUri);
-          
-          async function doPhotoSync(dataUri: string) {
-            const syncResult = await syncPhoto({
-              shiftId: updated!.id,
-              pairCode: updated!.pairCode,
-              photoUri: dataUri,
-              latitude: photoLocation?.coords.latitude,
-              longitude: photoLocation?.coords.longitude,
-              address: currentAddress,
-              timestamp: shiftPhoto.timestamp,
-            });
-            
-            if (syncResult.photoUrl) {
-              console.log("[Photo Sync] Uploaded to cloud:", syncResult.photoUrl);
-            }
-          }
-          
-          // Helper for web blob conversion - uses browser's native Image constructor
-          async function convertBlobToDataUri(blobUrl: string): Promise<string | null> {
-            return new Promise((resolve) => {
-              // Use window.Image to get browser's native HTMLImageElement (not React Native's Image)
-              const img = new (window as any).Image() as HTMLImageElement;
-              img.crossOrigin = "anonymous";
-              img.onload = () => {
-                try {
-                  const canvas = document.createElement("canvas");
-                  canvas.width = Math.min(img.width, 1920);
-                  canvas.height = Math.round(img.height * (canvas.width / img.width));
-                  const ctx = canvas.getContext("2d");
-                  if (ctx) {
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    resolve(canvas.toDataURL("image/jpeg", 0.7));
-                  } else {
-                    resolve(null);
-                  }
-                } catch { resolve(null); }
-              };
-              img.onerror = () => resolve(null);
-              setTimeout(() => resolve(null), 5000);
-              img.src = blobUrl;
-            });
-          }
-        } catch (syncError) {
-          console.log("Photo sync error (non-blocking):", syncError);
-        }
+        
+        // Sync photo to server in background (non-blocking)
+        // This will convert to base64 and upload without blocking UI
+        syncPhotoInBackground(finalUri, shiftPhoto, updated).catch(err => {
+          console.log("[Photo Sync] Background sync failed:", err);
+        });
       }
-      
-      if (Platform.OS !== "web") {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-      
-      alert(`✓ Photo #${updated?.photos.length || 1} saved!\n\n${currentAddress}`);
-    } catch (e: any) {
-      console.error("Photo error:", e);
-      alert(`Camera error: ${e.message || "Unknown error"}. Try flipping the camera or restarting the app.`);
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      alert("Failed to take photo. Please try again.");
     } finally {
-      // Always clear loading state
       setIsLoading(false);
     }
   };
+  
+  // Background photo sync (non-blocking)
+  async function syncPhotoInBackground(
+    photoUri: string,
+    shiftPhoto: ShiftPhoto,
+    shift: Shift
+  ) {
+    try {
+      console.log("[Photo Sync] Starting background sync for:", photoUri.substring(0, 50));
+      
+      // Use photoToBase64DataUri which handles all platforms (web blob, native file://)
+      const { photoToBase64DataUri } = await import("@/lib/photo-to-base64");
+      const photoDataUri = await photoToBase64DataUri(photoUri, 1920, 0.7);
+      
+      if (!photoDataUri || !photoDataUri.startsWith("data:image/")) {
+        console.log("[Photo Sync] Could not convert to data URI, skipping");
+        return;
+      }
+      
+      console.log("[Photo Sync] Data URI ready, uploading...");
+      
+      const syncResult = await syncPhoto({
+        shiftId: shift.id,
+        pairCode: shift.pairCode,
+        photoUri: photoDataUri,
+        latitude: shiftPhoto.location?.latitude,
+        longitude: shiftPhoto.location?.longitude,
+        address: shiftPhoto.address,
+        timestamp: shiftPhoto.timestamp,
+      });
+      
+      if (syncResult.photoUrl) {
+        console.log("[Photo Sync] Uploaded to cloud:", syncResult.photoUrl);
+      }
+    } catch (syncError) {
+      console.log("[Photo Sync] Background sync error (non-blocking):", syncError);
+    }
+  }
 
   const formatTime = () => currentTime.toLocaleTimeString("en-US", { hour12: false });
   const formatDate = () => currentTime.toLocaleDateString();
@@ -806,8 +763,8 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               )}
               
-              {/* Photo */}
-              <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 10 }}>
+              {/* Photo with watermark overlay */}
+              <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 10, position: "relative" }}>
                 {Platform.OS === "web" ? (
                   <img 
                     src={selectedPhoto.uri} 
@@ -821,6 +778,19 @@ export default function HomeScreen() {
                     style={{ width: "100%", height: "100%" }} 
                     resizeMode="contain"
                     onError={(e) => console.log("[PhotoViewer] Image load error:", e.nativeEvent.error)}
+                  />
+                )}
+                
+                {/* Watermark overlay */}
+                {selectedPhoto.location && (
+                  <PhotoWatermarkOverlay
+                    timestamp={new Date(selectedPhoto.timestamp).toLocaleTimeString("en-US", { hour12: false })}
+                    date={new Date(selectedPhoto.timestamp).toLocaleDateString()}
+                    address={selectedPhoto.address || "Location unavailable"}
+                    latitude={selectedPhoto.location.latitude}
+                    longitude={selectedPhoto.location.longitude}
+                    staffName={activeShift?.staffName}
+                    siteName={activeShift?.siteName}
                   />
                 )}
               </View>
