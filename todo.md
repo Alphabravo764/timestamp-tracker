@@ -791,3 +791,24 @@ Based on user's detailed specifications and sample code:
 - [x] Fix photo viewer blinking/flickering when opening captured photos - FIXED (memoized state calculations)
 - [x] Fix thumbnail in camera app not opening photo viewer - FIXED (removed dependency on lastPhoto state)
 - [x] Fix photos not appearing in web viewer tab - FIXED (handle both photoUri and url fields)
+
+## PHOTO CAPTURE OPTIMIZATION - Jan 4, 2026
+- [ ] Make photo capture instant - save to local storage immediately without watermark
+- [ ] Implement background sync queue for uploading photos to server
+- [ ] Apply watermark only when viewing/sharing photos (lazy watermarking)
+- [ ] Remove blocking watermark processing from camera capture flow
+- [ ] Test instant capture performance on native devices
+
+## PHOTO CAPTURE OPTIMIZATION - Jan 4, 2026
+- [ ] Make photo capture instant - save to local storage immediately without watermark
+- [ ] Implement background sync queue for uploading photos to server
+- [ ] Apply watermark only when viewing/sharing photos (lazy watermarking)
+- [ ] Remove blocking watermark processing from camera capture flow
+- [ ] Test instant capture performance on native devices
+
+## PHOTO OPTIMIZATION COMPLETED - Jan 4, 2026
+- [x] Make photo capture instant - save to local storage immediately without watermark
+- [x] Implement background sync queue for uploading photos to server (setTimeout with 100ms delay)
+- [x] Apply watermark only when viewing/sharing photos (lazy watermarking with cache)
+- [x] Remove blocking watermark processing from camera capture flow
+- [x] Photo viewer shows original instantly, then loads watermarked version
