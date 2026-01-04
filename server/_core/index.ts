@@ -67,7 +67,14 @@ async function startServer() {
 
   // Viewer page (pair code is in URL as :code)
   app.get("/viewer/:code", (_req, res) => {
-    res.sendFile(path.join(simpleWebDir, "viewer.html"));
+    // Read viewer.html and inject MapBox token
+    const viewerPath = path.join(simpleWebDir, "viewer.html");
+    let html = fs.readFileSync(viewerPath, "utf-8");
+    // Inject MapBox token as a global variable
+    const mapboxToken = process.env.MAPBOX_ACCESS_TOKEN || "";
+    html = html.replace("</head>", `<script>window.MAPBOX_TOKEN = "${mapboxToken}";</script></head>`);
+    res.setHeader("Content-Type", "text/html");
+    res.send(html);
   });
 
   // Policy pages

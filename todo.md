@@ -858,3 +858,13 @@ Based on user's detailed specifications and sample code:
 - [x] Fixed syncNote call to include latitude, longitude, accuracy
 - [x] Fixed viewer.html to check both note.location.latitude and note.latitude formats
 - [x] Notes now show location address instead of "Location not recorded"
+
+## MAPBOX STATIC MAP FOR PDF - Jan 4, 2026
+- [ ] Request MapBox API key from user
+- [ ] Implement static map image with polyline for PDF print
+- [ ] Replace Leaflet map with static image when printing
+- [ ] Test PDF generation shows polyline route correctly
+- [ ] Replace Leaflet with MapBox GL JS on viewer page
+- [ ] Add static MapBox map image for PDF print with polyline
+- [x] Replace Leaflet with MapBox GL JS on viewer page - DONE
+- [x] Add static MapBox map image for PDF print with polyline - DONE

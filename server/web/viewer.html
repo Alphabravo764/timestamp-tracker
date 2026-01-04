@@ -5,12 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Live Tracking - Watcher Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <!-- Leaflet CSS for OpenStreetMap -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <!-- Leaflet.heat plugin for heatmap -->
-  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+  <!-- MapBox GL JS -->
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
@@ -620,6 +617,21 @@
       font-size: 48px;
     }
     
+    /* Static map for print */
+    .static-map-print {
+      display: none;
+      width: 100%;
+      height: 500px;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    
+    .static-map-print img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
     /* Print styles */
     @media print {
       body {
@@ -634,12 +646,21 @@
       /* Hide interactive elements */
       .download-btn,
       #heatmap-toggle,
-      .leaflet-control-zoom {
+      .mapboxgl-control-container,
+      .mapboxgl-ctrl,
+      #replay-play,
+      #replay-speed {
         display: none !important;
       }
       
-      /* Ensure map is visible */
+      /* Hide MapBox map during print */
       #map {
+        display: none !important;
+      }
+      
+      /* Show static map during print */
+      .static-map-print {
+        display: block !important;
         page-break-inside: avoid;
       }
       
@@ -776,7 +797,7 @@
       }
     }
     
-    // Initialize Static Map
+    // Initialize Map with MapBox GL JS
     function initMap(locations) {
       if (!locations || locations.length === 0) return;
       
@@ -785,237 +806,210 @@
       
       // Get latest location
       const latest = locations[locations.length - 1];
-      const center = `${latest.latitude},${latest.longitude}`;
+      const startLoc = locations[0];
       
-      // Build path for polyline (max 100 points)
-      const maxPoints = Math.min(locations.length, 100);
-      const step = Math.max(1, Math.floor(locations.length / maxPoints));
-      const pathPoints = [];
-      for (let i = 0; i < locations.length; i += step) {
-        pathPoints.push(`${locations[i].latitude},${locations[i].longitude}`);
-      }
-      const path = pathPoints.join('|');
-      
-      // Create map using Leaflet (OpenStreetMap - free, no API key)
-      mapDiv.innerHTML = '<div id="leaflet-map" style="width: 100%; height: 100%;"></div>';
-      
-      // Leaflet is pre-loaded in <head>, check if available
-      if (typeof L === 'undefined') {
-        mapDiv.innerHTML = '<div style="padding: 40px; text-align: center; color: #666;"><p style="font-size: 18px; margin-bottom: 8px;">📍 Route Map</p><p>' + locations.length + ' GPS points recorded</p><p style="font-size: 12px; color: #f87171; margin-top: 8px;">Leaflet library not loaded</p></div>';
+      // Check if MapBox GL is available
+      if (typeof mapboxgl === 'undefined') {
+        mapDiv.innerHTML = '<div style="padding: 40px; text-align: center; color: #666;"><p style="font-size: 18px; margin-bottom: 8px;">📍 Route Map</p><p>' + locations.length + ' GPS points recorded</p><p style="font-size: 12px; color: #f87171; margin-top: 8px;">MapBox library not loaded</p></div>';
         return;
       }
+      
+      // Set MapBox access token from injected global
+      mapboxgl.accessToken = window.MAPBOX_TOKEN || '';
+      if (!mapboxgl.accessToken) {
+        mapDiv.innerHTML = '<div style="padding: 40px; text-align: center; color: #666;"><p style="font-size: 18px; margin-bottom: 8px;">📍 Route Map</p><p>' + locations.length + ' GPS points recorded</p><p style="font-size: 12px; color: #f87171; margin-top: 8px;">MapBox token not configured</p></div>';
+        return;
+      }
+      
+      // Create MapBox GL map
+      const map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: [latest.longitude, latest.latitude],
+        zoom: 15
+      });
+      
+      // Add navigation controls
+      map.addControl(new mapboxgl.NavigationControl());
+      
+      // Store map reference for later
+      window.mapboxMap = map;
+      
+      // Add route polyline and markers when map loads
+      map.on('load', () => {
+        // Build coordinates array for polyline
+        const coordinates = locations.map(loc => [loc.longitude, loc.latitude]);
         
-        const leafletMap = L.map('leaflet-map').setView([latest.latitude, latest.longitude], 15);
-        
-        // Add OpenStreetMap tiles
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors'
-        }).addTo(leafletMap);
-        
-        // Add polyline for route (MAIN PATROL TRAIL)
-        const latlngs = locations.map(loc => [loc.latitude, loc.longitude]);
-        const polyline = L.polyline(latlngs, {
-          color: '#2563eb',
-          weight: 4,
-          opacity: 0.7,
-          smoothFactor: 1
-        }).addTo(leafletMap);
-        
-        // Add small circle markers along the route (every 10th point)
-        const markerInterval = Math.max(1, Math.floor(locations.length / 20));
-        for (let i = 0; i < locations.length; i += markerInterval) {
-          const loc = locations[i];
-          L.circleMarker([loc.latitude, loc.longitude], {
-            radius: 3,
-            fillColor: '#3b82f6',
-            color: '#ffffff',
-            weight: 1,
-            fillOpacity: 0.8
-          }).addTo(leafletMap);
-        }
-        
-        // Add START marker (green)
-        const startLoc = locations[0];
-        const startTime = new Date(startLoc.timestamp).toLocaleTimeString();
-        L.circleMarker([startLoc.latitude, startLoc.longitude], {
-          radius: 10,
-          fillColor: '#10b981',
-          color: '#ffffff',
-          weight: 3,
-          fillOpacity: 1
-        }).bindPopup(`<strong>🟢 Start</strong><br/>${startTime}`).addTo(leafletMap);
-        
-        // Add END marker (red) - current location
-        const endLoc = locations[locations.length - 1];
-        const endTime = new Date(endLoc.timestamp).toLocaleTimeString();
-        L.circleMarker([endLoc.latitude, endLoc.longitude], {
-          radius: 10,
-          fillColor: '#ef4444',
-          color: '#ffffff',
-          weight: 3,
-          fillOpacity: 1
-        }).bindPopup(`<strong>🔴 Current Location</strong><br/>${endTime}`).addTo(leafletMap);
-        
-        // Add middle checkpoint marker (yellow) if route is long enough
-        if (locations.length > 10) {
-          const midIndex = Math.floor(locations.length / 2);
-          const midLoc = locations[midIndex];
-          const midTime = new Date(midLoc.timestamp).toLocaleTimeString();
-          L.circleMarker([midLoc.latitude, midLoc.longitude], {
-            radius: 8,
-            fillColor: '#f59e0b',
-            color: '#ffffff',
-            weight: 2,
-            fillOpacity: 1
-          }).bindPopup(`<strong>🟡 Midpoint</strong><br/>${midTime}`).addTo(leafletMap);
-        }
-        
-        // Create heatmap layer (hidden by default)
-        const heatPoints = locations.map(loc => [loc.latitude, loc.longitude, 0.5]);
-        const heatLayer = L.heatLayer(heatPoints, {
-          radius: 25,
-          blur: 15,
-          maxZoom: 17,
-          max: 1.0,
-          gradient: {0.4: 'blue', 0.6: 'cyan', 0.7: 'lime', 0.8: 'yellow', 1.0: 'red'}
+        // Add route polyline source
+        map.addSource('route', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: coordinates
+            }
+          }
         });
         
-        // Add heatmap toggle button
-        const heatmapControl = L.control({ position: 'topright' });
-        heatmapControl.onAdd = function() {
-          const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-          div.innerHTML = '<button id="heatmap-toggle" style="background: white; border: none; padding: 8px 12px; cursor: pointer; font-size: 14px; border-radius: 4px;">🔥 Heatmap</button>';
-          div.onclick = function() {
-            if (leafletMap.hasLayer(heatLayer)) {
-              leafletMap.removeLayer(heatLayer);
-              document.getElementById('heatmap-toggle').style.background = 'white';
-            } else {
-              leafletMap.addLayer(heatLayer);
-              document.getElementById('heatmap-toggle').style.background = '#ef4444';
-              document.getElementById('heatmap-toggle').style.color = 'white';
-            }
-          };
-          return div;
-        };
-        heatmapControl.addTo(leafletMap);
+        // Add route polyline layer (amber/orange color)
+        map.addLayer({
+          id: 'route',
+          type: 'line',
+          source: 'route',
+          layout: {
+            'line-join': 'round',
+            'line-cap': 'round'
+          },
+          paint: {
+            'line-color': '#f59e0b',
+            'line-width': 4,
+            'line-opacity': 0.9
+          }
+        });
+        
+        // Add START marker (green)
+        const startEl = document.createElement('div');
+        startEl.className = 'marker-start';
+        startEl.style.cssText = 'width: 24px; height: 24px; background: #10b981; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.3);';
+        new mapboxgl.Marker(startEl)
+          .setLngLat([startLoc.longitude, startLoc.latitude])
+          .setPopup(new mapboxgl.Popup().setHTML('<strong>🟢 Start</strong><br/>' + new Date(startLoc.timestamp).toLocaleTimeString()))
+          .addTo(map);
+        
+        // Add END marker (red)
+        const endEl = document.createElement('div');
+        endEl.className = 'marker-end';
+        endEl.style.cssText = 'width: 24px; height: 24px; background: #ef4444; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.3);';
+        new mapboxgl.Marker(endEl)
+          .setLngLat([latest.longitude, latest.latitude])
+          .setPopup(new mapboxgl.Popup().setHTML('<strong>🔴 Current</strong><br/>' + new Date(latest.timestamp).toLocaleTimeString()))
+          .addTo(map);
         
         // Fit bounds to show entire route
-        const bounds = L.latLngBounds(latlngs);
-        leafletMap.fitBounds(bounds, { padding: [50, 50] });
+        const bounds = coordinates.reduce((bounds, coord) => {
+          return bounds.extend(coord);
+        }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
+        map.fitBounds(bounds, { padding: 50 });
         
-        // Add route replay animation
-        let replayMarker = null;
-        let replayInterval = null;
-        let replayIndex = 0;
-        let isPlaying = false;
-        let playbackSpeed = 1; // 1x, 2x, 4x
+        // Generate static map for print
+        generateStaticMap(locations);
+      });
+      
+      // Add Play Route control
+      const playControl = document.createElement('div');
+      playControl.style.cssText = 'position: absolute; bottom: 20px; left: 20px; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1;';
+      playControl.innerHTML = `
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button id="replay-play" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; cursor: pointer; font-size: 14px; border-radius: 4px; font-weight: 600;">
+            ▶️ Play Route
+          </button>
+          <button id="replay-speed" style="background: #f3f4f6; border: none; padding: 8px 12px; cursor: pointer; font-size: 12px; border-radius: 4px; font-weight: 600;">
+            1x
+          </button>
+        </div>
+      `;
+      mapDiv.appendChild(playControl);
+      
+      // Replay animation state
+      let replayMarker = null;
+      let replayInterval = null;
+      let replayIndex = 0;
+      let isPlaying = false;
+      let playbackSpeed = 1;
+      
+      document.getElementById('replay-play').onclick = function() {
+        if (isPlaying) {
+          stopReplay();
+        } else {
+          startReplay();
+        }
+      };
+      
+      document.getElementById('replay-speed').onclick = function() {
+        playbackSpeed = playbackSpeed === 1 ? 2 : playbackSpeed === 2 ? 4 : 1;
+        this.textContent = playbackSpeed + 'x';
+        if (isPlaying) {
+          stopReplay();
+          startReplay();
+        }
+      };
+      
+      function startReplay() {
+        isPlaying = true;
+        document.getElementById('replay-play').innerHTML = '⏸️ Pause';
         
-        const replayControl = L.control({ position: 'bottomleft' });
-        replayControl.onAdd = function() {
-          const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-          div.style.background = 'white';
-          div.style.padding = '10px';
-          div.style.borderRadius = '8px';
-          div.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-          div.innerHTML = `
-            <div style="display: flex; flex-direction: column; gap: 8px; min-width: 200px;">
-              <div style="display: flex; gap: 8px; align-items: center;">
-                <button id="replay-play" style="flex: 1; background: #3b82f6; color: white; border: none; padding: 8px 12px; cursor: pointer; font-size: 14px; border-radius: 4px; font-weight: 600;">
-                  ▶️ Play Route
-                </button>
-                <button id="replay-speed" style="background: #f3f4f6; border: none; padding: 8px 12px; cursor: pointer; font-size: 12px; border-radius: 4px; font-weight: 600;">
-                  1x
-                </button>
-              </div>
-              <div id="replay-info" style="font-size: 12px; color: #64748b; text-align: center; display: none;">
-                <div id="replay-timestamp"></div>
-                <div id="replay-progress"></div>
-              </div>
-            </div>
-          `;
-          
-          // Play/Pause button
-          div.querySelector('#replay-play').onclick = function() {
-            if (isPlaying) {
-              stopReplay();
-            } else {
-              startReplay();
-            }
-          };
-          
-          // Speed button
-          div.querySelector('#replay-speed').onclick = function() {
-            playbackSpeed = playbackSpeed === 1 ? 2 : playbackSpeed === 2 ? 4 : 1;
-            this.textContent = playbackSpeed + 'x';
-            if (isPlaying) {
-              stopReplay();
-              startReplay();
-            }
-          };
-          
-          return div;
-        };
-        replayControl.addTo(leafletMap);
-        
-        function startReplay() {
-          isPlaying = true;
-          document.getElementById('replay-play').innerHTML = '⏸️ Pause';
-          document.getElementById('replay-info').style.display = 'block';
-          
-          // Create animated marker
-          if (!replayMarker) {
-            replayMarker = L.circleMarker(latlngs[0], {
-              radius: 12,
-              fillColor: '#8b5cf6',
-              color: '#ffffff',
-              weight: 3,
-              fillOpacity: 1
-            }).addTo(leafletMap);
-          }
-          
-          // Animate marker along route
-          const baseInterval = 100; // ms between updates
-          const interval = baseInterval / playbackSpeed;
-          
-          replayInterval = setInterval(() => {
-            if (replayIndex >= locations.length) {
-              stopReplay();
-              replayIndex = 0;
-              return;
-            }
-            
-            const loc = locations[replayIndex];
-            replayMarker.setLatLng([loc.latitude, loc.longitude]);
-            
-            // Update info panel
-            const timestamp = new Date(loc.timestamp).toLocaleTimeString();
-            const progress = Math.round((replayIndex / locations.length) * 100);
-            document.getElementById('replay-timestamp').textContent = `⏱️ ${timestamp}`;
-            document.getElementById('replay-progress').textContent = `📍 Point ${replayIndex + 1} / ${locations.length} (${progress}%)`;
-            
-            // Pan map to follow marker
-            leafletMap.panTo([loc.latitude, loc.longitude], { animate: true, duration: 0.3 });
-            
-            replayIndex++;
-          }, interval);
+        if (!replayMarker) {
+          const el = document.createElement('div');
+          el.style.cssText = 'width: 20px; height: 20px; background: #8b5cf6; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.3);';
+          replayMarker = new mapboxgl.Marker(el)
+            .setLngLat([locations[0].longitude, locations[0].latitude])
+            .addTo(map);
         }
         
-        function stopReplay() {
-          isPlaying = false;
-          document.getElementById('replay-play').innerHTML = '▶️ Play Route';
-          if (replayInterval) {
-            clearInterval(replayInterval);
-            replayInterval = null;
-          }
+        const baseInterval = 100;
+        const interval = baseInterval / playbackSpeed;
+        
+        replayInterval = setInterval(() => {
           if (replayIndex >= locations.length) {
+            stopReplay();
             replayIndex = 0;
-            if (replayMarker) {
-              leafletMap.removeLayer(replayMarker);
-              replayMarker = null;
-            }
-            document.getElementById('replay-info').style.display = 'none';
+            return;
           }
+          
+          const loc = locations[replayIndex];
+          replayMarker.setLngLat([loc.longitude, loc.latitude]);
+          map.panTo([loc.longitude, loc.latitude]);
+          replayIndex++;
+        }, interval);
+      }
+      
+      function stopReplay() {
+        isPlaying = false;
+        document.getElementById('replay-play').innerHTML = '▶️ Play Route';
+        if (replayInterval) {
+          clearInterval(replayInterval);
+          replayInterval = null;
         }
+        if (replayIndex >= locations.length && replayMarker) {
+          replayMarker.remove();
+          replayMarker = null;
+        }
+      }
+    }
+    
+    // Generate static map image for PDF print
+    function generateStaticMap(locations) {
+      const staticDiv = document.getElementById('staticMapPrint');
+      if (!staticDiv || !window.MAPBOX_TOKEN) return;
+      
+      const latest = locations[locations.length - 1];
+      const startLoc = locations[0];
+      
+      // Build polyline path (sample max 100 points for URL length)
+      const sampleRate = Math.max(1, Math.floor(locations.length / 100));
+      const pathCoords = locations
+        .filter((_, i) => i % sampleRate === 0)
+        .map(loc => `${loc.longitude.toFixed(5)},${loc.latitude.toFixed(5)}`)
+        .join(';');
+      
+      // MapBox static API path overlay
+      const pathOverlay = `path-4+f59e0b-0.9(${encodeURIComponent(pathCoords)})`;
+      
+      // Start marker (green)
+      const startMarker = `pin-s-a+10b981(${startLoc.longitude},${startLoc.latitude})`;
+      
+      // End marker (red)
+      const endMarker = `pin-s-b+ef4444(${latest.longitude},${latest.latitude})`;
+      
+      const width = 600;
+      const height = 400;
+      
+      // Use auto zoom to fit all points
+      const staticUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${pathOverlay},${startMarker},${endMarker}/auto/${width}x${height}?access_token=${window.MAPBOX_TOKEN}`;
+      
+      staticDiv.innerHTML = `<img src="${staticUrl}" alt="Route Map" style="width: 100%; height: 100%; object-fit: cover;" />`;
     }
     
     // Render dashboard
@@ -1178,6 +1172,7 @@
         <div class="main-content">
           <div class="map-container">
             <div id="map"></div>
+            <div class="static-map-print" id="staticMapPrint"></div>
             <div class="map-overlay">
               ${shift.locations ? shift.locations.length : 0} GPS points recorded
             </div>
