@@ -19,6 +19,7 @@ import { useColors } from "@/hooks/use-colors";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
+import * as WebBrowser from "expo-web-browser";
 import Constants from "expo-constants";
 import {
   startShift,
@@ -458,56 +459,31 @@ export default function HomeScreen() {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       
-      // Get the API base URL (Railway production or local dev)
+      // Get the API base URL (Railway production)
       const apiUrl = getApiBaseUrl();
       
-      // Build PDF download URL with format=pdf parameter
-      const pdfUrl = `${apiUrl}/api/sync/shift/${activeShift.pairCode}?format=pdf`;
+      // Open the viewer page - user can print to PDF from there
+      // This produces the exact same PDF design as the live viewer
+      const viewerUrl = `${apiUrl}/viewer/${activeShift.pairCode}`;
       
       if (Platform.OS === "web") {
-        // On web, trigger PDF download directly
-        const link = document.createElement("a");
-        link.href = pdfUrl;
-        link.download = `shift-report-${activeShift.staffName.replace(/\s+/g, "-")}-${activeShift.pairCode}.pdf`;
-        link.target = "_blank";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } else {
-        // On mobile, download PDF and share
-        try {
-          const fileName = `shift-report-${activeShift.pairCode}.pdf`;
-          const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
-          
-          // Download PDF file
-          const downloadResult = await FileSystem.downloadAsync(pdfUrl, fileUri);
-          
-          if (downloadResult.status === 200) {
-            // Share the downloaded PDF
-            const isAvailable = await Sharing.isAvailableAsync();
-            if (isAvailable) {
-              await Sharing.shareAsync(downloadResult.uri, {
-                mimeType: "application/pdf",
-                dialogTitle: "Share Shift Report PDF",
-              });
-            } else {
-              alert("PDF downloaded but sharing not available");
-            }
-          } else {
-            throw new Error("Failed to download PDF");
-          }
-        } catch (downloadError) {
-          console.error("PDF download error:", downloadError);
-          // Fallback: share the PDF URL
-          await Share.share({ 
-            message: pdfUrl,
-            title: `Shift Report PDF - ${activeShift.siteName}`
-          });
+        // On web, open viewer in new tab with print dialog
+        const printWindow = window.open(viewerUrl, "_blank");
+        if (printWindow) {
+          // Wait for page to load then trigger print
+          printWindow.onload = () => {
+            setTimeout(() => {
+              printWindow.print();
+            }, 2000); // Wait for map to render
+          };
         }
+      } else {
+        // On mobile, open viewer in browser - user can use browser's share/print
+        await WebBrowser.openBrowserAsync(viewerUrl);
       }
     } catch (e) {
       console.error("Share report error:", e);
-      alert("Failed to generate PDF report");
+      alert("Failed to open report viewer");
     }
   };
 

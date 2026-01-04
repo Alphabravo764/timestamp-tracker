@@ -1304,50 +1304,13 @@
       }
     }
     
-    // Download PDF - generates comprehensive shift report
-    async function downloadPDF() {
+    // Download PDF - uses browser print to generate PDF with exact viewer design
+    function downloadPDF() {
       if (!shiftData) return;
       
-      try {
-        // Show loading state
-        const button = document.querySelector('.pdf-button');
-        const originalText = button.innerHTML;
-        button.innerHTML = '⏳ Generating PDF...';
-        button.disabled = true;
-        
-        // Request PDF from server
-        const pairCode = window.location.pathname.split('/').pop();
-        const response = await fetch(`/api/shift-report/${pairCode}`, {
-          method: 'GET'
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to generate PDF');
-        }
-        
-        // Download the PDF blob
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `shift-report-${shiftData.staffName.replace(/\s+/g, '-')}-${pairCode}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        
-        // Reset button
-        button.innerHTML = originalText;
-        button.disabled = false;
-      } catch (error) {
-        console.error('PDF download failed:', error);
-        alert('Failed to generate PDF report. Please try again.');
-        
-        // Reset button
-        const button = document.querySelector('.pdf-button');
-        button.innerHTML = '📄 Download Shift Report';
-        button.disabled = false;
-      }
+      // Use browser's print dialog - this produces the exact same layout as the viewer
+      // User can save as PDF from the print dialog
+      window.print();
     }
     
     // Show error

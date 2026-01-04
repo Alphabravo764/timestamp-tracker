@@ -829,3 +829,22 @@ Based on user's detailed specifications and sample code:
 - [x] PDF has simple verification footer with hash - DONE
 - [x] Photo compression before upload (1920px, 70%) - DONE
 - [x] Offline sync queue with auto-retry (30s) - DONE
+
+## CRITICAL - PDF REDESIGN - Jan 4, 2026
+- [ ] Replicate EXACT PDF design from NOPINPOINT.pdf:
+  - Header: Avatar with initials + LIVE badge, Staff name, Site name
+  - Stats row: DURATION (HH:MM), LOCATIONS count, PHOTOS count
+  - Location info: Address with postcode, GPS coords, accuracy
+  - MAP: Full width Leaflet map with polyline route (yellow line)
+  - Photos Timeline: Each photo card with time, date, address, photo image
+  - Notes Timeline: Each note card with time, date, location, note text (with left border)
+  - Footer: "Download Shift Report" button
+  - Page numbers at bottom right
+
+## COMPLETED - PDF REDESIGN - Jan 4, 2026
+- [x] PDF now uses browser print - produces EXACT same design as live viewer
+- [x] Map with polyline route included
+- [x] Photos Timeline with timestamps, dates, addresses, images
+- [x] Notes Timeline with left border styling
+- [x] Header with avatar, LIVE badge, stats (Duration, Locations, Photos)
+- [x] Download Shift Report button triggers print dialog
