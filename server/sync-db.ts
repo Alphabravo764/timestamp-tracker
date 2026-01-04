@@ -8,6 +8,22 @@ import { getDb } from "./db.js";
 import { shifts, locationPoints, photoEvents, noteEvents, type InsertShift, type InsertLocationPoint, type InsertPhotoEvent, type InsertNoteEvent, type LocationPoint, type PhotoEvent, type NoteEvent } from "../drizzle/schema.js";
 
 /**
+ * Test database connection
+ */
+export async function testConnection(): Promise<boolean> {
+  try {
+    const db = await getDb();
+    if (!db) return false;
+    // Try a simple query
+    await db.select().from(shifts).limit(1);
+    return true;
+  } catch (error) {
+    console.error("[sync-db] Connection test failed:", error);
+    return false;
+  }
+}
+
+/**
  * Create or update a shift in the database
  */
 export async function upsertShift(data: {

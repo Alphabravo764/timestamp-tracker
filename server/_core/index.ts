@@ -89,12 +89,27 @@ async function startServer() {
   // ---- OAuth + health ----
   registerOAuthRoutes(app);
 
-  app.get("/api/health", (_req, res) => {
-    res.json({ ok: true, timestamp: Date.now() });
-  });
-
   // ---- Database sync APIs ----
   const syncDb = await import("../sync-db.js");
+
+  app.get("/api/health", async (_req, res) => {
+    try {
+      const db = await syncDb.testConnection();
+      res.json({ 
+        ok: true, 
+        timestamp: Date.now(),
+        database: db ? "connected" : "not configured",
+        databaseUrl: process.env.DATABASE_URL ? "set" : "not set"
+      });
+    } catch (error) {
+      res.json({ 
+        ok: true, 
+        timestamp: Date.now(),
+        database: "error",
+        error: String(error)
+      });
+    }
+  });
 
   app.post("/api/sync/shift", async (req, res) => {
     try {

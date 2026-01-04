@@ -916,3 +916,15 @@ Based on user's detailed specifications and sample code:
 - [x] Viewer URL is /viewer/:code (not /view/:code) - already correct in app
 - [x] Instant local watermarking - no server calls, uses native code
 - [x] All 110 tests passing
+
+## SERVER FETCH ISSUE - Jan 4, 2026 (Session 8 continued)
+- [x] Investigated server fetch issue
+- [x] Local server works correctly - database connected, shifts created/retrieved
+- [x] Railway has DATABASE_URL set correctly
+- [x] Added database health check to /api/health endpoint
+- [ ] Railway needs redeployment to get latest code
+- [ ] May need to run db:push on Railway to create tables
+
+## WATERMARKING - Session 8
+- [x] Added react-native-image-marker for native watermarking
+- [ ] Requires new APK build (native module added)
