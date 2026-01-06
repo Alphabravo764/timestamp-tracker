@@ -44,18 +44,18 @@
     .brand-icon {
       width: 32px;
       height: 32px;
-      background: #eff6ff;
+      background: #e6f0ff;
       border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
-      border: 1px solid #dbeafe;
+      border: 1px solid #b3d4ff;
     }
 
     .brand-icon svg {
-      width: 16px;
-      height: 16px;
-      color: #3b82f6;
+      width: 20px;
+      height: 20px;
+      color: #0055FF;
     }
 
     .brand-name {
@@ -936,7 +936,7 @@
       const statusText = shift.isActive ? 'In Progress' : 'Completed';
       const html = `
         <nav class="nav">
-          <div class="brand"><div class="brand-icon"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg></div><div><div class="brand-name">STAMPIA</div><div class="brand-tagline"><svg fill="currentColor" viewBox="0 0 20 20" style="width:10px;height:10px;color:#3b82f6"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>Proof of Presence</div></div></div>
+          <div class="brand"><div class="brand-icon"><svg viewBox="0 0 100 100" fill="none"><path d="M25 10H10V25" stroke="#0055FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M75 10H90V25" stroke="#0055FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M90 75V90H75" stroke="#0055FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M25 90H10V75" stroke="#0055FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M65 30H40C34.4772 30 30 34.4772 30 40V45C30 50.5228 34.4772 55 40 55H60C65.5228 55 70 59.4772 70 65V70C70 75.5228 65.5228 80 60 80H35" stroke="#0055FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div><div class="brand-name">STAMPIA</div><div class="brand-tagline"><svg viewBox="0 0 20 20" fill="#0055FF" style="width:10px;height:10px"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>Proof of Presence</div></div></div>
           <div class="nav-actions"><button class="btn-icon" onclick="downloadPDF()"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg></button><button class="btn-primary" onclick="navigator.share?.({url: location.href}) || navigator.clipboard.writeText(location.href).then(() => alert('Link copied!'))"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>Share</button></div>
         </nav>
         <main>

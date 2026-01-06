@@ -372,7 +372,8 @@ async function startServer() {
     body { font-family: 'Inter', -apple-system, sans-serif; background: #f8fafc; color: #1e293b; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     .nav { padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; background: white; }
     .brand { display: flex; align-items: center; gap: 12px; }
-    .brand-icon { width: 32px; height: 32px; background: #eff6ff; border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 1px solid #dbeafe; }
+    .brand-icon { width: 32px; height: 32px; background: #e6f0ff; border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 1px solid #b3d4ff; }
+    .brand-icon svg { width: 20px; height: 20px; }
     .brand-name { font-weight: 900; font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase; }
     .brand-tagline { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; color: #64748b; }
     main { max-width: 1200px; margin: 0 auto; padding: 24px; }
@@ -417,7 +418,7 @@ async function startServer() {
 <body>
   <nav class="nav">
     <div class="brand">
-      <div class="brand-icon">🛡️</div>
+      <div class="brand-icon"><svg viewBox="0 0 100 100" fill="none"><path d="M25 10H10V25" stroke="#0055FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M75 10H90V25" stroke="#0055FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M90 75V90H75" stroke="#0055FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M25 90H10V75" stroke="#0055FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M65 30H40C34.4772 30 30 34.4772 30 40V45C30 50.5228 34.4772 55 40 55H60C65.5228 55 70 59.4772 70 65V70C70 75.5228 65.5228 80 60 80H35" stroke="#0055FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div>
         <div class="brand-name">STAMPIA</div>
         <div class="brand-tagline">✓ Proof of Presence</div>

@@ -178,3 +178,14 @@ export function generateMapboxStaticUrl(
 export function getMapboxToken(): string {
     return MAPBOX_TOKEN;
 }
+
+/**
+ * Alias for reverseGeocodeMapbox - returns formatted address string
+ */
+export async function mapboxReverseGeocode(lat: number, lng: number): Promise<string> {
+    const result = await reverseGeocodeMapbox(lat, lng);
+    if (result) {
+        return formatMapboxAddress(result);
+    }
+    return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+}

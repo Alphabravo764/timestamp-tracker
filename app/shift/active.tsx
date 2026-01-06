@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,57 +7,106 @@ import {
   Alert,
   ScrollView,
   Share,
+  StyleSheet,
+  Platform,
+  Dimensions,
+  Animated,
+  Image,
+  Clipboard,
+  Linking,
+  TextInput,
+  Modal,
 } from "react-native";
-import { router } from "expo-router";
-import { ScreenContainer } from "@/components/screen-container";
-import { trpc } from "@/lib/trpc";
+import { PhotoWatermark, type PhotoWatermarkRef } from "@/components/photo-watermark";
+import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/use-colors";
 import * as Location from "expo-location";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  getActiveShift as getLocalActiveShift,
+  addPhotoToShift,
+  endShift as endLocalShift,
+  addLocationToShift,
+  addNoteToShift,
+} from "@/lib/shift-storage";
+import type { Shift } from "@/lib/shift-types";
+import { getSettings } from "@/lib/settings-storage";
+import { router, useFocusEffect } from "expo-router";
+import { syncLocation, syncShiftEnd, syncPhoto, syncNote } from "@/lib/server-sync";
+import { photoToBase64DataUri } from "@/lib/photo-to-base64";
+import { mapboxReverseGeocode, generateMapboxStaticUrl } from "@/lib/mapbox";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
+import { generatePdfHtml } from "@/lib/pdf-generator";
 
-export default function ActiveShiftScreen() {
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => void }) {
   const colors = useColors();
-  const [elapsedTime, setElapsedTime] = useState("");
+  const insets = useSafeAreaInsets();
+  const [activeShift, setActiveShift] = useState<Shift | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [showCamera, setShowCamera] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [currentLocation, setCurrentLocation] = useState<Location.LocationObject | null>(null);
+  const [currentAddress, setCurrentAddress] = useState<string>("Locating...");
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
   const cameraRef = useRef<CameraView>(null);
+  const watermarkRef = useRef<PhotoWatermarkRef>(null);
+  const [processing, setProcessing] = useState(false);
 
-  // Get active shift
-  const { data: activeShift, isLoading, refetch } = trpc.shifts.getActive.useQuery(undefined, {
-    refetchInterval: 5000,
-  });
+  // UI States from template
+  const [showQr, setShowQr] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+  const [showNotesModal, setShowNotesModal] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  const addLocationMutation = trpc.locations.addBatch.useMutation();
-  const endShiftMutation = trpc.shifts.end.useMutation();
-  const uploadPhotoMutation = trpc.photos.upload.useMutation();
-
-  // Calculate elapsed time
-  useEffect(() => {
-    if (!activeShift) {
-      setElapsedTime("");
-      return;
+  // Load shift from LOCAL storage (source of truth)
+  const loadShift = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const shift = await getLocalActiveShift();
+      if (shift && shift.isActive) {
+        setActiveShift(shift);
+      } else {
+        setActiveShift(null);
+      }
+    } catch (e) {
+      console.error("Failed to load shift:", e);
+      setActiveShift(null);
+    } finally {
+      setIsLoading(false);
     }
+  }, []);
 
-    const updateElapsed = () => {
-      const start = new Date(activeShift.startTimeUtc).getTime();
-      const now = Date.now();
-      const diff = now - start;
+  // Reload on screen focus
+  useFocusEffect(
+    useCallback(() => {
+      loadShift();
+    }, [loadShift])
+  );
 
-      const hours = Math.floor(diff / 3600000);
-      const minutes = Math.floor((diff % 3600000) / 60000);
-      const seconds = Math.floor((diff % 60000) / 1000);
-
-      setElapsedTime(
-        `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
-      );
-    };
-
-    updateElapsed();
-    const interval = setInterval(updateElapsed, 1000);
-    return () => clearInterval(interval);
-  }, [activeShift]);
+  // Pulse animation for live indicator
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.2,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
 
   // Start location tracking
   useEffect(() => {
@@ -68,37 +117,74 @@ export default function ActiveShiftScreen() {
         const { status } = await Location.getForegroundPermissionsAsync();
         if (status !== "granted") return;
 
-        // Start watching location
+        const settings = await getSettings();
+        const interval = (settings.locationInterval || 30) * 1000;
+
+        // INSTANT: Get last known position first (no network delay)
+        const lastKnown = await Location.getLastKnownPositionAsync({});
+        if (lastKnown) {
+          setCurrentLocation(lastKnown);
+          setCurrentAddress(`${lastKnown.coords.latitude.toFixed(4)}, ${lastKnown.coords.longitude.toFixed(4)}`);
+          // Background geocode (non-blocking)
+          mapboxReverseGeocode(
+            lastKnown.coords.latitude,
+            lastKnown.coords.longitude
+          ).then(addr => setCurrentAddress(addr)).catch(() => { });
+        }
+
+        // Background: Try fresh location with short timeout (non-blocking update)
+        Promise.race([
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000))
+        ]).then((freshLoc) => {
+          if (freshLoc && freshLoc.coords && freshLoc.coords.latitude !== 0) {
+            setCurrentLocation(freshLoc as Location.LocationObject);
+            mapboxReverseGeocode(
+              freshLoc.coords.latitude,
+              freshLoc.coords.longitude
+            ).then(addr => setCurrentAddress(addr)).catch(() => { });
+          }
+        }).catch(() => { });
+
         locationSubscription.current = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.High,
-            timeInterval: 60000, // Update every minute
-            distanceInterval: 50, // Or every 50 meters
+            timeInterval: interval,
+            distanceInterval: 10,
           },
-          (location) => {
+          async (location) => {
             setCurrentLocation(location);
-            // Send location to server
-            if (activeShift) {
-              addLocationMutation.mutate({
-                shiftId: activeShift.id,
-                points: [
-                  {
-                    latitude: location.coords.latitude,
-                    longitude: location.coords.longitude,
-                    accuracy: location.coords.accuracy ?? undefined,
-                    altitude: location.coords.altitude ?? undefined,
-                    speed: location.coords.speed ?? undefined,
-                    heading: location.coords.heading ?? undefined,
-                    capturedAt: new Date(location.timestamp),
-                    source: "gps",
-                  },
-                ],
-              });
+
+            // Save to local storage
+            await addLocationToShift({
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+              accuracy: location.coords.accuracy || undefined,
+              timestamp: new Date().toISOString()
+            });
+
+            // Update address occasionally if not tracking
+            // Use Mapbox sparingly or fallback
+            // We won't block here.
+
+            // Sync to server (non-blocking) - log for debugging
+            if (activeShift?.pairCode) {
+              const syncPayload = {
+                pairCode: activeShift.pairCode,
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+                accuracy: location.coords.accuracy || undefined,
+                timestamp: new Date().toISOString()
+              };
+              console.log('[SYNC] Sending location update:', syncPayload.pairCode, syncPayload.latitude.toFixed(4), syncPayload.longitude.toFixed(4));
+              syncLocation(syncPayload)
+                .then(() => console.log('[SYNC] Location synced successfully'))
+                .catch(err => console.error('[SYNC] Location sync failed:', err));
             }
           }
         );
       } catch (error) {
-        console.error("Error starting location tracking:", error);
+        console.error("Location tracking error:", error);
       }
     };
 
@@ -107,242 +193,1231 @@ export default function ActiveShiftScreen() {
     return () => {
       if (locationSubscription.current) {
         locationSubscription.current.remove();
+        locationSubscription.current = null;
       }
     };
-  }, [activeShift]);
+  }, [activeShift?.id]);
+
+  const handleCopyCode = () => {
+    if (activeShift?.pairCode) {
+      Clipboard.setString(activeShift.pairCode);
+      setIsCopied(true);
+      if (Platform.OS !== "web") {
+        Haptics.selectionAsync();
+      }
+      setTimeout(() => setIsCopied(false), 2000);
+    }
+  };
 
   const handleTakePhoto = async () => {
-    if (!cameraPermission) {
-      return;
-    }
-
-    if (!cameraPermission.granted) {
-      const { granted } = await requestCameraPermission();
-      if (!granted) {
-        Alert.alert(
-          "Camera Permission Required",
-          "Please enable camera permissions to take timestamp photos"
-        );
+    if (!cameraPermission?.granted) {
+      const result = await requestCameraPermission();
+      if (!result.granted) {
+        Alert.alert("Permission Required", "Camera access is needed to take photos.");
         return;
       }
     }
-
     setShowCamera(true);
   };
 
-  const handleCapturePhoto = async () => {
-    if (!cameraRef.current || !activeShift) return;
+  const capturePhoto = async () => {
+    if (!cameraRef.current || processing) return;
 
+    setProcessing(true);
     try {
+      // 1. FAST Capture (Raw, no processing)
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.8,
-        base64: true,
+        quality: 0.7,
+        base64: false,
+        exif: true,
+        skipProcessing: true // Android optimization
       });
 
-      if (!photo || !photo.base64) {
-        Alert.alert("Error", "Failed to capture photo");
-        return;
+      if (!photo?.uri) throw new Error("Photo capture failed");
+
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
-      // Upload photo with current location
-      await uploadPhotoMutation.mutateAsync({
-        shiftId: activeShift.id,
-        photoData: photo.base64,
-        contentType: "image/jpeg",
-        latitude: currentLocation?.coords.latitude,
-        longitude: currentLocation?.coords.longitude,
-        accuracy: currentLocation?.coords.accuracy ?? undefined,
-        photoType: "mid",
+      // 2. Metadata (Metadata is fast)
+      const now = new Date();
+      const timestamp = now.toISOString();
+
+      let address = currentAddress || "Location unavailable";
+      let lat = 0;
+      let lng = 0;
+
+      // Use cached location immediately if available (FASTEST)
+      let location = currentLocation;
+
+      // Only fetch if absolutely necessary and don't block
+      if (!location) {
+        // Try getting last known position first (fastest fallback)
+        location = await Location.getLastKnownPositionAsync({});
+      }
+
+      if (location) {
+        lat = location.coords.latitude;
+        lng = location.coords.longitude;
+        // Don't await geocode here if possible, use cached or coordinates
+        if (!address || address === "Locating...") {
+          address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+          // Trigger background geocode update if needed?
+          // For now, raw coords are faster than waiting for API
+        }
+      }
+
+      // 3. Save Raw URI w/ Metadata
+      const photoId = `photo_${Date.now()}`;
+
+      await addPhotoToShift({
+        id: photoId,
+        uri: photo.uri,
+        timestamp,
+        location: location ? {
+          latitude: lat,
+          longitude: lng,
+          timestamp: timestamp,
+          accuracy: location.coords.accuracy || 0
+        } : null,
+        address
       });
 
+      // 4. Sync photo to server in background (completely non-blocking)
+      // Use setTimeout to ensure the UI thread continues immediately
+      const pairCode = activeShift?.pairCode;
+      const photoPath = photo.uri;
+      setTimeout(() => {
+        if (pairCode) {
+          console.log('[SYNC] Starting background photo upload...');
+          photoToBase64DataUri(photoPath, 600, 0.6)  // Smaller size for faster upload
+            .then(base64Uri => {
+              if (!base64Uri || base64Uri.startsWith('file:')) {
+                console.error('[SYNC] Photo conversion failed, skipping sync');
+                return;
+              }
+              console.log('[SYNC] Uploading photo, size:', Math.round(base64Uri.length / 1024), 'KB');
+              return syncPhoto({
+                pairCode: pairCode,
+                photoUri: base64Uri,
+                latitude: lat,
+                longitude: lng,
+                accuracy: location?.coords.accuracy ?? undefined,
+                timestamp: timestamp,
+                address: address
+              });
+            })
+            .then(() => console.log('[SYNC] Photo uploaded successfully'))
+            .catch(err => console.error('[SYNC] Photo upload failed:', err));
+        }
+      }, 100);  // Small delay to let UI update first
+
+      // 5. Update UI immediately
+      await loadShift();
       setShowCamera(false);
-      Alert.alert("Success", "Photo captured and uploaded successfully");
-    } catch (error: any) {
-      console.error("Error capturing photo:", error);
-      Alert.alert("Error", error.message || "Failed to upload photo");
-    }
-  };
 
-  const handleShareLiveLink = async () => {
-    if (!activeShift) return;
-
-    // Always use Railway production URL
-    const liveUrl = `https://timestamp-tracker-production.up.railway.app/viewer/${activeShift.pairCode}`;
-
-    try {
-      await Share.share({
-        message: `Track my shift live: ${liveUrl}`,
-        url: liveUrl,
-      });
     } catch (error) {
-      console.error("Error sharing:", error);
+      console.error("Photo capture error:", error);
+      Alert.alert("Error", "Failed to capture photo");
+    } finally {
+      setProcessing(false);
     }
   };
 
-  const handleShowPairCode = () => {
-    if (!activeShift?.pairCode) return;
-
-    Alert.alert(
-      "Pair Code",
-      `Share this code with your company:\n\n${activeShift.pairCode}\n\nThis code is only valid during your active shift.`,
-      [
-        {
-          text: "Copy Code",
-          onPress: () => {
-            // In a real app, use Clipboard API
-            Alert.alert("Copied", "Pair code copied to clipboard");
-          },
-        },
-        { text: "Close" },
-      ]
-    );
-  };
-
-  const handleEndShift = () => {
-    if (!activeShift) return;
-    
+  const handleEndShift = async () => {
     Alert.alert(
       "End Shift",
-      "Are you sure you want to end your shift? You'll need to take a final photo.",
+      "Are you sure you want to end your shift?",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "End Shift",
           style: "destructive",
-          onPress: () => {
-            router.push(`/shift/end?shiftId=${activeShift.id}` as any);
-          },
-        },
+          onPress: async () => {
+            if (!activeShift) return;
+
+            // Stop tracking first
+            if (locationSubscription.current) {
+              locationSubscription.current.remove();
+              locationSubscription.current = null;
+            }
+
+            // 1. Add final location point if available (single arg signature)
+            if (currentLocation) {
+              try {
+                await addLocationToShift({
+                  latitude: currentLocation.coords.latitude,
+                  longitude: currentLocation.coords.longitude,
+                  accuracy: currentLocation.coords.accuracy ?? undefined,
+                  timestamp: new Date().toISOString()
+                });
+              } catch (e) {
+                console.log("Failed to add final location", e);
+              }
+            }
+
+            // 2. End the shift locally
+            try {
+              const endedShift = await endLocalShift();
+
+              // 3. Sync in background (don't wait)
+              if (endedShift) {
+                const payload = {
+                  ...endedShift,
+                  endTime: endedShift.endTime || new Date().toISOString()
+                };
+                syncShiftEnd(payload).catch(err => console.log("Offline sync pending"));
+              }
+
+              // 4. Navigate to home - ALWAYS navigate
+              if (onShiftEnd) {
+                onShiftEnd();
+              } else {
+                router.replace("/(tabs)");
+              }
+
+            } catch (e: any) {
+              console.error("End shift error:", e);
+              // Still navigate even on error
+              if (onShiftEnd) {
+                onShiftEnd();
+              } else {
+                router.replace("/(tabs)");
+              }
+            }
+          }
+        }
       ]
     );
   };
 
+  const handleGenerateReport = async () => {
+    if (!activeShift) return;
+
+    try {
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+
+      Alert.alert(
+        "Generate Report",
+        "This will create a PDF with your shift data, map trail, and photos. Continue?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Generate",
+            onPress: async () => {
+              try {
+                // Generate HTML with map polyline
+                const html = await generatePdfHtml(activeShift);
+
+                // Print/Share the PDF
+                await Print.printAsync({ html });
+
+                if (Platform.OS !== "web") {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }
+              } catch (e) {
+                console.error("PDF generation error:", e);
+                Alert.alert("Error", "Failed to generate report. Please try again.");
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error("Report error:", error);
+    }
+  };
+
+  const handleShareLink = async () => {
+    if (!activeShift?.pairCode) return;
+    const url = `https://timestamp-tracker-production.up.railway.app/viewer/${activeShift.pairCode}`;
+    try {
+      await Share.share({
+        message: `Track my shift live: ${url}`,
+        url: url,
+      });
+    } catch (error) {
+      console.error("Share error:", error);
+    }
+  };
+
+  // Loading state
   if (isLoading) {
+    // Return empty view or light loader
     return (
-      <ScreenContainer className="items-center justify-center">
+      <View style={[styles.centerContainer, { paddingTop: insets.top, backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
-      </ScreenContainer>
-    );
-  }
-
-  if (!activeShift) {
-    return (
-      <ScreenContainer className="p-6 justify-center">
-        <View className="items-center gap-4">
-          <Text className="text-2xl font-bold text-foreground text-center">No Active Shift</Text>
-          <Text className="text-base text-muted text-center">
-            You don't have an active shift. Start a new shift to begin tracking.
-          </Text>
-          <TouchableOpacity
-            className="bg-primary px-8 py-4 rounded-full mt-4"
-            onPress={() => router.replace("/" as any)}
-          >
-            <Text className="text-white font-semibold text-lg">Go to Home</Text>
-          </TouchableOpacity>
-        </View>
-      </ScreenContainer>
-    );
-  }
-
-  if (showCamera) {
-    return (
-      <View className="flex-1">
-        <CameraView ref={cameraRef} className="flex-1" facing="back">
-          <View className="flex-1 justify-end p-6 bg-black/20">
-            <View className="items-center gap-4 mb-8">
-              <TouchableOpacity
-                className="bg-white w-20 h-20 rounded-full items-center justify-center"
-                onPress={handleCapturePhoto}
-              >
-                <View className="bg-white w-16 h-16 rounded-full border-4 border-black" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className="bg-black/50 px-6 py-3 rounded-full"
-                onPress={() => setShowCamera(false)}
-              >
-                <Text className="text-white font-semibold">Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </CameraView>
       </View>
     );
   }
 
-  return (
-    <ScreenContainer className="p-6">
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        <View className="flex-1 gap-6">
-          {/* Header */}
-          <View className="items-center gap-2">
-            <View className="bg-success px-4 py-2 rounded-full">
-              <Text className="text-white font-semibold">ON SHIFT</Text>
-            </View>
-            <Text className="text-4xl font-bold text-foreground mt-2">{elapsedTime}</Text>
-            <Text className="text-lg font-semibold text-foreground">{activeShift.siteName}</Text>
-          </View>
+  // No active shift
+  if (!activeShift) {
+    return (
+      <View style={[styles.centerContainer, { paddingTop: insets.top, backgroundColor: colors.background }]}>
+        <Ionicons name="alert-circle-outline" size={64} color={colors.error || "#ef4444"} style={{ marginBottom: 16 }} />
+        <Text style={[styles.titleText, { color: colors.text }]}>No Active Shift</Text>
+        <Text style={[styles.subtitleText, { color: colors.muted }]}>Start a new shift from the Home screen</Text>
+        <TouchableOpacity
+          style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+          onPress={() => router.replace("/")}
+        >
+          <Text style={styles.primaryButtonText}>Go to Home</Text>
+          <Ionicons name="arrow-forward" size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
-          {/* Action Cards */}
-          <View className="gap-4">
-            {/* Camera Card */}
-            <TouchableOpacity
-              className="bg-surface rounded-2xl p-6 border border-border"
-              onPress={handleTakePhoto}
-            >
-              <Text className="text-xl font-semibold text-foreground mb-2">📸 Take Photo</Text>
-              <Text className="text-muted">Capture a timestamp photo with location data</Text>
-            </TouchableOpacity>
-
-            {/* Share Card */}
-            <View className="bg-surface rounded-2xl p-6 border border-border gap-3">
-              <Text className="text-xl font-semibold text-foreground mb-2">🔗 Share</Text>
-
-              <TouchableOpacity
-                className="bg-primary px-4 py-3 rounded-xl"
-                onPress={handleShareLiveLink}
-              >
-                <Text className="text-white font-semibold text-center">Share Live Link</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className="bg-surface border border-border px-4 py-3 rounded-xl"
-                onPress={handleShowPairCode}
-              >
-                <Text className="text-foreground font-semibold text-center">Show Pair Code</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Location Card */}
-            <View className="bg-surface rounded-2xl p-6 border border-border">
-              <Text className="text-xl font-semibold text-foreground mb-3">📍 Location</Text>
-              {currentLocation ? (
-                <View className="gap-1">
-                  <Text className="text-muted text-sm">
-                    Lat: {currentLocation.coords.latitude.toFixed(6)}
-                  </Text>
-                  <Text className="text-muted text-sm">
-                    Lng: {currentLocation.coords.longitude.toFixed(6)}
-                  </Text>
-                  <Text className="text-muted text-sm">
-                    Accuracy: ±{currentLocation.coords.accuracy?.toFixed(0)}m
-                  </Text>
-                </View>
-              ) : (
-                <Text className="text-muted">Acquiring location...</Text>
-              )}
-            </View>
-          </View>
-
-          {/* End Shift Button */}
+  // Camera view
+  if (showCamera) {
+    return (
+      <View style={styles.cameraContainer}>
+        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
+        <View style={[styles.cameraOverlay, { paddingTop: insets.top }]}>
           <TouchableOpacity
-            className="bg-error px-6 py-4 rounded-full mt-auto"
-            onPress={handleEndShift}
+            style={styles.closeButton}
+            onPress={() => setShowCamera(false)}
           >
-            <Text className="text-white font-semibold text-center text-lg">End Shift</Text>
+            <Ionicons name="close" size={28} color="#fff" />
           </TouchableOpacity>
         </View>
+        <View style={[styles.cameraControls, { paddingBottom: insets.bottom + 20 }]}>
+          <TouchableOpacity
+            style={[styles.captureButton, processing && styles.captureButtonDisabled]}
+            onPress={capturePhoto}
+            disabled={processing}
+          >
+            {processing ? (
+              <ActivityIndicator color="#4f46e5" size="small" />
+            ) : (
+              <View style={styles.captureButtonInner} />
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // Generate static map URL using Google Maps with location trail
+  const staticMapUrl = activeShift.locations.length > 0
+    ? generateMapboxStaticUrl(activeShift.locations.map(l => ({
+      latitude: l.latitude,
+      longitude: l.longitude,
+      accuracy: l.accuracy
+    })), 600, 300)
+    : null;
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top, borderBottomColor: colors.border }]}>
+        <View style={styles.headerLeft}>
+          <View style={[styles.avatarContainer, { backgroundColor: colors.surface }]}>
+            <Ionicons name="person" size={20} color={colors.muted} />
+          </View>
+          <View>
+            <Text style={[styles.appName, { color: colors.text }]}>Timestamp Tracker</Text>
+            <View style={styles.liveBadge}>
+              <View style={styles.liveDotContainer}>
+                <Animated.View style={[styles.liveDotPing, { transform: [{ scale: pulseAnim }], backgroundColor: colors.primary }]} />
+                <View style={[styles.liveDot, { backgroundColor: colors.primary }]} />
+              </View>
+              <Text style={[styles.liveText, { color: colors.primary }]}>Live Active</Text>
+            </View>
+          </View>
+        </View>
+        <TouchableOpacity style={styles.bellButton}>
+          <Ionicons name="notifications-outline" size={24} color={colors.muted} />
+          <View style={styles.notificationDot} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 1. Hero Card (Pair Code) */}
+        <LinearGradient
+          colors={showQr ? ["#1e293b", "#0f172a"] : [colors.primary, "#4338ca"]} // Adaptable gradient? hardcoded for brand maybe fine
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.heroCard}
+        >
+          {/* Texture Overlay */}
+          <View style={styles.textureCircle} />
+
+          <View style={styles.cardHeader}>
+            <View>
+              <Text style={styles.cardTitle}>PAIR CODE</Text>
+              <Text style={styles.cardSubtitle}>Share this to link device</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.qrToggle}
+              onPress={() => setShowQr(!showQr)}
+            >
+              {showQr ? (
+                <Text style={styles.qrToggleText}>123</Text>
+              ) : (
+                <Ionicons name="qr-code-outline" size={20} color="#fff" />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {showQr ? (
+            <View style={styles.qrContainer}>
+              <View style={styles.qrFrame}>
+                <Ionicons name="qr-code" size={120} color="#0f172a" />
+              </View>
+              <Text style={styles.qrHint}>Scan to pair instantly</Text>
+            </View>
+          ) : (
+            <View style={styles.codeContainer}>
+              <Text style={styles.pairCodeLarge}>{activeShift.pairCode}</Text>
+              <TouchableOpacity
+                style={styles.copyButton}
+                onPress={handleCopyCode}
+              >
+                {isCopied ? (
+                  <Text style={[styles.copyText, { color: "#6ee7b7", fontWeight: "700" }]}>Copied!</Text>
+                ) : (
+                  <>
+                    <Ionicons name="copy-outline" size={14} color="#dbeafe" />
+                    <Text style={styles.copyText}>Tap to copy</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <TouchableOpacity style={styles.shareButton} onPress={handleShareLink}>
+            <Ionicons name="share-social-outline" size={18} color="#1d4ed8" />
+            <Text style={styles.shareButtonText}>Share Location & Code</Text>
+          </TouchableOpacity>
+
+          {/* Action Row: End Shift + Report */}
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+            <TouchableOpacity
+              style={[styles.shareButton, { backgroundColor: '#fee2e2', flex: 1 }]}
+              onPress={handleEndShift}
+            >
+              <Ionicons name="stop-circle-outline" size={18} color="#dc2626" />
+              <Text style={[styles.shareButtonText, { color: '#dc2626' }]}>End Shift</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.shareButton, { backgroundColor: '#f0fdf4', flex: 1 }]}
+              onPress={handleGenerateReport}
+            >
+              <Ionicons name="document-text-outline" size={18} color="#16a34a" />
+              <Text style={[styles.shareButtonText, { color: '#16a34a' }]}>Report</Text>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+
+        {/* 2. Location (Mini-Map) */}
+        <TouchableOpacity
+          style={[styles.mapCard, { backgroundColor: colors.surface }]} // White usually
+          activeOpacity={0.9}
+          onPress={() => {
+            const loc = currentLocation?.coords || (activeShift.locations.length > 0 ? activeShift.locations[activeShift.locations.length - 1] : null);
+            if (loc) {
+              const url = Platform.select({
+                ios: `maps://app?daddr=${loc.latitude},${loc.longitude}`,
+                android: `geo:${loc.latitude},${loc.longitude}?q=${loc.latitude},${loc.longitude}`,
+                default: `https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`
+              });
+              Linking.openURL(url);
+            }
+          }}
+        >
+          <View style={styles.mapContainer}>
+            {staticMapUrl ? (
+              <Image source={{ uri: staticMapUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            ) : (
+              <View style={[styles.mapPlaceholder, { backgroundColor: colors.background }]}>
+                <View style={styles.mapPattern} />
+              </View>
+            )}
+
+            {/* You are here pin */}
+            {!staticMapUrl && (
+              <View style={styles.pinContainer}>
+                <View style={styles.pinPulseWrapper}>
+                  <View style={styles.pinPulse} />
+                  <View style={styles.pin}>
+                    <Ionicons name="location" size={20} color="#fff" />
+                  </View>
+                </View>
+                <View style={styles.pinLabel}>
+                  <Text style={styles.pinLabelText}>You are here</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Overlay Text */}
+            <View style={styles.mapOverlay}>
+              <View style={styles.mapInfo}>
+                <Text style={styles.mapLabel}>CURRENT LOCATION</Text>
+                <Text style={styles.mapAddress} numberOfLines={1}>{currentAddress}</Text>
+              </View>
+              <View style={styles.mapArrow}>
+                <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+              </View>
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        {/* 3. Stats Grid */}
+        <View style={styles.statsGrid}>
+          <TouchableOpacity
+            style={[styles.statCard, { backgroundColor: colors.surface }]}
+            activeOpacity={0.8}
+            onPress={() => router.push("/shift/gallery" as any)}
+          >
+            <View style={[styles.statBadge, { backgroundColor: "#e0e7ff" }]}>
+              <Ionicons name="images" size={20} color="#4f46e5" />
+            </View>
+            <Text style={[styles.statNumber, { color: colors.text }]}>{activeShift.photos.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.muted }]}>View Gallery</Text>
+            <View style={[styles.statDecor, { backgroundColor: "#e0e7ff" }]} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.statCard, { backgroundColor: colors.surface }]}
+            activeOpacity={0.8}
+            onPress={() => setShowNotesModal(true)}
+          >
+            <View style={[styles.statBadge, { backgroundColor: "#fef3c7" }]}>
+              <Ionicons name="document-text" size={20} color="#d97706" />
+            </View>
+            <Text style={[styles.statNumber, { color: colors.text }]}>{activeShift.notes?.length || 0}</Text>
+            <Text style={[styles.statLabel, { color: colors.muted }]}>Add Notes</Text>
+            <View style={[styles.statDecor, { backgroundColor: "#fef3c7" }]} />
+          </TouchableOpacity>
+        </View>
+
+        {/* 4. Timeline / Notes */}
+        <View style={styles.timelineSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Updates</Text>
+            {/* View All button removed per user request */}
+          </View>
+
+          <View style={[styles.timelineList, { backgroundColor: colors.surface }]}>
+            {/* Start Event */}
+            <View style={styles.timelineItem}>
+              <View style={styles.timelineLeft}>
+                <View style={[styles.timelineDot, { backgroundColor: colors.muted }]} />
+                <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
+              </View>
+              <View style={styles.timelineCard}>
+                <View style={styles.timelineHeader}>
+                  <View style={[styles.tagSystem, { backgroundColor: colors.background }]}>
+                    <Text style={[styles.tagTextSystem, { color: colors.muted }]}>System</Text>
+                  </View>
+                  <View style={styles.timeTag}>
+                    <Ionicons name="time-outline" size={10} color={colors.muted} />
+                    <Text style={[styles.timeText, { color: colors.muted }]}>
+                      {new Date(activeShift.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={[styles.timelineBody, { color: colors.text }]}>Shift started at {activeShift.siteName}. GPS tracking enabled.</Text>
+              </View>
+            </View>
+
+            {/* Dynamic Photo Events with Thumbnails */}
+            {activeShift.photos.slice(0, 3).map((photo, idx) => (
+              <TouchableOpacity
+                style={styles.timelineItem}
+                key={photo.id}
+                onPress={() => router.push("/shift/gallery" as any)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.timelineLeft}>
+                  <View style={[styles.timelineDot, { backgroundColor: "#3b82f6" }]} />
+                  {idx !== activeShift.photos.length - 1 && <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />}
+                </View>
+                <View style={[styles.timelineCard, { borderLeftColor: "#3b82f6", borderLeftWidth: 3 }]}>
+                  <View style={styles.timelineHeader}>
+                    <View style={[styles.tagSystem, { backgroundColor: "#dbeafe" }]}>
+                      <Text style={[styles.tagTextSystem, { color: "#1d4ed8" }]}>Photo</Text>
+                    </View>
+                    <View style={styles.timeTag}>
+                      <Ionicons name="time-outline" size={10} color={colors.muted} />
+                      <Text style={[styles.timeText, { color: colors.muted }]}>
+                        {new Date(photo.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    </View>
+                  </View>
+                  {/* Photo Thumbnail */}
+                  <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center' }}>
+                    <Image
+                      source={{ uri: photo.uri }}
+                      style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12 }}
+                      resizeMode="cover"
+                    />
+                    <Text style={[styles.timelineBody, { flex: 1, color: colors.text }]} numberOfLines={2}>
+                      {photo.address || "Photo captured"}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))}
+
+            {/* Dynamic Notes Events */}
+            {(activeShift.notes || []).slice(0, 3).map((note: any, idx: number) => (
+              <View style={styles.timelineItem} key={note.id || idx}>
+                <View style={styles.timelineLeft}>
+                  <View style={[styles.timelineDot, { backgroundColor: "#f59e0b" }]} />
+                  <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
+                </View>
+                <View style={[styles.timelineCard, { borderLeftColor: "#f59e0b", borderLeftWidth: 3 }]}>
+                  <View style={styles.timelineHeader}>
+                    <View style={[styles.tagSystem, { backgroundColor: "#fef3c7" }]}>
+                      <Text style={[styles.tagTextSystem, { color: "#d97706" }]}>Note</Text>
+                    </View>
+                    <View style={styles.timeTag}>
+                      <Ionicons name="time-outline" size={10} color={colors.muted} />
+                      <Text style={[styles.timeText, { color: colors.muted }]}>
+                        {note.timestamp ? new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Now"}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.timelineBody, { color: colors.text }]} numberOfLines={2}>
+                    {note.text || note}
+                  </Text>
+                </View>
+              </View>
+            ))}
+
+          </View>
+        </View>
+
+        {/* Spacer for Tab Bar */}
+        <View style={{ height: 80 }} />
       </ScrollView>
-    </ScreenContainer>
+
+      {/* Floating Action Button */}
+      <TouchableOpacity
+        style={[styles.fab, { bottom: 100 }]}
+        onPress={handleTakePhoto}
+      >
+        <Ionicons name="camera" size={28} color="#fff" />
+      </TouchableOpacity>
+
+
+
+      {/* Hidden watermark component */}
+      <PhotoWatermark ref={watermarkRef} />
+
+      {/* Inline Notes Modal */}
+      <Modal
+        visible={showNotesModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowNotesModal(false)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 }}
+          activeOpacity={1}
+          onPress={() => setShowNotesModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={{ backgroundColor: colors.surface, borderRadius: 20, padding: 20, width: '100%', maxWidth: 400 }}
+            onPress={() => { }} // Prevent closing when tapping inside
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>Add Note</Text>
+              <TouchableOpacity onPress={() => setShowNotesModal(false)}>
+                <Ionicons name="close" size={24} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 12,
+                padding: 16,
+                minHeight: 120,
+                fontSize: 16,
+                textAlignVertical: 'top',
+                backgroundColor: colors.background,
+                color: colors.text
+              }}
+              placeholder="Type your note here..."
+              placeholderTextColor={colors.muted}
+              value={noteText}
+              onChangeText={setNoteText}
+              multiline
+              autoFocus
+            />
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: colors.primary,
+                paddingVertical: 14,
+                borderRadius: 12,
+                marginTop: 16,
+                flexDirection: 'row',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: 8
+              }}
+              onPress={async () => {
+                if (noteText.trim()) {
+                  await addNoteToShift(noteText.trim());
+                  // Sync note to server
+                  if (activeShift?.pairCode) {
+                    const noteId = `note_${Date.now()}`;
+                    syncNote({
+                      pairCode: activeShift.pairCode,
+                      text: noteText.trim(),
+                      timestamp: new Date().toISOString(),
+                      latitude: currentLocation?.coords.latitude,
+                      longitude: currentLocation?.coords.longitude,
+                      accuracy: currentLocation?.coords.accuracy ?? undefined,
+                    }).catch(e => console.log('Note sync error:', e));
+                  }
+                  setNoteText("");
+                  setShowNotesModal(false);
+                  loadShift(); // Refresh shift data
+                  if (Platform.OS !== "web") {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  }
+                }
+              }}
+            >
+              <Ionicons name="checkmark" size={20} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Save Note</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  avatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  appName: {
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+  },
+  liveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+    gap: 6,
+  },
+  liveDotContainer: {
+    width: 8,
+    height: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  liveDotPing: {
+    position: "absolute",
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    opacity: 0.5,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  liveText: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  bellButton: {
+    position: "relative",
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  notificationDot: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#ef4444",
+    borderWidth: 1.5,
+    borderColor: "#fff",
+  },
+  scrollContent: {
+    padding: 20,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: "#64748b",
+    fontWeight: "500",
+  },
+  titleText: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1e293b",
+    marginBottom: 8,
+  },
+  subtitleText: {
+    fontSize: 14,
+    color: "#64748b",
+    marginBottom: 24,
+    textAlign: "center",
+  },
+  primaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#4f46e5",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
+  },
+  primaryButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  heroCard: {
+    padding: 24,
+    borderRadius: 24,
+    marginBottom: 16,
+    overflow: "hidden",
+    position: "relative",
+  },
+  textureCircle: {
+    position: "absolute",
+    top: -100,
+    right: -100,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 24,
+  },
+  cardTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "rgba(255,255,255,0.7)",
+    marginBottom: 4,
+    letterSpacing: 1,
+  },
+  cardSubtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.9)",
+    fontWeight: "500",
+  },
+  qrToggle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qrToggleText: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  codeContainer: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  pairCodeLarge: {
+    fontSize: 48,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: 4,
+    marginBottom: 8,
+    fontVariant: ["tabular-nums"],
+  },
+  copyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  copyText: {
+    fontSize: 12,
+    color: "#dbeafe",
+    fontWeight: "600",
+  },
+  qrContainer: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  qrFrame: {
+    padding: 16,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  qrHint: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.7)",
+    fontWeight: "500",
+  },
+  shareButton: {
+    backgroundColor: "#fff",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 16,
+    gap: 8,
+  },
+  shareButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1d4ed8",
+  },
+  mapCard: {
+    borderRadius: 24,
+    overflow: "hidden",
+    marginBottom: 16,
+    height: 120,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+  },
+  mapContainer: {
+    flex: 1,
+    position: "relative",
+  },
+  mapPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  mapPattern: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.1,
+    // Assuming pattern image or style
+  },
+  pinContainer: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    marginLeft: -24,
+    marginTop: -32,
+    alignItems: "center",
+  },
+  pinPulseWrapper: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  pinPulse: {
+    position: "absolute",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(37, 99, 235, 0.2)",
+  },
+  pin: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#2563eb",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+    shadowColor: "#2563eb",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  pinLabel: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  pinLabelText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#1e293b",
+  },
+  mapOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.05)",
+  },
+  mapInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  mapLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#64748b",
+    marginBottom: 2,
+  },
+  mapAddress: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#1e293b",
+  },
+  mapArrow: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#f1f5f9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statsGrid: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
+  },
+  statCard: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 20,
+    position: "relative",
+    overflow: "hidden",
+  },
+  statBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  statDecor: {
+    position: "absolute",
+    top: -20,
+    right: -20,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    opacity: 0.1,
+  },
+  timelineSection: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  viewAllButton: {
+    padding: 4,
+  },
+  viewAllText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#4f46e5",
+  },
+  timelineList: {
+    borderRadius: 20,
+    padding: 16,
+  },
+  timelineItem: {
+    flexDirection: "row",
+    marginBottom: 24,
+  },
+  timelineLeft: {
+    alignItems: "center",
+    width: 24,
+    marginRight: 12,
+  },
+  timelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#fff",
+    zIndex: 1,
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    marginTop: -2,
+    marginBottom: -10,
+    borderRadius: 1,
+  },
+  timelineCard: {
+    flex: 1,
+    paddingLeft: 4,
+  },
+  timelineHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  tagSystem: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  tagTextSystem: {
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  timeTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  timeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+  },
+  timelineBody: {
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  fab: {
+    position: "absolute",
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#2563eb",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#2563eb",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  cameraContainer: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  cameraOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    padding: 20,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    zIndex: 10,
+  },
+  closeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cameraControls: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  captureButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(255,255,255,0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 4,
+    borderColor: "rgba(255,255,255,0.5)",
+  },
+  captureButtonDisabled: {
+    opacity: 0.5,
+  },
+  captureButtonInner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#fff",
+  },
+});
