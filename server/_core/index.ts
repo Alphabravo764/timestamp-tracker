@@ -63,7 +63,12 @@ async function startServer() {
 
   // Home page (landing page)
   app.get("/", (_req, res) => {
-    res.sendFile(path.join(simpleWebDir, "index.html"));
+    const indexPath = path.join(simpleWebDir, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(200).send("STAMPIA API Server - Visit /track to enter a pair code");
+    }
   });
 
   // Code entry page
