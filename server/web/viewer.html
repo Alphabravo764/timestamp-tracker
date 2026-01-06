@@ -321,6 +321,47 @@
       background: #f3f4f6;
     }
 
+    /* Mapbox pulse marker */
+    .mapbox-pulse-marker {
+      width: 24px;
+      height: 24px;
+      position: relative;
+    }
+
+    .pulse-ring {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: rgba(59, 130, 246, 0.3);
+      animation: pulse-ring 2s infinite;
+    }
+
+    .pulse-dot {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 12px;
+      height: 12px;
+      background: #3b82f6;
+      border: 2px solid white;
+      border-radius: 50%;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    @keyframes pulse-ring {
+      0% {
+        transform: scale(1);
+        opacity: 1;
+      }
+
+      100% {
+        transform: scale(2);
+        opacity: 0;
+      }
+    }
+
     .map-info {
       position: absolute;
       top: 16px;
@@ -737,22 +778,123 @@
     function getDuration(start, end) { const ms = (end ? new Date(end) : new Date()) - new Date(start); const hrs = Math.floor(ms / 3600000); const mins = Math.floor((ms % 3600000) / 60000); return `${hrs}h ${mins}m`; }
     function calculateDistance(locations) { if (!locations || locations.length < 2) return '0.00'; let total = 0; for (let i = 1; i < locations.length; i++) { const lat1 = locations[i - 1].latitude * Math.PI / 180; const lat2 = locations[i].latitude * Math.PI / 180; const dLat = lat2 - lat1; const dLon = (locations[i].longitude - locations[i - 1].longitude) * Math.PI / 180; const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2; total += 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); } return total.toFixed(2); }
     function generateHash(shift) { const str = shift.pairCode + shift.startTime + (shift.locations?.length || 0); let hash = 0; for (let i = 0; i < str.length; i++) { hash = ((hash << 5) - hash) + str.charCodeAt(i); hash |= 0; } return Math.abs(hash).toString(16).padStart(8, '0') + 'c071948449aa7432ce...b575'; }
+    const MAPBOX_TOKEN = 'pk.eyJ1IjoiYWJkdWxic2lhbDExMjIiLCJhIjoiY21qenJjZjN3NjhrejNlcXh0NTE2M3RhaCJ9.WKftvZP3RnQoncVDdDfBiw';
+
+    // Reverse geocode using Mapbox
+    async function reverseGeocode(lat, lng) {
+      try {
+        const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=address,poi`);
+        const data = await response.json();
+        if (data?.features?.[0]?.place_name) {
+          return data.features[0].place_name;
+        }
+      } catch (e) { console.log('Geocoding failed:', e); }
+      return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    }
+
     function initMap(locations) {
       if (!locations || locations.length === 0) return;
       const mapDiv = document.getElementById('map');
       if (!mapDiv) return;
-      mapDiv.innerHTML = '<div id="leaflet-map" style="width:100%;height:100%;"></div>';
-      if (!document.querySelector('link[href*="leaflet.css"]')) { const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(link); }
-      if (typeof L === 'undefined') { const script = document.createElement('script'); script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; script.onload = () => renderMap(locations); document.head.appendChild(script); } else { renderMap(locations); }
+      mapDiv.innerHTML = '<div id="mapbox-map" style="width:100%;height:100%;"></div>';
+
+      // Load Mapbox CSS
+      if (!document.querySelector('link[href*="mapbox-gl"]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css';
+        document.head.appendChild(link);
+      }
+
+      // Load Mapbox JS
+      if (typeof mapboxgl === 'undefined') {
+        const script = document.createElement('script');
+        script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js';
+        script.onload = () => renderMapbox(locations);
+        document.head.appendChild(script);
+      } else {
+        renderMapbox(locations);
+      }
     }
-    function renderMap(locations) {
+
+    function renderMapbox(locations) {
+      mapboxgl.accessToken = MAPBOX_TOKEN;
       const latest = locations[locations.length - 1];
-      const map = L.map('leaflet-map').setView([latest.latitude, latest.longitude], 16);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
-      const latlngs = locations.map(l => [l.latitude, l.longitude]);
-      L.polyline(latlngs, { color: '#3b82f6', weight: 4, opacity: 0.8 }).addTo(map);
-      L.circleMarker([latest.latitude, latest.longitude], { radius: 8, fillColor: '#3b82f6', color: '#fff', weight: 3, fillOpacity: 1 }).addTo(map);
-      if (locations.length > 1) { map.fitBounds(L.latLngBounds(latlngs), { padding: [40, 40] }); }
+      const first = locations[0];
+
+      const map = new mapboxgl.Map({
+        container: 'mapbox-map',
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: [latest.longitude, latest.latitude],
+        zoom: 15
+      });
+
+      map.on('load', () => {
+        // Create GeoJSON line from locations
+        const coords = locations.map(l => [l.longitude, l.latitude]);
+
+        // Add route line with gradient effect
+        map.addSource('route', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {},
+            geometry: { type: 'LineString', coordinates: coords }
+          }
+        });
+
+        // Add glowing effect layer
+        map.addLayer({
+          id: 'route-glow',
+          type: 'line',
+          source: 'route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#3b82f6',
+            'line-width': 12,
+            'line-opacity': 0.3,
+            'line-blur': 4
+          }
+        });
+
+        // Main route line
+        map.addLayer({
+          id: 'route',
+          type: 'line',
+          source: 'route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#3b82f6',
+            'line-width': 4,
+            'line-opacity': 1
+          }
+        });
+
+        // Add start marker (green)
+        new mapboxgl.Marker({ color: '#22c55e' })
+          .setLngLat([first.longitude, first.latitude])
+          .setPopup(new mapboxgl.Popup().setHTML('<b>Start</b>'))
+          .addTo(map);
+
+        // Add current/end marker (blue pulsing)
+        const el = document.createElement('div');
+        el.className = 'mapbox-pulse-marker';
+        el.innerHTML = '<div class="pulse-ring"></div><div class="pulse-dot"></div>';
+        new mapboxgl.Marker(el)
+          .setLngLat([latest.longitude, latest.latitude])
+          .setPopup(new mapboxgl.Popup().setHTML('<b>Current Location</b>'))
+          .addTo(map);
+
+        // Fit bounds to show entire route
+        if (locations.length > 1) {
+          const bounds = new mapboxgl.LngLatBounds();
+          coords.forEach(c => bounds.extend(c));
+          map.fitBounds(bounds, { padding: 50 });
+        }
+      });
+
+      // Add navigation controls
+      map.addControl(new mapboxgl.NavigationControl(), 'top-right');
     }
     async function downloadPDF() { if (!shiftData) return; try { const response = await fetch(`/api/sync/shift/${shiftData.pairCode}?format=pdf`); const html = await response.text(); const printWindow = window.open('', '_blank'); if (printWindow) { printWindow.document.write(html); printWindow.document.close(); printWindow.onload = () => setTimeout(() => printWindow.print(), 500); } } catch (e) { alert('Failed to generate PDF'); } }
     async function renderDashboard(shift) {
@@ -763,8 +905,31 @@
       const latestLoc = shift.locations?.[shift.locations.length - 1];
       const events = [];
       events.push({ time: shift.startTime, type: 'start', title: 'Shift Started', desc: `${shift.staffName} clocked in at ${shift.siteName}` });
-      for (let i = 0; i < (shift.photos?.length || 0); i++) { const p = shift.photos[i]; events.push({ time: p.timestamp, type: 'photo', title: `Photo Evidence #${i + 1}`, desc: p.address || 'Location captured', photoUri: p.photoUri, hasGps: p.latitude && p.longitude }); }
-      for (const n of (shift.notes || [])) { events.push({ time: n.timestamp, type: 'note', title: 'Note Added', desc: `"${n.text}"` }); }
+
+      // Add photos with reverse geocoding for addresses
+      for (let i = 0; i < (shift.photos?.length || 0); i++) {
+        const p = shift.photos[i];
+        let addr = p.address || '';
+        if (!addr && p.latitude && p.longitude) {
+          addr = await reverseGeocode(p.latitude, p.longitude);
+        }
+        events.push({
+          time: p.timestamp,
+          type: 'photo',
+          title: `Photo Evidence #${i + 1}`,
+          desc: addr || 'Location captured',
+          photoUri: p.photoUri,
+          hasGps: p.latitude && p.longitude,
+          lat: p.latitude,
+          lng: p.longitude
+        });
+      }
+
+      // Add notes
+      for (const n of (shift.notes || [])) {
+        events.push({ time: n.timestamp, type: 'note', title: 'Note Added', desc: `"${n.text}"` });
+      }
+
       if (shift.endTime) { events.push({ time: shift.endTime, type: 'end', title: 'Shift Ended', desc: `Duration: ${duration}` }); }
       events.sort((a, b) => new Date(a.time) - new Date(b.time));
       const statusClass = shift.isActive ? '' : 'ended';
