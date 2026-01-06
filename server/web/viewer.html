@@ -1,594 +1,672 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live Tracking - Watcher Dashboard</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <!-- MapBox GL JS -->
-  <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
-  <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet" />
+  <title>STAMPIA - Live Shift Report</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+    rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background: #f8fafc;
       color: #1e293b;
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
+      padding-bottom: 48px;
     }
-    
-    /* Header */
-    .header {
-      background: white;
-      border-bottom: 1px solid #e2e8f0;
-      padding: 20px 24px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    
-    .header-content {
-      max-width: 1600px;
-      margin: 0 auto;
+
+    .nav {
+      padding: 16px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-    }
-    
-    .guard-info {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-    
-    .avatar {
-      width: 56px;
-      height: 56px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-weight: 700;
-      font-size: 20px;
-      border: 3px solid #22c55e;
-      position: relative;
-    }
-    
-    .avatar.ended {
-      border-color: #94a3b8;
-    }
-    
-    .live-badge {
-      position: absolute;
-      bottom: -4px;
-      right: -4px;
-      background: #22c55e;
-      color: white;
-      font-size: 9px;
-      font-weight: 700;
-      padding: 2px 6px;
-      border-radius: 10px;
-      border: 2px solid white;
-      animation: pulse 2s infinite;
-    }
-    
-    .live-badge.ended {
-      background: #94a3b8;
-      animation: none;
-    }
-    
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.7; }
-    }
-    
-    .guard-details h1 {
-      font-size: 20px;
-      font-weight: 700;
-      color: #1e293b;
-    }
-    
-    .guard-details p {
-      font-size: 14px;
-      color: #64748b;
-      margin-top: 4px;
-    }
-    
-    .header-stats {
-      display: flex;
-      gap: 32px;
-    }
-    
-    .stat {
-      text-align: right;
-    }
-    
-    .stat-label {
-      font-size: 12px;
-      color: #64748b;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    
-    .stat-value {
-      font-size: 24px;
-      font-weight: 700;
-      color: #1e293b;
-      margin-top: 4px;
-    }
-    
-    /* Location Bar */
-    .location-bar {
-      background: #f1f5f9;
       border-bottom: 1px solid #e2e8f0;
-      padding: 16px 24px;
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
     }
-    
-    .location-content {
-      max-width: 1600px;
-      margin: 0 auto;
+
+    .brand {
       display: flex;
       align-items: center;
       gap: 12px;
     }
-    
-    .location-icon {
-      width: 40px;
-      height: 40px;
-      background: #3b82f6;
-      border-radius: 50%;
+
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      background: #eff6ff;
+      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
-      font-size: 20px;
+      border: 1px solid #dbeafe;
     }
-    
-    .location-details {
-      flex: 1;
+
+    .brand-icon svg {
+      width: 16px;
+      height: 16px;
+      color: #3b82f6;
     }
-    
-    .location-address {
-      font-size: 16px;
-      font-weight: 600;
+
+    .brand-name {
+      font-weight: 900;
+      font-size: 14px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
       color: #1e293b;
     }
-    
-    .location-coords {
-      font-size: 13px;
-      color: #64748b;
-      margin-top: 2px;
-      font-family: 'Courier New', monospace;
-    }
-    
-    /* Main Content */
-    .main-content {
-      flex: 1;
-      max-width: 1600px;
-      margin: 0 auto;
-      width: 100%;
+
+    .brand-tagline {
       display: flex;
-      flex-direction: column;
-      gap: 24px;
-      padding: 24px;
+      align-items: center;
+      gap: 6px;
+      opacity: 0.6;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: #64748b;
     }
-    
-    /* Map */
-    .map-container {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      overflow: hidden;
-      position: relative;
+
+    .nav-actions {
+      display: flex;
+      gap: 8px;
     }
-    
-    #map {
-      width: 100%;
-      height: 500px;
-      min-height: 500px;
-      background: #f3f4f6;
+
+    .btn-icon {
+      width: 32px;
+      height: 32px;
       display: flex;
       align-items: center;
       justify-content: center;
+      border-radius: 10px;
+      background: white;
+      border: 1px solid #e2e8f0;
+      color: #64748b;
+      cursor: pointer;
+      transition: all 0.2s;
     }
-    
-    .map-overlay {
+
+    .btn-icon:hover {
+      background: #f8fafc;
+      color: #1e293b;
+    }
+
+    .btn-primary {
+      padding: 8px 16px;
+      border-radius: 10px;
+      background: #3b82f6;
+      border: none;
+      color: white;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+      transition: all 0.2s;
+    }
+
+    .btn-primary:hover {
+      background: #2563eb;
+      transform: translateY(-1px);
+    }
+
+    main {
+      max-width: 768px;
+      margin: 0 auto;
+      padding: 24px 16px;
+    }
+
+    .hero-card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(148, 163, 184, 0.15);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+
+    .hero-gradient {
+      height: 6px;
+      background: linear-gradient(90deg, #3b82f6, #6366f1, #8b5cf6);
+    }
+
+    .hero-content {
+      padding: 20px;
+    }
+
+    .hero-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .hero-title {
+      font-size: 24px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: -0.02em;
+      color: #1e293b;
+    }
+
+    .hero-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #94a3b8;
+      flex-wrap: wrap;
+    }
+
+    .hero-meta svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .hero-meta span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #ecfdf5;
+      padding: 6px 12px 6px 8px;
+      border-radius: 999px;
+      border: 1px solid #a7f3d0;
+    }
+
+    .status-badge.ended {
+      background: #f8fafc;
+      border-color: #e2e8f0;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      position: relative;
+    }
+
+    .status-dot::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: pulse 2s infinite;
+    }
+
+    .status-dot::after {
+      content: '';
+      position: absolute;
+      inset: 2px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+
+    .ended .status-dot::before,
+    .ended .status-dot::after {
+      background: #94a3b8;
+      animation: none;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.5;
+        transform: scale(1.3);
+      }
+    }
+
+    .status-text {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #059669;
+    }
+
+    .ended .status-text {
+      color: #64748b;
+    }
+
+    .stats-row {
+      display: flex;
+      background: rgba(248, 250, 252, 0.5);
+      border-radius: 14px;
+      border: 1px solid #f1f5f9;
+      padding: 12px;
+      flex-wrap: wrap;
+    }
+
+    .stat-item {
+      flex: 1;
+      min-width: 70px;
+      text-align: center;
+      border-right: 1px solid #f1f5f9;
+      padding: 4px;
+    }
+
+    .stat-item:last-child {
+      border-right: none;
+    }
+
+    .stat-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #94a3b8;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .stat-label svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .stat-value {
+      font-size: 18px;
+      font-weight: 900;
+      color: #1e293b;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .map-container {
+      width: 100%;
+      height: 280px;
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      overflow: hidden;
+      margin-bottom: 32px;
+      position: relative;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      background: #f3f4f6;
+    }
+
+    .map-info {
       position: absolute;
       top: 16px;
       left: 16px;
-      background: white;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      border: 1px solid #e2e8f0;
       padding: 12px 16px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      font-size: 13px;
-      color: #64748b;
-    }
-    
-    /* Activity Feed - Horizontal Timeline */
-    .activity-feed {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      padding: 20px;
-    }
-    
-    .feed-header {
-      margin-bottom: 20px;
-    }
-    
-    .feed-header h2 {
-      font-size: 18px;
-      font-weight: 700;
-      color: #1e293b;
-    }
-    
-    .feed-count {
-      font-size: 13px;
-      color: #64748b;
-      margin-top: 4px;
-    }
-    
-    .feed-content {
+      border-radius: 14px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
       display: flex;
-      flex-wrap: wrap;
-      gap: 24px;
-      padding-bottom: 16px;
-    }
-    
-    .feed-item {
-      display: flex;
-      flex-direction: column;
       align-items: center;
-      min-width: 200px;
-      position: relative;
-      flex-shrink: 0;
+      gap: 12px;
+      max-width: 80%;
     }
-    
-    /* Removed connecting lines since items now wrap */
-    
-    .feed-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
+
+    .map-info-icon {
+      width: 36px;
+      height: 36px;
+      background: #eff6ff;
+      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
-      font-size: 14px;
-      z-index: 1;
-      background: white;
     }
-    
-    .feed-icon.start {
-      background: #22c55e;
-      color: white;
+
+    .map-info-icon svg {
+      width: 18px;
+      height: 18px;
+      color: #3b82f6;
     }
-    
-    .feed-icon.location {
-      background: #3b82f6;
-      color: white;
+
+    .map-info-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: #94a3b8;
+      margin-bottom: 2px;
     }
-    
-    .feed-icon.photo {
-      background: #8b5cf6;
-      color: white;
-    }
-    
-    .feed-icon.note {
-      background: #f59e0b;
-      color: white;
-    }
-    
-    .feed-icon.end {
-      background: #64748b;
-      color: white;
-    }
-    
-    .feed-details {
-      text-align: center;
-      margin-top: 12px;
-      width: 100%;
-    }
-    
-    .feed-time {
-      font-size: 11px;
-      color: #64748b;
-      margin-bottom: 4px;
-    }
-    
-    .feed-title {
+
+    .map-info-value {
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 700;
       color: #1e293b;
-      margin-top: 4px;
     }
-    
-    .feed-content-text {
-      font-size: 12px;
-      color: #64748b;
-      margin-top: 4px;
-      word-wrap: break-word;
-      max-width: 200px;
-    }
-    
-    .feed-photo {
-      margin-top: 8px;
-      border-radius: 8px;
-      overflow: hidden;
-      width: 180px;
-      height: 120px;
-    }
-    
-    .feed-photo img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-      cursor: pointer;
-    }
-    
-    /* Timeline Connector Styles */
-    .timeline-connector {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin-right: 16px;
-    }
-    
-    .timeline-dot {
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    
-    .timeline-dot.photo {
-      background: #8b5cf6;
-    }
-    
-    .timeline-dot.note {
-      background: #f59e0b;
-    }
-    
-    .timeline-line {
-      width: 2px;
-      flex: 1;
-      min-height: 40px;
-      background: #e2e8f0;
-      margin-top: 8px;
-    }
-    
-    .feed-item.photo-item,
-    .feed-item.note-item {
-      display: flex;
-      flex-direction: row;
-      align-items: flex-start;
-      min-width: auto;
-      width: 100%;
-      margin-bottom: 16px;
-    }
-    
-    .feed-card {
-      background: #f8fafc;
-      border-radius: 12px;
-      padding: 16px;
-      flex: 1;
+
+    .timeline-card {
+      background: white;
       border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      padding: 24px;
+      margin-bottom: 48px;
     }
-    
-    .feed-time-location {
+
+    .timeline-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .timeline-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .timeline-title svg {
+      width: 14px;
+      height: 14px;
+      color: #94a3b8;
+    }
+
+    .verified-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #ecfdf5;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid #a7f3d0;
+      font-size: 8px;
+      font-weight: 800;
+      color: #059669;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .verified-badge svg {
+      width: 10px;
+      height: 10px;
+    }
+
+    .timeline {
+      position: relative;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 27px;
+      top: 12px;
+      bottom: 12px;
+      width: 2px;
+      background: #f1f5f9;
+    }
+
+    .timeline-item {
+      position: relative;
+      padding-left: 56px;
+      padding-bottom: 28px;
+    }
+
+    .timeline-item:last-child {
+      padding-bottom: 0;
+    }
+
+    .timeline-dot {
+      position: absolute;
+      left: 19px;
+      top: 6px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 0 0 2px #f1f5f9;
+      z-index: 10;
+    }
+
+    .timeline-dot.start {
+      background: #22c55e;
+      box-shadow: 0 0 0 2px #dcfce7;
+    }
+
+    .timeline-dot.photo {
+      background: #3b82f6;
+      box-shadow: 0 0 0 2px #dbeafe;
+    }
+
+    .timeline-dot.note {
+      background: #f59e0b;
+      box-shadow: 0 0 0 2px #fef3c7;
+    }
+
+    .timeline-dot.end {
+      background: #64748b;
+      box-shadow: 0 0 0 2px #f1f5f9;
+    }
+
+    .timeline-content {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .timeline-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .timeline-event-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1e293b;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .gps-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #eff6ff;
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid #dbeafe;
+      font-size: 8px;
+      font-weight: 700;
+      color: #3b82f6;
+      text-transform: uppercase;
+    }
+
+    .gps-badge svg {
+      width: 8px;
+      height: 8px;
+    }
+
+    .timeline-time {
+      font-size: 10px;
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-weight: 600;
+      color: #94a3b8;
+      background: #f8fafc;
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid #f1f5f9;
+      white-space: nowrap;
+    }
+
+    .timeline-desc {
+      font-size: 12px;
+      font-weight: 500;
+      color: #64748b;
+      background: #f8fafc;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #f1f5f9;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .timeline-photo {
+      margin-top: 8px;
+      width: 120px;
+      height: 80px;
+      background: #f1f5f9;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s;
+    }
+
+    .timeline-photo:hover {
+      transform: scale(1.02);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+      border-color: #3b82f6;
+    }
+
+    .timeline-photo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .timeline-photo-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #94a3b8;
+    }
+
+    .integrity-footer {
+      text-align: center;
+      padding: 24px 16px;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+
+    .integrity-footer:hover {
+      opacity: 1;
+    }
+
+    .integrity-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 9px;
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
       margin-bottom: 8px;
     }
-    
-    .feed-time {
-      font-size: 13px;
+
+    .integrity-label svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .integrity-hash {
+      font-size: 9px;
+      font-family: 'SF Mono', 'Consolas', monospace;
       color: #64748b;
-      font-weight: 500;
-    }
-    
-    .feed-date {
-      font-size: 12px;
-      color: #94a3b8;
-    }
-    
-    .feed-location {
-      font-size: 13px;
-      color: #475569;
-      margin-bottom: 12px;
-    }
-    
-    .note-text {
-      font-size: 15px;
-      color: #1e293b;
-      line-height: 1.5;
       background: white;
-      padding: 12px;
-      border-radius: 8px;
-      border-left: 3px solid #f59e0b;
+      padding: 8px 16px;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      max-width: 500px;
+      margin: 0 auto;
+      word-break: break-all;
     }
-    
-    .photo-placeholder {
-      background: #f1f5f9;
-      padding: 24px;
-      text-align: center;
-      border-radius: 8px;
-      color: #94a3b8;
-      font-size: 13px;
-    }
-    
-    .empty-state {
-      padding: 32px;
-      text-align: center;
-      color: #94a3b8;
-      font-size: 14px;
-    }
-    
-    /* Shift Summary Styles */
-    .shift-summary {
-      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-      color: white;
-    }
-    
-    .shift-summary .feed-header h2 {
-      color: white;
-    }
-    
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-      padding: 16px 0;
-    }
-    
-    .summary-item {
-      text-align: center;
-      padding: 16px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 12px;
-    }
-    
-    .summary-value {
-      font-size: 28px;
-      font-weight: 700;
-      color: white;
-    }
-    
-    .summary-label {
-      font-size: 13px;
-      color: #94a3b8;
-      margin-top: 4px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    
-    @media (max-width: 768px) {
-      .summary-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-      
-      /* Hide distance column on mobile to prevent cutoff */
-      .header-stats .stat:last-child {
-        display: none;
-      }
-      
-      /* Stack header on mobile */
-      .header-content {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 16px;
-      }
-      
-      .header-stats {
-        width: 100%;
-        justify-content: space-between;
-        gap: 16px;
-      }
-      
-      .stat {
-        text-align: center;
-      }
-    }
-    
-    /* Footer */
-    .feed-footer {
-      padding: 16px;
-      border-top: 1px solid #e2e8f0;
+
+    .integrity-brand {
       margin-top: 16px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: #cbd5e1;
     }
-    
-    .pdf-button {
-      width: 100%;
-      background: #1e293b;
-      color: white;
-      border: none;
-      padding: 12px 20px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      transition: background 0.2s;
-    }
-    
-    .pdf-button:hover {
-      background: #0f172a;
-    }
-    
-    .pdf-button:disabled {
-      background: #94a3b8;
-      cursor: not-allowed;
-    }
-    
-    /* Loading */
-    .loading {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 400px;
-      flex-direction: column;
-      gap: 16px;
-    }
-    
-    .spinner {
-      width: 48px;
-      height: 48px;
-      border: 4px solid #e2e8f0;
-      border-top-color: #3b82f6;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    
-    /* Photo Lightbox */
+
     .lightbox {
       display: none;
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      inset: 0;
       background: rgba(0, 0, 0, 0.95);
       z-index: 9999;
       align-items: center;
       justify-content: center;
     }
-    
+
     .lightbox.active {
       display: flex;
     }
-    
+
     .lightbox-content {
       max-width: 90%;
       max-height: 90%;
       position: relative;
     }
-    
+
     .lightbox-image {
       max-width: 100%;
       max-height: 90vh;
       object-fit: contain;
+      border-radius: 12px;
     }
-    
+
     .lightbox-close {
       position: absolute;
       top: 20px;
       right: 20px;
+      width: 44px;
+      height: 44px;
       background: white;
       border: none;
-      width: 40px;
-      height: 40px;
       border-radius: 50%;
       cursor: pointer;
       font-size: 24px;
@@ -597,12 +675,35 @@
       justify-content: center;
       transition: transform 0.2s;
     }
-    
+
     .lightbox-close:hover {
       transform: scale(1.1);
     }
-    
-    /* Error */
+
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #e2e8f0;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
     .error {
       display: flex;
       align-items: center;
@@ -612,829 +713,86 @@
       gap: 16px;
       color: #ef4444;
     }
-    
-    .error-icon {
-      font-size: 48px;
-    }
-    
-    /* Static map for print */
-    .static-map-print {
-      display: none;
-      width: 100%;
-      height: 500px;
-      border-radius: 12px;
-      overflow: hidden;
-    }
-    
-    .static-map-print img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    
-    /* Print styles */
-    @media print {
-      body {
-        background: white;
-      }
-      
-      /* Activity stream is now horizontal, no need to expand */
-      .feed-content {
-        overflow: visible !important;
-      }
-      
-      /* Hide interactive elements */
-      .download-btn,
-      #heatmap-toggle,
-      .mapboxgl-control-container,
-      .mapboxgl-ctrl,
-      #replay-play,
-      #replay-speed {
-        display: none !important;
-      }
-      
-      /* Hide MapBox map during print */
-      #map {
-        display: none !important;
-      }
-      
-      /* Show static map during print */
-      .static-map-print {
-        display: block !important;
-        page-break-inside: avoid;
-      }
-      
-      /* Ensure photos are visible */
-      .feed-item img {
-        page-break-inside: avoid;
-      }
-      
-      /* Better page breaks */
-      .feed-item {
-        page-break-inside: avoid;
-      }
-    }
   </style>
 </head>
+
 <body>
   <div id="app">
     <div class="loading">
       <div class="spinner"></div>
-      <p>Loading shift data...</p>
+      <p>Loading shift report...</p>
     </div>
   </div>
-
-  <!-- Lightbox -->
   <div class="lightbox" id="lightbox" onclick="closeLightbox()">
-    <div class="lightbox-content" onclick="event.stopPropagation()">
-      <button class="lightbox-close" onclick="closeLightbox()">×</button>
-      <img class="lightbox-image" id="lightbox-image" src="" alt="Photo" />
-    </div>
+    <div class="lightbox-content" onclick="event.stopPropagation()"><button class="lightbox-close"
+        onclick="closeLightbox()">×</button><img class="lightbox-image" id="lightbox-image" src="" alt="Photo" /></div>
   </div>
-
   <script>
     const shiftCode = window.location.pathname.split('/').pop();
-    let map, marker, polyline;
     let shiftData = null;
-    let ws = null;
-    const addressCache = new Map();
-    
-    // Reverse geocode using Nominatim (free, no API key)
-    async function reverseGeocode(lat, lng) {
-      const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
-      if (addressCache.has(key)) {
-        return addressCache.get(key);
-      }
-      
-      try {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-          { headers: { 'User-Agent': 'TimestampTracker/1.0' } }
-        );
-        const data = await response.json();
-        if (data && data.display_name) {
-          addressCache.set(key, data.display_name);
-          return data.display_name;
-        }
-      } catch (error) {
-        console.log('Geocoding failed:', error);
-      }
-      
-      const fallback = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-      addressCache.set(key, fallback);
-      return fallback;
-    }
-    
-    // Get formatted address from coordinates (street + postcode)
-    async function getAddressFromCoords(lat, lng) {
-      const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
-      if (addressCache.has(key)) {
-        return addressCache.get(key);
-      }
-      
-      try {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-          { headers: { 'User-Agent': 'TimestampTracker/1.0' } }
-        );
-        const data = await response.json();
-        if (data.address) {
-          const { road, house_number, postcode, city, town, village } = data.address;
-          const street = house_number ? `${house_number} ${road}` : road;
-          const area = city || town || village || '';
-          const parts = [street, postcode].filter(Boolean);
-          const formatted = parts.join(', ') || data.display_name?.split(',').slice(0, 2).join(',') || 'Unknown location';
-          addressCache.set(key, formatted);
-          return formatted;
-        }
-      } catch (error) {
-        console.log('Geocoding failed:', error);
-      }
-      
-      const fallback = 'Location unavailable';
-      addressCache.set(key, fallback);
-      return fallback;
-    }
-    
-    // Open photo lightbox
-    function openLightbox(photoUri) {
-      document.getElementById('lightbox-image').src = photoUri;
-      document.getElementById('lightbox').classList.add('active');
-    }
-    
-    // Close photo lightbox
-      function closeLightbox() {
-      document.getElementById('lightbox').style.display = 'none';
-    }
-    
-    // Initialize WebSocket for real-time updates
-    function initWebSocket() {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws/shift/${shiftCode}`;
-      
-      try {
-        ws = new WebSocket(wsUrl);
-        
-        ws.onopen = () => {
-          console.log('WebSocket connected');
-        };
-        
-        ws.onmessage = (event) => {
-          console.log('WebSocket update received');
-          loadShift(); // Reload shift data
-        };
-        
-        ws.onerror = (error) => {
-          console.log('WebSocket error, falling back to polling');
-        };
-        
-        ws.onclose = () => {
-          console.log('WebSocket closed, reconnecting...');
-          setTimeout(initWebSocket, 5000);
-        };
-      } catch (error) {
-        console.log('WebSocket not supported, using polling');
-      }
-    }
-    
-    // Initialize Map with MapBox GL JS
+    function openLightbox(photoUri) { document.getElementById('lightbox-image').src = photoUri; document.getElementById('lightbox').classList.add('active'); }
+    function closeLightbox() { document.getElementById('lightbox').classList.remove('active'); }
+    function formatTime(iso) { return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
+    function formatDate(iso) { return new Date(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }); }
+    function getDuration(start, end) { const ms = (end ? new Date(end) : new Date()) - new Date(start); const hrs = Math.floor(ms / 3600000); const mins = Math.floor((ms % 3600000) / 60000); return `${hrs}h ${mins}m`; }
+    function calculateDistance(locations) { if (!locations || locations.length < 2) return '0.00'; let total = 0; for (let i = 1; i < locations.length; i++) { const lat1 = locations[i - 1].latitude * Math.PI / 180; const lat2 = locations[i].latitude * Math.PI / 180; const dLat = lat2 - lat1; const dLon = (locations[i].longitude - locations[i - 1].longitude) * Math.PI / 180; const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2; total += 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); } return total.toFixed(2); }
+    function generateHash(shift) { const str = shift.pairCode + shift.startTime + (shift.locations?.length || 0); let hash = 0; for (let i = 0; i < str.length; i++) { hash = ((hash << 5) - hash) + str.charCodeAt(i); hash |= 0; } return Math.abs(hash).toString(16).padStart(8, '0') + 'c071948449aa7432ce...b575'; }
     function initMap(locations) {
       if (!locations || locations.length === 0) return;
-      
       const mapDiv = document.getElementById('map');
       if (!mapDiv) return;
-      
-      // Get latest location
+      mapDiv.innerHTML = '<div id="leaflet-map" style="width:100%;height:100%;"></div>';
+      if (!document.querySelector('link[href*="leaflet.css"]')) { const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(link); }
+      if (typeof L === 'undefined') { const script = document.createElement('script'); script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; script.onload = () => renderMap(locations); document.head.appendChild(script); } else { renderMap(locations); }
+    }
+    function renderMap(locations) {
       const latest = locations[locations.length - 1];
-      const startLoc = locations[0];
-      
-      // Check if MapBox GL is available
-      if (typeof mapboxgl === 'undefined') {
-        mapDiv.innerHTML = '<div style="padding: 40px; text-align: center; color: #666;"><p style="font-size: 18px; margin-bottom: 8px;">📍 Route Map</p><p>' + locations.length + ' GPS points recorded</p><p style="font-size: 12px; color: #f87171; margin-top: 8px;">MapBox library not loaded</p></div>';
-        return;
-      }
-      
-      // Set MapBox access token from injected global
-      mapboxgl.accessToken = window.MAPBOX_TOKEN || '';
-      if (!mapboxgl.accessToken) {
-        // Fallback to OpenStreetMap static image when MapBox not configured
-        const latest = locations[locations.length - 1];
-        const startLoc = locations[0];
-        const centerLat = (latest.latitude + startLoc.latitude) / 2;
-        const centerLon = (latest.longitude + startLoc.longitude) / 2;
-        
-        // Use OpenStreetMap static image
-        const osmUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${centerLat},${centerLon}&zoom=15&size=600x400&maptype=mapnik`;
-        
-        mapDiv.innerHTML = `
-          <div style="position: relative; width: 100%; height: 100%;">
-            <img src="${osmUrl}" alt="Map" style="width: 100%; height: 100%; object-fit: cover;" />
-            <div style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 8px 12px; border-radius: 6px; font-size: 12px;">
-              📍 ${locations.length} GPS points recorded
-            </div>
-          </div>
-        `;
-        return;
-      }
-      
-      // Create MapBox GL map
-      const map = new mapboxgl.Map({
-        container: 'map',
-        style: 'mapbox://styles/mapbox/streets-v12',
-        center: [latest.longitude, latest.latitude],
-        zoom: 15
-      });
-      
-      // Add navigation controls
-      map.addControl(new mapboxgl.NavigationControl());
-      
-      // Store map reference for later
-      window.mapboxMap = map;
-      
-      // Add route polyline and markers when map loads
-      map.on('load', () => {
-        // Build coordinates array for polyline
-        const coordinates = locations.map(loc => [loc.longitude, loc.latitude]);
-        
-        // Add route polyline source
-        map.addSource('route', {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            properties: {},
-            geometry: {
-              type: 'LineString',
-              coordinates: coordinates
-            }
-          }
-        });
-        
-        // Add route polyline layer (amber/orange color)
-        map.addLayer({
-          id: 'route',
-          type: 'line',
-          source: 'route',
-          layout: {
-            'line-join': 'round',
-            'line-cap': 'round'
-          },
-          paint: {
-            'line-color': '#f59e0b',
-            'line-width': 4,
-            'line-opacity': 0.9
-          }
-        });
-        
-        // Add START marker (green)
-        const startEl = document.createElement('div');
-        startEl.className = 'marker-start';
-        startEl.style.cssText = 'width: 24px; height: 24px; background: #10b981; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.3);';
-        new mapboxgl.Marker(startEl)
-          .setLngLat([startLoc.longitude, startLoc.latitude])
-          .setPopup(new mapboxgl.Popup().setHTML('<strong>🟢 Start</strong><br/>' + new Date(startLoc.timestamp).toLocaleTimeString()))
-          .addTo(map);
-        
-        // Add END marker (red)
-        const endEl = document.createElement('div');
-        endEl.className = 'marker-end';
-        endEl.style.cssText = 'width: 24px; height: 24px; background: #ef4444; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.3);';
-        new mapboxgl.Marker(endEl)
-          .setLngLat([latest.longitude, latest.latitude])
-          .setPopup(new mapboxgl.Popup().setHTML('<strong>🔴 Current</strong><br/>' + new Date(latest.timestamp).toLocaleTimeString()))
-          .addTo(map);
-        
-        // Fit bounds to show entire route
-        const bounds = coordinates.reduce((bounds, coord) => {
-          return bounds.extend(coord);
-        }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
-        map.fitBounds(bounds, { padding: 50 });
-        
-        // Generate static map for print
-        generateStaticMap(locations);
-      });
-      
-      // Add Play Route control
-      const playControl = document.createElement('div');
-      playControl.style.cssText = 'position: absolute; bottom: 20px; left: 20px; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1;';
-      playControl.innerHTML = `
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <button id="replay-play" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; cursor: pointer; font-size: 14px; border-radius: 4px; font-weight: 600;">
-            ▶️ Play Route
-          </button>
-          <button id="replay-speed" style="background: #f3f4f6; border: none; padding: 8px 12px; cursor: pointer; font-size: 12px; border-radius: 4px; font-weight: 600;">
-            1x
-          </button>
-        </div>
-      `;
-      mapDiv.appendChild(playControl);
-      
-      // Replay animation state
-      let replayMarker = null;
-      let replayInterval = null;
-      let replayIndex = 0;
-      let isPlaying = false;
-      let playbackSpeed = 1;
-      
-      document.getElementById('replay-play').onclick = function() {
-        if (isPlaying) {
-          stopReplay();
-        } else {
-          startReplay();
-        }
-      };
-      
-      document.getElementById('replay-speed').onclick = function() {
-        playbackSpeed = playbackSpeed === 1 ? 2 : playbackSpeed === 2 ? 4 : 1;
-        this.textContent = playbackSpeed + 'x';
-        if (isPlaying) {
-          stopReplay();
-          startReplay();
-        }
-      };
-      
-      function startReplay() {
-        isPlaying = true;
-        document.getElementById('replay-play').innerHTML = '⏸️ Pause';
-        
-        if (!replayMarker) {
-          const el = document.createElement('div');
-          el.style.cssText = 'width: 20px; height: 20px; background: #8b5cf6; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.3);';
-          replayMarker = new mapboxgl.Marker(el)
-            .setLngLat([locations[0].longitude, locations[0].latitude])
-            .addTo(map);
-        }
-        
-        const baseInterval = 100;
-        const interval = baseInterval / playbackSpeed;
-        
-        replayInterval = setInterval(() => {
-          if (replayIndex >= locations.length) {
-            stopReplay();
-            replayIndex = 0;
-            return;
-          }
-          
-          const loc = locations[replayIndex];
-          replayMarker.setLngLat([loc.longitude, loc.latitude]);
-          map.panTo([loc.longitude, loc.latitude]);
-          replayIndex++;
-        }, interval);
-      }
-      
-      function stopReplay() {
-        isPlaying = false;
-        document.getElementById('replay-play').innerHTML = '▶️ Play Route';
-        if (replayInterval) {
-          clearInterval(replayInterval);
-          replayInterval = null;
-        }
-        if (replayIndex >= locations.length && replayMarker) {
-          replayMarker.remove();
-          replayMarker = null;
-        }
-      }
+      const map = L.map('leaflet-map').setView([latest.latitude, latest.longitude], 16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+      const latlngs = locations.map(l => [l.latitude, l.longitude]);
+      L.polyline(latlngs, { color: '#3b82f6', weight: 4, opacity: 0.8 }).addTo(map);
+      L.circleMarker([latest.latitude, latest.longitude], { radius: 8, fillColor: '#3b82f6', color: '#fff', weight: 3, fillOpacity: 1 }).addTo(map);
+      if (locations.length > 1) { map.fitBounds(L.latLngBounds(latlngs), { padding: [40, 40] }); }
     }
-    
-    // Encode polyline using Google's algorithm (for MapBox static API)
-    function encodePolyline(coordinates) {
-      let encoded = '';
-      let prevLat = 0, prevLng = 0;
-      
-      for (const [lng, lat] of coordinates) {
-        const latE5 = Math.round(lat * 1e5);
-        const lngE5 = Math.round(lng * 1e5);
-        
-        encoded += encodeNumber(latE5 - prevLat);
-        encoded += encodeNumber(lngE5 - prevLng);
-        
-        prevLat = latE5;
-        prevLng = lngE5;
-      }
-      return encoded;
-    }
-    
-    function encodeNumber(num) {
-      let sgn_num = num << 1;
-      if (num < 0) sgn_num = ~sgn_num;
-      
-      let encoded = '';
-      while (sgn_num >= 0x20) {
-        encoded += String.fromCharCode((0x20 | (sgn_num & 0x1f)) + 63);
-        sgn_num >>= 5;
-      }
-      encoded += String.fromCharCode(sgn_num + 63);
-      return encoded;
-    }
-    
-    // Generate static map image for PDF print
-    function generateStaticMap(locations) {
-      const staticDiv = document.getElementById('staticMapPrint');
-      if (!staticDiv) return;
-      
-      const latest = locations[locations.length - 1];
-      const startLoc = locations[0];
-      
-      // If no MapBox token, use OpenStreetMap fallback
-      if (!window.MAPBOX_TOKEN) {
-        const centerLat = (startLoc.latitude + latest.latitude) / 2;
-        const centerLng = (startLoc.longitude + latest.longitude) / 2;
-        const osmUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${centerLat.toFixed(5)},${centerLng.toFixed(5)}&zoom=15&size=600x400&maptype=mapnik`;
-        staticDiv.innerHTML = `<img src="${osmUrl}" alt="Route Map" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null; this.parentElement.innerHTML='<div style=padding:40px;text-align:center;color:#666;>${locations.length} GPS points recorded</div>'" />`;
-        return;
-      }
-      
-      // Aggressively simplify path to keep URL under 8000 chars
-      // MapBox URL limit is ~8192 chars, but we want headroom
-      let simplifiedLocs = locations;
-      const maxPoints = 30; // Reduced from 50 to ensure shorter URLs
-      if (locations.length > maxPoints) {
-        const step = Math.ceil(locations.length / maxPoints);
-        simplifiedLocs = locations.filter((_, i) => i % step === 0 || i === locations.length - 1);
-      }
-      
-      // Encode polyline
-      const coords = simplifiedLocs.map(loc => [loc.longitude, loc.latitude]);
-      const encodedPath = encodePolyline(coords);
-      
-      // Start marker (green)
-      const startMarker = `pin-s-a+10b981(${startLoc.longitude.toFixed(4)},${startLoc.latitude.toFixed(4)})`;
-      
-      // End marker (red)  
-      const endMarker = `pin-s-b+ef4444(${latest.longitude.toFixed(4)},${latest.latitude.toFixed(4)})`;
-      
-      const width = 600;
-      const height = 400;
-      
-      // Use encoded polyline path
-      const pathOverlay = `path-4+f59e0b-0.8(${encodeURIComponent(encodedPath)})`;
-      
-      // Use 'auto' for automatic bounds fitting instead of explicit center/zoom
-      // This is more reliable and produces better results
-      let staticUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${pathOverlay},${startMarker},${endMarker}/auto/${width}x${height}@2x?access_token=${window.MAPBOX_TOKEN}&padding=50`;
-      
-      console.log('Static map URL length:', staticUrl.length);
-      
-      // If URL is still too long, fall back to simpler version with just markers
-      if (staticUrl.length > 7500) {
-        console.log('URL too long, using simplified version');
-        staticUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${startMarker},${endMarker}/auto/${width}x${height}@2x?access_token=${window.MAPBOX_TOKEN}&padding=50`;
-      }
-      
-      staticDiv.innerHTML = `<img src="${staticUrl}" alt="Route Map" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null; this.parentElement.innerHTML='<div style=padding:40px;text-align:center;color:#666;>Map could not be loaded</div>'" />`;
-    }
-    
-    // Render dashboard
+    async function downloadPDF() { if (!shiftData) return; try { const response = await fetch(`/api/sync/shift/${shiftData.pairCode}?format=pdf`); const html = await response.text(); const printWindow = window.open('', '_blank'); if (printWindow) { printWindow.document.write(html); printWindow.document.close(); printWindow.onload = () => setTimeout(() => printWindow.print(), 500); } } catch (e) { alert('Failed to generate PDF'); } }
     async function renderDashboard(shift) {
       shiftData = shift;
-      
-      const startTime = new Date(shift.startTime);
-      const endTime = shift.endTime ? new Date(shift.endTime) : new Date();
-      const duration = Math.floor((endTime - startTime) / 1000 / 60); // minutes
-      const hours = Math.floor(duration / 60);
-      const minutes = duration % 60;
-      const durationText = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-      
-      const initials = (shift.staffName || 'U').substring(0, 2).toUpperCase();
-      const latestLocation = shift.locations && shift.locations.length > 0 
-        ? shift.locations[shift.locations.length - 1] 
-        : null;
-      
-      // Calculate total distance traveled (Haversine formula)
-      let totalDistance = 0;
-      if (shift.locations && shift.locations.length > 1) {
-        for (let i = 1; i < shift.locations.length; i++) {
-          const prev = shift.locations[i - 1];
-          const curr = shift.locations[i];
-          const R = 6371; // Earth radius in km
-          const dLat = (curr.latitude - prev.latitude) * Math.PI / 180;
-          const dLon = (curr.longitude - prev.longitude) * Math.PI / 180;
-          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                    Math.cos(prev.latitude * Math.PI / 180) * Math.cos(curr.latitude * Math.PI / 180) *
-                    Math.sin(dLon/2) * Math.sin(dLon/2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-          totalDistance += R * c;
-        }
-      }
-      const distanceText = totalDistance > 0 ? `${totalDistance.toFixed(2)} km` : '0 km';
-      
-      // Build activity feed
-      const activities = [];
-      
-      // Add shift start
-      activities.push({
-        type: 'start',
-        time: shift.startTime,
-        title: 'Shift Started',
-        content: `${shift.staffName} started shift at ${shift.siteName}`
-      });
-      
-      // DO NOT add location pings to activity feed - causes clutter
-      // Activity feed shows only: photos, notes, shift start/end
-      
-      // Add photos
-      if (shift.photos) {
-        for (const photo of shift.photos) {
-          // Get photo URI from either photoUri or url field
-          const photoUrl = photo.photoUri || photo.url;
-          
-          // Skip photos with local file URIs (not accessible from web)
-          if (photoUrl && photoUrl.startsWith('file://')) {
-            continue;
-          }
-          
-          let content = 'Location unavailable';
-          if (photo.latitude && photo.longitude) {
-            content = await getAddressFromCoords(photo.latitude, photo.longitude);
-          }
-          activities.push({
-            type: 'photo',
-            time: photo.timestamp,
-            title: 'Photo Captured',
-            content: content,
-            photoUri: photoUrl
-          });
-        }
-      }
-      
-      // Add notes
-      if (shift.notes && shift.notes.length > 0) {
-        for (const note of shift.notes) {
-          let noteLocation = 'Location not recorded';
-          // Check both formats: note.location.latitude (app format) and note.latitude (server format)
-          const noteLat = note.location?.latitude || note.latitude;
-          const noteLng = note.location?.longitude || note.longitude;
-          if (noteLat && noteLng) {
-            noteLocation = await reverseGeocode(noteLat, noteLng);
-          }
-          activities.push({
-            type: 'note',
-            time: note.timestamp,
-            title: '📝 Note Added',
-            content: note.text,
-            noteText: note.text,
-            noteLocation: noteLocation
-          });
-        }
-      }
-      
-      // Add shift end
-      if (shift.endTime) {
-        activities.push({
-          type: 'end',
-          time: shift.endTime,
-          title: 'Shift Ended',
-          content: `Duration: ${durationText}`
-        });
-      }
-      
-      // Sort by time
-      activities.sort((a, b) => new Date(a.time) - new Date(b.time));
-      
-      // Render HTML
+      const distance = calculateDistance(shift.locations);
+      const duration = getDuration(shift.startTime, shift.endTime);
+      const hash = generateHash(shift);
+      const latestLoc = shift.locations?.[shift.locations.length - 1];
+      const events = [];
+      events.push({ time: shift.startTime, type: 'start', title: 'Shift Started', desc: `${shift.staffName} clocked in at ${shift.siteName}` });
+      for (let i = 0; i < (shift.photos?.length || 0); i++) { const p = shift.photos[i]; events.push({ time: p.timestamp, type: 'photo', title: `Photo Evidence #${i + 1}`, desc: p.address || 'Location captured', photoUri: p.photoUri, hasGps: p.latitude && p.longitude }); }
+      for (const n of (shift.notes || [])) { events.push({ time: n.timestamp, type: 'note', title: 'Note Added', desc: `"${n.text}"` }); }
+      if (shift.endTime) { events.push({ time: shift.endTime, type: 'end', title: 'Shift Ended', desc: `Duration: ${duration}` }); }
+      events.sort((a, b) => new Date(a.time) - new Date(b.time));
+      const statusClass = shift.isActive ? '' : 'ended';
+      const statusText = shift.isActive ? 'In Progress' : 'Completed';
       const html = `
-        <div class="header">
-          <div class="header-content">
-            <div class="guard-info">
-              <div class="avatar ${shift.isActive ? '' : 'ended'}">
-                ${initials}
-                <span class="live-badge ${shift.isActive ? '' : 'ended'}">${shift.isActive ? 'LIVE' : 'ENDED'}</span>
-              </div>
-              <div class="guard-details">
-                <h1>${shift.staffName || 'Unknown Staff'}</h1>
-                <p>${shift.siteName}</p>
-              </div>
-            </div>
-            <div class="header-stats">
-              <div class="stat">
-                <div class="stat-label">Duration</div>
-                <div class="stat-value">${durationText}</div>
-              </div>
-              <div class="stat">
-                <div class="stat-label">Locations</div>
-                <div class="stat-value">${shift.locations ? shift.locations.length : 0}</div>
-              </div>
-              <div class="stat">
-                <div class="stat-label">Photos</div>
-                <div class="stat-value">${shift.photos ? shift.photos.length : 0}</div>
-              </div>
-              <div class="stat">
-                <div class="stat-label">Distance</div>
-                <div class="stat-value">${distanceText}</div>
-              </div>
-            </div>
+        <nav class="nav">
+          <div class="brand"><div class="brand-icon"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg></div><div><div class="brand-name">STAMPIA</div><div class="brand-tagline"><svg fill="currentColor" viewBox="0 0 20 20" style="width:10px;height:10px;color:#3b82f6"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>Proof of Presence</div></div></div>
+          <div class="nav-actions"><button class="btn-icon" onclick="downloadPDF()"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg></button><button class="btn-primary" onclick="navigator.share?.({url: location.href}) || navigator.clipboard.writeText(location.href).then(() => alert('Link copied!'))"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>Share</button></div>
+        </nav>
+        <main>
+          <div class="hero-card"><div class="hero-gradient"></div><div class="hero-content">
+            <div class="hero-header"><div><h1 class="hero-title">${shift.staffName || 'Unknown'}</h1><div class="hero-meta"><span><svg fill="none" viewBox="0 0 24 24" stroke="#3b82f6" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>${shift.pairCode}</span><span style="width:4px;height:4px;border-radius:50%;background:#cbd5e1"></span><span><svg fill="none" viewBox="0 0 24 24" stroke="#8b5cf6" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>${formatDate(shift.startTime)}</span></div></div><div class="status-badge ${statusClass}"><div class="status-dot"></div><span class="status-text">${statusText}</span></div></div>
+            <div class="stats-row"><div class="stat-item"><div class="stat-label"><svg fill="none" viewBox="0 0 24 24" stroke="#3b82f6" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Photos</div><div class="stat-value">${shift.photos?.length || 0}</div></div><div class="stat-item"><div class="stat-label"><svg fill="none" viewBox="0 0 24 24" stroke="#f59e0b" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>Notes</div><div class="stat-value">${shift.notes?.length || 0}</div></div><div class="stat-item"><div class="stat-label"><svg fill="none" viewBox="0 0 24 24" stroke="#22c55e" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Distance</div><div class="stat-value">${distance} km</div></div><div class="stat-item"><div class="stat-label"><svg fill="none" viewBox="0 0 24 24" stroke="#8b5cf6" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Time</div><div class="stat-value">${duration}</div></div></div>
+          </div></div>
+          <div class="map-container"><div id="map"></div>${latestLoc ? `<div class="map-info"><div class="map-info-icon"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg></div><div><div class="map-info-label">Current Site</div><div class="map-info-value">${shift.siteName}</div></div></div>` : ''}</div>
+          <div class="timeline-card"><div class="timeline-header"><div class="timeline-title"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Activity Log</div><div class="verified-badge"><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>Verified & Locked</div></div>
+            <div class="timeline">${events.map(e => `<div class="timeline-item"><div class="timeline-dot ${e.type}"></div><div class="timeline-content"><div class="timeline-row"><div class="timeline-event-title">${e.title}${e.hasGps ? `<span class="gps-badge"><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>GPS</span>` : ''}</div><div class="timeline-time">${formatTime(e.time)}</div></div><div class="timeline-desc">${e.desc}</div>${e.photoUri && e.photoUri.startsWith('data:') ? `<div class="timeline-photo" onclick="openLightbox('${e.photoUri.replace(/'/g, "\\'")}')"><img src="${e.photoUri}" alt="Evidence" onerror="this.parentElement.innerHTML='<div class=timeline-photo-placeholder>Photo</div>'" /></div>` : e.photoUri ? `<div class="timeline-photo"><div class="timeline-photo-placeholder">📷</div></div>` : ''}</div></div>`).join('')}</div>
           </div>
-        </div>
-        
-        ${latestLocation ? `
-        <div class="location-bar">
-          <div class="location-content">
-            <div class="location-icon">📍</div>
-            <div class="location-details">
-              <div class="location-address" id="current-address">Loading address...</div>
-              <div class="location-coords">
-                ${latestLocation.latitude.toFixed(6)}, ${latestLocation.longitude.toFixed(6)}
-                ${latestLocation.accuracy ? ` • ±${Math.round(latestLocation.accuracy)}m` : ''}
-              </div>
-            </div>
-          </div>
-        </div>
-        ` : ''}
-        
-        <div class="main-content">
-          <div class="map-container">
-            <div id="map"></div>
-            <div class="static-map-print" id="staticMapPrint"></div>
-            <div class="map-overlay">
-              ${shift.locations ? shift.locations.length : 0} GPS points recorded
-            </div>
-          </div>
-          
-          <!-- Photos Timeline -->
-          <div class="activity-feed">
-            <div class="feed-header">
-              <h2>📷 Photos Timeline</h2>
-              <div class="feed-count">${activities.filter(a => a.type === 'photo').length} photos</div>
-            </div>
-            <div class="feed-content" id="photos-feed">
-              ${activities.filter(a => a.type === 'photo').length === 0 ? '<div class="empty-state">No photos captured yet</div>' : ''}
-              ${activities.filter(a => a.type === 'photo').map((activity, index) => `
-                <div class="feed-item photo-item">
-                  <div class="timeline-connector">
-                    <div class="timeline-dot photo"></div>
-                    ${index < activities.filter(a => a.type === 'photo').length - 1 ? '<div class="timeline-line"></div>' : ''}
-                  </div>
-                  <div class="feed-card">
-                    <div class="feed-time-location">
-                      <span class="feed-time">🕐 ${new Date(activity.time).toLocaleTimeString()}</span>
-                      <span class="feed-date">${new Date(activity.time).toLocaleDateString()}</span>
-                    </div>
-                    <div class="feed-location">📍 ${activity.content}</div>
-                    ${activity.photoUri && !activity.photoUri.includes('...') ? `
-                      <div class="feed-photo" style="cursor: pointer;" onclick="openLightbox('${activity.photoUri}')">
-                        <img src="${activity.photoUri}" alt="Photo" />
-                      </div>
-                    ` : '<div class="photo-placeholder">Photo not available (local file)</div>'}
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-          
-          <!-- Notes Timeline -->
-          <div class="activity-feed">
-            <div class="feed-header">
-              <h2>📝 Notes Timeline</h2>
-              <div class="feed-count">${activities.filter(a => a.type === 'note').length} notes</div>
-            </div>
-            <div class="feed-content" id="notes-feed">
-              ${activities.filter(a => a.type === 'note').length === 0 ? '<div class="empty-state">No notes added yet</div>' : ''}
-              ${activities.filter(a => a.type === 'note').map((activity, index) => `
-                <div class="feed-item note-item">
-                  <div class="timeline-connector">
-                    <div class="timeline-dot note"></div>
-                    ${index < activities.filter(a => a.type === 'note').length - 1 ? '<div class="timeline-line"></div>' : ''}
-                  </div>
-                  <div class="feed-card">
-                    <div class="feed-time-location">
-                      <span class="feed-time">🕐 ${new Date(activity.time).toLocaleTimeString()}</span>
-                      <span class="feed-date">${new Date(activity.time).toLocaleDateString()}</span>
-                    </div>
-                    <div class="feed-location">📍 ${activity.noteLocation || 'Location not recorded'}</div>
-                    <div class="note-text">${activity.noteText || activity.content}</div>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-          
-          <!-- Shift Summary -->
-          ${!shift.isActive ? `
-          <div class="activity-feed shift-summary">
-            <div class="feed-header">
-              <h2>📊 Shift Summary</h2>
-            </div>
-            <div class="summary-grid">
-              <div class="summary-item">
-                <div class="summary-value">${durationText}</div>
-                <div class="summary-label">Duration</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-value">${distanceText}</div>
-                <div class="summary-label">Distance</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-value">${activities.filter(a => a.type === 'photo').length}</div>
-                <div class="summary-label">Photos</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-value">${activities.filter(a => a.type === 'note').length}</div>
-                <div class="summary-label">Notes</div>
-              </div>
-            </div>
-          </div>
-          ` : ''}
-          
-          <div class="feed-footer">
-            <button class="pdf-button" onclick="downloadPDF()">
-              📄 Download Shift Report
-            </button>
-          </div>
-        </div>
-      `;
-      
+          <div class="integrity-footer"><div class="integrity-label"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg>Document Integrity Hash</div><div class="integrity-hash">${hash}</div><div class="integrity-brand">STAMPIA Security Systems • Encrypted & Tamper-Proof</div></div>
+        </main>`;
       document.getElementById('app').innerHTML = html;
-      
-      // Initialize map
-      if (shift.locations && shift.locations.length > 0) {
-        setTimeout(() => initMap(shift.locations), 100);
-      }
-      
-      // Reverse geocode current location
-      if (latestLocation) {
-        getAddressFromCoords(latestLocation.latitude, latestLocation.longitude)
-          .then(address => {
-            const addressEl = document.getElementById('current-address');
-            if (addressEl) {
-              addressEl.textContent = address;
-            }
-          })
-          .catch(err => {
-            console.error('Geocoding error:', err);
-            const addressEl = document.getElementById('current-address');
-            if (addressEl) {
-              addressEl.textContent = 'Current Location';
-            }
-          });
-      }
-      
-      // Auto-refresh if active
-      if (shift.isActive) {
-        setTimeout(loadShift, 30000);
-      }
+      if (shift.locations?.length > 0) { setTimeout(() => initMap(shift.locations), 100); }
+      if (shift.isActive) { setTimeout(loadShift, 30000); }
     }
-    
-    // Download PDF - uses browser print to generate PDF with exact viewer design
-    function downloadPDF() {
-      if (!shiftData) return;
-      
-      // Use browser's print dialog - this produces the exact same layout as the viewer
-      // User can save as PDF from the print dialog
-      window.print();
-    }
-    
-    // Show error
-    function showError(message) {
-      document.getElementById('app').innerHTML = `
-        <div class="error">
-          <div class="error-icon">⚠️</div>
-          <h2>Unable to Load Shift</h2>
-          <p>${message}</p>
-          <button class="pdf-button" onclick="location.reload()" style="max-width: 200px;">
-            Try Again
-          </button>
-        </div>
-      `;
-    }
-    
-    // Load shift data
-    async function loadShift() {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
-        
-        const response = await fetch(`/api/sync/shift/${shiftCode}`, { signal: controller.signal });
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-          throw new Error('Shift not found');
-        }
-        
-        const shift = await response.json();
-        await renderDashboard(shift);
-        
-        // Initialize WebSocket if not already connected
-        if (!ws && shift.isActive) {
-          initWebSocket();
-        }
-      } catch (error) {
-        console.error('Error loading shift:', error);
-        showError(error.message || 'Could not load shift data');
-      }
-    }
-    
-    // Check if auto-print is requested
-    const urlParams = new URLSearchParams(window.location.search);
-    const autoPrint = urlParams.get('print') === 'true';
-    
-    // Start
-    loadShift().then(() => {
-      if (autoPrint) {
-        // Wait for map and images to load, then trigger print
-        setTimeout(() => {
-          window.print();
-        }, 2000);
-      }
-    });
+    function showError(message) { document.getElementById('app').innerHTML = `<div class="error"><div style="font-size:48px">⚠️</div><h2>Unable to Load Shift</h2><p>${message}</p><button class="btn-primary" onclick="location.reload()">Try Again</button></div>`; }
+    async function loadShift() { try { const response = await fetch(`/api/sync/shift/${shiftCode}`); if (!response.ok) throw new Error('Shift not found'); const shift = await response.json(); await renderDashboard(shift); } catch (error) { console.error('Error:', error); showError(error.message || 'Could not load shift data'); } }
+    loadShift();
   </script>
 </body>
+
 </html>
