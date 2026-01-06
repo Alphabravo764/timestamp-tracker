@@ -58,7 +58,13 @@ async function startServer() {
   // Optional: serve static assets if you add css/js later
   if (fs.existsSync(simpleWebDir)) {
     app.use("/web", express.static(simpleWebDir));
+    app.use("/images", express.static(path.join(simpleWebDir, "images")));
   }
+
+  // Home page (landing page)
+  app.get("/", (_req, res) => {
+    res.sendFile(path.join(simpleWebDir, "index.html"));
+  });
 
   // Code entry page
   app.get("/track", (_req, res) => {
@@ -110,6 +116,11 @@ async function startServer() {
   app.get("/terms", (_req, res) => {
     // Redirect /terms to /terms-of-service
     res.redirect(301, "/terms-of-service");
+  });
+
+  // About page
+  app.get("/about", (_req, res) => {
+    res.sendFile(path.join(simpleWebDir, "about.html"));
   });
 
   // ---- OAuth + health ----

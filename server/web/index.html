@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stampia - Proof of Presence</title>
+    <meta name="description"
+        content="Stampia provides verified timestamp and location proof for small businesses. GPS tracking, photo evidence, and professional PDF reports.">
+    <link rel="icon" href="/images/logo.png" type="image/png">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --blue: #0071e3;
+            --blue-hover: #0077ed;
+            --text-primary: #1d1d1f;
+            --text-secondary: #86868b;
+            --bg-grey: #f5f5f7;
+            --border: #d2d2d7;
+            --orange: #f56300;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: var(--text-primary);
+            background: white;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate {
+            animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0;
+        }
+
+        .delay-1 {
+            animation-delay: 0.1s;
+        }
+
+        .delay-2 {
+            animation-delay: 0.2s;
+        }
+
+        .delay-3 {
+            animation-delay: 0.3s;
+        }
+
+        /* Navigation */
+        .navbar {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 100;
+            transition: all 0.5s;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(210, 210, 215, 0.3);
+        }
+
+        .nav-container {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 0 24px;
+            height: 48px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-logo img {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+        }
+
+        .nav-logo span {
+            font-weight: 600;
+            font-size: 19px;
+            color: var(--text-primary);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+        }
+
+        .nav-links a {
+            color: rgba(29, 29, 31, 0.8);
+            font-size: 12px;
+            font-weight: 500;
+            text-decoration: none;
+        }
+
+        .nav-links a:hover {
+            color: var(--blue);
+        }
+
+        .nav-btn {
+            background: var(--blue);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
+
+        .nav-btn:hover {
+            background: var(--blue-hover);
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 160px 24px 80px;
+            text-align: center;
+            background: white;
+            overflow: hidden;
+        }
+
+        .hero-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+
+        .hero-badge-new {
+            color: var(--orange);
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
+        .hero-badge-link {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .hero-badge-link a {
+            color: var(--blue);
+            text-decoration: none;
+        }
+
+        .hero-badge-link a:hover {
+            text-decoration: underline;
+        }
+
+        .hero h1 {
+            font-size: clamp(48px, 8vw, 84px);
+            font-weight: 600;
+            letter-spacing: -0.03em;
+            line-height: 1.05;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .hero h2 {
+            font-size: clamp(48px, 8vw, 84px);
+            font-weight: 600;
+            letter-spacing: -0.03em;
+            line-height: 1.05;
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+        }
+
+        .hero-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+            justify-content: center;
+            margin-bottom: 64px;
+        }
+
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--blue);
+            color: white;
+            padding: 14px 32px;
+            border-radius: 30px;
+            font-size: 17px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .btn-primary:hover {
+            background: var(--blue-hover);
+            transform: scale(1.02);
+        }
+
+        .btn-link {
+            color: var(--blue);
+            font-size: 17px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Device Frame */
+        .device-frame {
+            max-width: 900px;
+            margin: 0 auto;
+            background: var(--text-primary);
+            border-radius: 48px;
+            padding: 12px;
+            box-shadow: 0 50px 100px rgba(0, 0, 0, 0.15);
+        }
+
+        .device-screen {
+            background: white;
+            border-radius: 40px;
+            overflow: hidden;
+            aspect-ratio: 16/10;
+        }
+
+        .device-screen img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Features Bento Grid */
+        .features {
+            padding: 120px 24px;
+            background: white;
+        }
+
+        .features-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .features-header {
+            text-align: center;
+            max-width: 700px;
+            margin: 0 auto 80px;
+        }
+
+        .features-header h2 {
+            font-size: clamp(32px, 5vw, 56px);
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: 8px;
+        }
+
+        .features-header h2 span {
+            color: var(--text-secondary);
+        }
+
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .bento-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .bento-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .bento-card {
+            background: var(--bg-grey);
+            border-radius: 30px;
+            padding: 40px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.5s;
+        }
+
+        .bento-card:hover {
+            transform: scale(1.01);
+        }
+
+        .bento-card.large {
+            grid-column: span 2;
+        }
+
+        .bento-card.tall {
+            grid-row: span 2;
+        }
+
+        .bento-card.dark {
+            background: var(--text-primary);
+        }
+
+        .bento-card.dark h3,
+        .bento-card.dark .bento-label {
+            color: white;
+        }
+
+        .bento-card.dark p {
+            color: var(--text-secondary);
+        }
+
+        .bento-icon {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .bento-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            letter-spacing: 0.05em;
+        }
+
+        .bento-card h3 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            letter-spacing: -0.02em;
+        }
+
+        .bento-card p {
+            color: var(--text-secondary);
+            font-size: 17px;
+            line-height: 1.5;
+        }
+
+        .bento-image {
+            position: absolute;
+            right: -32px;
+            bottom: -32px;
+            width: 55%;
+            height: 80%;
+            background: white;
+            border-radius: 24px 0 0 0;
+            box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            transition: transform 0.7s;
+        }
+
+        .bento-card:hover .bento-image {
+            transform: translate(-16px, -16px);
+        }
+
+        .bento-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .bento-image-tall {
+            position: absolute;
+            left: 32px;
+            right: 32px;
+            bottom: 32px;
+            top: 260px;
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transition: transform 0.7s;
+        }
+
+        .bento-card:hover .bento-image-tall {
+            transform: translateY(-8px);
+        }
+
+        .bento-image-tall img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .bento-image-dark {
+            position: absolute;
+            right: -32px;
+            bottom: -64px;
+            width: 200px;
+            height: 200px;
+            background: white;
+            border-radius: 12px;
+            transform: rotate(12deg);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            transition: transform 0.7s;
+        }
+
+        .bento-card:hover .bento-image-dark {
+            transform: rotate(6deg) translateY(-16px);
+        }
+
+        .bento-image-dark img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Value Props */
+        .value-section {
+            padding: 120px 24px;
+            background: var(--bg-grey);
+        }
+
+        .value-container {
+            max-width: 980px;
+            margin: 0 auto;
+        }
+
+        .value-title {
+            font-size: clamp(32px, 5vw, 48px);
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 64px;
+        }
+
+        .value-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 48px;
+        }
+
+        @media (max-width: 768px) {
+            .value-grid {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+        }
+
+        .value-item {
+            text-align: center;
+        }
+
+        .value-icon {
+            width: 64px;
+            height: 64px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s;
+        }
+
+        .value-item:hover .value-icon {
+            transform: scale(1.1);
+        }
+
+        .value-item h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .value-item p {
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Footer */
+        .footer {
+            background: var(--bg-grey);
+            padding: 48px 24px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border);
+        }
+
+        .footer-container {
+            max-width: 980px;
+            margin: 0 auto;
+        }
+
+        .footer-notes {
+            padding-bottom: 32px;
+            margin-bottom: 32px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .footer-notes p {
+            margin-bottom: 8px;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 32px;
+            margin-bottom: 48px;
+        }
+
+        @media (max-width: 768px) {
+            .footer-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .footer-col h4 {
+            color: var(--text-primary);
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .footer-col ul {
+            list-style: none;
+        }
+
+        .footer-col li {
+            margin-bottom: 8px;
+        }
+
+        .footer-col a {
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+
+        .footer-col a:hover {
+            text-decoration: underline;
+        }
+
+        .footer-bottom {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            padding-top: 16px;
+        }
+
+        .footer-legal {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .footer-legal a {
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .footer-legal a:hover {
+            text-decoration: underline;
+        }
+
+        /* SVG Icons */
+        .icon {
+            width: 24px;
+            height: 24px;
+        }
+
+        .icon-lg {
+            width: 28px;
+            height: 28px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <img src="/images/logo.png" alt="Stampia Logo">
+                <span>Stampia</span>
+            </div>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#security">Security</a>
+                <a href="#business">Business</a>
+                <a href="/about">About</a>
+            </div>
+            <a href="mailto:contact@stampia.tech" class="nav-btn">Get Early Access</a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-container animate">
+            <div class="hero-badge">
+                <span class="hero-badge-new">Coming Soon</span>
+                <span style="color: var(--text-secondary)">•</span>
+                <span class="hero-badge-link"><a
+                        href="mailto:contact@stampia.tech?subject=Early%20Access%20Request">Request early access for
+                        Enterprise ›</a></span>
+            </div>
+
+            <h1>Proof of Presence.</h1>
+            <h2>Pure and simple.</h2>
+
+            <div class="hero-buttons">
+                <a href="mailto:contact@stampia.tech?subject=Early%20Access%20Request" class="btn-primary">
+                    Request Early Access
+                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    </svg>
+                </a>
+                <a href="/about" class="btn-link">
+                    Learn more
+                    <svg style="width:16px;height:16px" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </a>
+            </div>
+        </div>
+
+        <!-- Device Showcase -->
+        <div class="device-frame animate delay-2">
+            <div class="device-screen">
+                <img src="/images/dashboard.png" alt="Stampia Dashboard">
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Bento Grid -->
+    <section class="features" id="features">
+        <div class="features-container">
+            <div class="features-header animate">
+                <h2>Tamper-evident evidence.<br><span>Without the complexity.</span></h2>
+            </div>
+
+            <div class="bento-grid">
+                <!-- Feature 1: Photo Capture (Large) -->
+                <div class="bento-card large">
+                    <div class="bento-icon">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                            <circle cx="12" cy="13" r="3" />
+                        </svg>
+                        <span class="bento-label">Smart Capture</span>
+                    </div>
+                    <h3>Verifiable Photos.</h3>
+                    <p>Every photo is watermarked with GPS coordinates, timestamp, and device ID. Evidence that stands
+                        up to scrutiny.</p>
+                    <div class="bento-image">
+                        <img src="/images/photo-capture.png" alt="Photo Capture Screen">
+                    </div>
+                </div>
+
+                <!-- Feature 2: GPS Trail (Tall) -->
+                <div class="bento-card tall" id="security">
+                    <div class="bento-icon">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <circle cx="12" cy="11" r="3" />
+                        </svg>
+                        <span class="bento-label">GPS Trail</span>
+                    </div>
+                    <h3>Precision Tracking.</h3>
+                    <p>See the exact path taken. No gaps, no guessing.</p>
+                    <div class="bento-image-tall">
+                        <img src="/images/map-trail.png" alt="GPS Map Trail">
+                    </div>
+                </div>
+
+                <!-- Feature 3: PDF Reports (Dark) -->
+                <div class="bento-card dark" id="business">
+                    <div class="bento-icon">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span class="bento-label">Export</span>
+                    </div>
+                    <h3>Instant PDF Reports.</h3>
+                    <p>Shift complete? The report is already ready to share.</p>
+                    <div class="bento-image-dark">
+                        <img src="/images/pdf-report.png" alt="PDF Report">
+                    </div>
+                </div>
+
+                <!-- Feature 4: Live Share -->
+                <div class="bento-card">
+                    <div class="bento-icon">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                        </svg>
+                        <span class="bento-label">Real-time</span>
+                    </div>
+                    <h3>Live Sharing.</h3>
+                    <p>Give clients peace of mind with a secure live tracking link.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Value Props -->
+    <section class="value-section">
+        <div class="value-container">
+            <h2 class="value-title">Built for the toughest jobs.</h2>
+
+            <div class="value-grid">
+                <div class="value-item">
+                    <div class="value-icon">
+                        <svg class="icon-lg" fill="none" stroke="#1d1d1f" stroke-width="1.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                        </svg>
+                    </div>
+                    <h3>Zero Setup.</h3>
+                    <p>Download. Start tracking. No IT department needed.</p>
+                </div>
+
+                <div class="value-item">
+                    <div class="value-icon">
+                        <svg class="icon-lg" fill="none" stroke="#1d1d1f" stroke-width="1.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                        </svg>
+                    </div>
+                    <h3>Private by Design.</h3>
+                    <p>Tracking is only active during a shift. Your personal time stays personal.</p>
+                </div>
+
+                <div class="value-item">
+                    <div class="value-icon">
+                        <svg class="icon-lg" fill="none" stroke="#1d1d1f" stroke-width="1.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                        </svg>
+                    </div>
+                    <h3>Offline Ready.</h3>
+                    <p>Works in basements and remote sites. Syncs automatically when online.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer" id="support">
+        <div class="footer-container">
+            <div class="footer-notes">
+                <p>1. GPS accuracy depends on device hardware and environmental conditions.</p>
+                <p>2. Premium Access Codes available for extended usage limits.</p>
+            </div>
+
+            <div class="footer-grid">
+                <div class="footer-col">
+                    <h4>Product</h4>
+                    <ul>
+                        <li><a href="#features">Features</a></li>
+                        <li><a href="/about">About</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>For Business</h4>
+                    <ul>
+                        <li><a href="#security">Security</a></li>
+                        <li><a href="#business">Field Service</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Support</h4>
+                    <ul>
+                        <li><a href="mailto:contact@stampia.tech">Contact Us</a></li>
+                        <li><a href="/about">About Us</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col" style="grid-column: span 2;">
+                    <h4>Get in Touch</h4>
+                    <p style="margin-bottom: 12px;">Ready to get started? Request early access.</p>
+                    <a href="mailto:contact@stampia.tech?subject=Early%20Access%20Request" class="nav-btn"
+                        style="display: inline-block;">contact@stampia.tech</a>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <p>Copyright © 2026 Stampia. All rights reserved.</p>
+                <div class="footer-legal">
+                    <a href="/privacy-policy">Privacy Policy</a>
+                    <span style="color: var(--border)">|</span>
+                    <a href="/terms-of-service">Terms of Use</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+</body>
+
+</html>

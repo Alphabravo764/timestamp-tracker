@@ -370,7 +370,7 @@ export default function SettingsScreen() {
           {/* Email Support */}
           <TouchableOpacity
             style={[styles.row, { borderBottomWidth: 1, borderBottomColor: colors.border }]}
-            onPress={() => Linking.openURL("mailto:support@stampia.tech?subject=STAMPIA%20Trial%20Support")}
+            onPress={() => Linking.openURL("mailto:contact@stampia.tech?subject=STAMPIA%20Support")}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={[styles.iconBox, { backgroundColor: '#eff6ff' }]}>
@@ -378,7 +378,7 @@ export default function SettingsScreen() {
               </View>
               <View>
                 <Text style={[styles.rowTitle, { color: colors.foreground }]}>Email Support</Text>
-                <Text style={[styles.rowSubtitle, { color: colors.muted }]}>support@stampia.tech</Text>
+                <Text style={[styles.rowSubtitle, { color: colors.muted }]}>contact@stampia.tech</Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.muted} />
@@ -512,11 +512,15 @@ export default function SettingsScreen() {
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
             <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: '#eff6ff', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-              <Ionicons name="shield-checkmark" size={24} color="#2563eb" />
+              <Image
+                source={require('@/assets/images/icon.png')}
+                style={{ width: 36, height: 36, borderRadius: 6 }}
+                resizeMode="contain"
+              />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 16, fontWeight: '700', color: colors.foreground }}>STAMPIA</Text>
-              <Text style={{ fontSize: 11, color: colors.muted }}>Timestamp & Proof of Presence</Text>
+              <Text style={{ fontSize: 11, color: colors.muted }}>Proof of Presence</Text>
             </View>
           </View>
 

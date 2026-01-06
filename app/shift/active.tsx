@@ -545,10 +545,14 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
       <View style={[styles.header, { paddingTop: insets.top, borderBottomColor: colors.border }]}>
         <View style={styles.headerLeft}>
           <View style={[styles.avatarContainer, { backgroundColor: colors.surface }]}>
-            <Ionicons name="person" size={20} color={colors.muted} />
+            <Image
+              source={require('@/assets/images/icon.png')}
+              style={{ width: 28, height: 28, borderRadius: 4 }}
+              resizeMode="contain"
+            />
           </View>
           <View>
-            <Text style={[styles.appName, { color: colors.text }]}>Timestamp Tracker</Text>
+            <Text style={[styles.appName, { color: colors.text }]}>Proof of Presence</Text>
             <View style={styles.liveBadge}>
               <View style={styles.liveDotContainer}>
                 <Animated.View style={[styles.liveDotPing, { transform: [{ scale: pulseAnim }], backgroundColor: colors.primary }]} />

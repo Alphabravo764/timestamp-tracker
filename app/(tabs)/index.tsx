@@ -12,7 +12,8 @@ import {
     Dimensions,
     ActivityIndicator,
     Animated,
-    Modal
+    Modal,
+    Image
 } from "react-native";
 import { useFocusEffect, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -303,10 +304,14 @@ export default function HomeScreen() {
                 {/* Welcome Header */}
                 <View style={styles.welcomeSection}>
                     <View style={[styles.userIconCircle, { backgroundColor: colors.primary + '10' }]}>
-                        <Ionicons name="person-outline" size={40} color={colors.primary} />
+                        <Image
+                            source={require('@/assets/images/icon.png')}
+                            style={{ width: 50, height: 50, borderRadius: 8 }}
+                            resizeMode="contain"
+                        />
                     </View>
-                    <Text style={[styles.welcomeTitle, { color: colors.text }]}>Welcome Back</Text>
-                    <Text style={styles.welcomeSubtitle}>Ready to start your patrol?</Text>
+                    <Text style={[styles.welcomeTitle, { color: colors.text }]}>STAMPIA</Text>
+                    <Text style={styles.welcomeSubtitle}>Proof of Presence</Text>
                 </View>
 
                 {/* GIANT START BUTTON */}
