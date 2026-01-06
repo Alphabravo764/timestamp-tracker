@@ -179,7 +179,7 @@ export default function SettingsScreen() {
           {/* Privacy Policy */}
           <TouchableOpacity
             style={[styles.row, { borderBottomWidth: 1, borderBottomColor: colors.border }]}
-            onPress={() => Linking.openURL("https://timestamp-tracker-production.up.railway.app/privacy-policy")}
+            onPress={() => Linking.openURL("https://stampia.tech/privacy-policy")}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={[styles.iconBox, { backgroundColor: '#eff6ff' }]}>

@@ -25,17 +25,28 @@ export const OWNER_OPEN_ID = env.ownerId;
 export const OWNER_NAME = env.ownerName;
 export const API_BASE_URL = env.apiBaseUrl;
 
-// Railway production URL for deployed app
-const RAILWAY_URL = 'https://timestamp-tracker-production.up.railway.app';
+// STAMPIA Production URLs
+const API_URL = 'https://api.stampia.tech';
+const VIEWER_URL = 'https://stampia.tech';
+
+// Export for use throughout the app
+export const STAMPIA_API_URL = API_URL;
+export const STAMPIA_VIEWER_URL = VIEWER_URL;
 
 /**
  * Get the API base URL.
- * Always uses Railway production URL for reliable connectivity
+ * Uses stampia.tech custom domain
  */
 export function getApiBaseUrl(): string {
-  // Always use Railway for now - localhost doesn't work on physical devices
-  console.log("[getApiBaseUrl] Using Railway:", RAILWAY_URL);
-  return RAILWAY_URL;
+  console.log("[getApiBaseUrl] Using STAMPIA:", API_URL);
+  return API_URL;
+}
+
+/**
+ * Get the viewer base URL for sharing links
+ */
+export function getViewerBaseUrl(): string {
+  return VIEWER_URL;
 }
 
 export const SESSION_TOKEN_KEY = "app_session_token";

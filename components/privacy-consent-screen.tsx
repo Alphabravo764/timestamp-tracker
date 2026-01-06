@@ -33,11 +33,11 @@ export default function PrivacyConsentScreen({
     };
 
     const openPrivacyPolicy = () => {
-        Linking.openURL("https://timestamp-tracker-production.up.railway.app/privacy");
+        Linking.openURL("https://stampia.tech/privacy");
     };
 
     const openTermsOfService = () => {
-        Linking.openURL("https://timestamp-tracker-production.up.railway.app/terms");
+        Linking.openURL("https://stampia.tech/terms");
     };
 
     return (

@@ -432,7 +432,7 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
 
   const handleShareLink = async () => {
     if (!activeShift?.pairCode) return;
-    const url = `https://timestamp-tracker-production.up.railway.app/viewer/${activeShift.pairCode}`;
+    const url = `https://stampia.tech/viewer/${activeShift.pairCode}`;
     try {
       await Share.share({
         message: `Track my shift live: ${url}`,

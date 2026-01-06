@@ -181,11 +181,11 @@ export default function TrackingScreen() {
 
   const copyPairCode = async () => {
     if (!session?.pairCode) return;
-    
+
     if (Platform.OS !== "web") {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    
+
     Clipboard.setString(session.pairCode);
     Alert.alert("Copied!", "Pair code copied to clipboard");
   };
@@ -202,11 +202,11 @@ export default function TrackingScreen() {
 
     const { latitude, longitude } = currentLocation.coords;
     const timestamp = new Date().toLocaleString();
-    
+
     // Always use Railway production URL for viewer
-    const baseUrl = "https://timestamp-tracker-production.up.railway.app";
+    const baseUrl = "https://stampia.tech";
     const viewerUrl = `${baseUrl}/viewer/${session.pairCode}`;
-    
+
     // Create shareable message with our own viewer link
     const message = `📍 Live Location Tracking
 
