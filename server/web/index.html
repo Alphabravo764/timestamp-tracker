@@ -245,21 +245,36 @@
             text-decoration: underline;
         }
 
-        /* Device Frame */
+        /* Device Frame - Mobile Phone */
         .device-frame {
-            max-width: 900px;
+            max-width: 320px;
             margin: 0 auto;
             background: var(--text-primary);
             border-radius: 48px;
             padding: 12px;
             box-shadow: 0 50px 100px rgba(0, 0, 0, 0.15);
+            position: relative;
+        }
+
+        /* Phone notch */
+        .device-frame::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 24px;
+            background: var(--text-primary);
+            border-radius: 20px;
+            z-index: 10;
         }
 
         .device-screen {
             background: white;
             border-radius: 40px;
             overflow: hidden;
-            aspect-ratio: 16/10;
+            aspect-ratio: 9/19;
         }
 
         .device-screen img {
