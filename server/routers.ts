@@ -28,7 +28,7 @@ export const appRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const openId = `dev-${input.email}`;
-        
+
         // Upsert user (create or update)
         await db.upsertUser({
           openId,
@@ -51,7 +51,7 @@ export const appRouter = router({
           appId: ENV.appId,
           name: user.name || "Dev User",
         });
-        
+
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie(COOKIE_NAME, sessionToken, {
           ...cookieOptions,
@@ -102,17 +102,17 @@ export const appRouter = router({
         // Normalize pair code (remove dashes, uppercase)
         const normalizedCode = input.pairCode.replace(/-/g, "").toUpperCase();
         const formattedCode = `${normalizedCode.slice(0, 3)}-${normalizedCode.slice(3, 6)}`;
-        
+
         const shift = await db.getShiftByPairCode(formattedCode);
         if (!shift) {
           // Also try without formatting
           const shiftAlt = await db.getShiftByPairCode(input.pairCode.toUpperCase());
           if (!shiftAlt) return null;
-          
+
           const locations = await db.getShiftLocations(shiftAlt.id);
           const photos = await db.getShiftPhotos(shiftAlt.id);
           const latestLocation = await db.getLatestLocation(shiftAlt.id);
-          
+
           return {
             shift: shiftAlt,
             locations,
@@ -370,6 +370,34 @@ export const appRouter = router({
         await db.updateUserProfile(ctx.user.id, input);
         return await db.getUserById(ctx.user.id);
       }),
+  }),
+
+  // Premium Access Code routes
+  premium: router({
+    // Validate a code (check if valid and unused)
+    validate: publicProcedure
+      .input(z.object({ code: z.string().min(1) }))
+      .query(async ({ input }) => {
+        const result = await db.validatePremiumCode(input.code);
+        return result;
+      }),
+
+    // Redeem a code (mark as used and bind to device)
+    redeem: publicProcedure
+      .input(z.object({
+        code: z.string().min(1),
+        deviceId: z.string().min(1)
+      }))
+      .mutation(async ({ input }) => {
+        const result = await db.redeemPremiumCode(input.code, input.deviceId);
+        return result;
+      }),
+
+    // Admin: Generate new codes (protected in production)
+    generateCodes: publicProcedure.mutation(async () => {
+      const codes = await db.generatePremiumCodes();
+      return { codes, count: codes.length };
+    }),
   }),
 });
 

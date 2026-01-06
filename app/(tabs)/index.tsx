@@ -26,7 +26,7 @@ import {
 import { getTemplates, useTemplate, type ShiftTemplate } from "@/lib/shift-templates";
 import { syncShiftStart } from "@/lib/server-sync";
 import ActiveShiftScreen from "../shift/active";
-import { getSettings } from "@/lib/settings-storage";
+import { getSettings, canStartShift, incrementShiftCount, TRIAL_LIMITS, getPremiumStatus, PremiumStatus } from "@/lib/settings-storage";
 import { useColors } from "@/hooks/use-colors";
 
 export default function HomeScreen() {
@@ -35,6 +35,7 @@ export default function HomeScreen() {
     const [activeShift, setActiveShift] = useState<any | null>(null);
     const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
     const [showStartForm, setShowStartForm] = useState(false);
+    const [isPremium, setIsPremium] = useState(false);
 
     // Form State
     const [siteName, setSiteName] = useState("");
@@ -42,12 +43,15 @@ export default function HomeScreen() {
     const [loading, setLoading] = useState(false);
     const [currentAddress, setCurrentAddress] = useState("Locating...");
 
-    // Pre-fill Staff Name
+    // Pre-fill Staff Name and check premium status
     useEffect(() => {
         getSettings().then(settings => {
             if (settings.userName) {
                 setStaffName(settings.userName);
             }
+        });
+        getPremiumStatus().then(status => {
+            setIsPremium(status.isPremium);
         });
     }, []);
 
@@ -151,6 +155,17 @@ export default function HomeScreen() {
             return;
         }
 
+        // Check trial limits
+        const { allowed, remaining } = await canStartShift();
+        if (!allowed) {
+            Alert.alert(
+                "Trial Limit Reached",
+                "You've reached the trial limit for shifts.\nPremium options are coming soon.",
+                [{ text: "Got it" }]
+            );
+            return;
+        }
+
         const { status } = await Location.getForegroundPermissionsAsync();
         if (status !== 'granted') {
             const permissionResponse = await Location.requestForegroundPermissionsAsync();
@@ -227,6 +242,9 @@ export default function HomeScreen() {
             setShowStartForm(false);
             setActiveShift(shift);
 
+            // Increment trial usage counter
+            await incrementShiftCount();
+
         } catch (e: any) {
             Alert.alert("Error", e.message);
         } finally {
@@ -256,9 +274,20 @@ export default function HomeScreen() {
 
             {/* Top Bar */}
             <View style={[styles.topBar, { borderBottomColor: colors.border }]}>
-                <View style={[styles.offDutyBadge, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
-                    <View style={styles.statusDot} />
-                    <Text style={[styles.offDutyText, { color: colors.muted }]}>OFF DUTY</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={[styles.offDutyBadge, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
+                        <View style={styles.statusDot} />
+                        <Text style={[styles.offDutyText, { color: colors.muted }]}>OFF DUTY</Text>
+                    </View>
+                    {isPremium ? (
+                        <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#22c55e' }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#166534' }}>✓ PREMIUM</Text>
+                        </View>
+                    ) : (
+                        <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#fbbf24' }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#92400e' }}>⚠️ TRIAL</Text>
+                        </View>
+                    )}
                 </View>
                 <TouchableOpacity
                     style={[styles.settingsButton, { backgroundColor: colors.surface }]}

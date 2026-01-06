@@ -341,3 +341,99 @@ export function generatePairCode(): string {
   }
   return `${code.slice(0, 3)}-${code.slice(3, 6)}`;
 }
+
+// ===== Premium Code Operations =====
+
+import { premiumCodes } from "../drizzle/schema";
+
+export async function validatePremiumCode(code: string) {
+  const db = await getDb();
+  if (!db) return { valid: false, error: "Database not available" };
+
+  const normalizedCode = code.trim().toUpperCase();
+
+  const result = await db
+    .select()
+    .from(premiumCodes)
+    .where(eq(premiumCodes.code, normalizedCode))
+    .limit(1);
+
+  if (result.length === 0) {
+    return { valid: false, error: "Invalid code" };
+  }
+
+  const codeRecord = result[0];
+
+  if (codeRecord.isUsed) {
+    return { valid: false, error: "Code already been used" };
+  }
+
+  return {
+    valid: true,
+    limits: {
+      shifts: codeRecord.shiftsLimit,
+      reports: codeRecord.reportsLimit,
+      liveShares: codeRecord.liveSharesLimit,
+    }
+  };
+}
+
+export async function redeemPremiumCode(code: string, deviceId: string) {
+  const db = await getDb();
+  if (!db) return { success: false, error: "Database not available" };
+
+  const validation = await validatePremiumCode(code);
+  if (!validation.valid) {
+    return { success: false, error: validation.error };
+  }
+
+  const normalizedCode = code.trim().toUpperCase();
+
+  await db
+    .update(premiumCodes)
+    .set({
+      isUsed: true,
+      usedByDeviceId: deviceId,
+      usedAt: new Date(),
+    })
+    .where(eq(premiumCodes.code, normalizedCode));
+
+  return {
+    success: true,
+    limits: validation.limits
+  };
+}
+
+// Generate 20 premium codes (run once to seed database)
+export async function generatePremiumCodes() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const codes: string[] = [];
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+  for (let i = 0; i < 20; i++) {
+    let code = "STAMPIA-";
+    for (let j = 0; j < 8; j++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    codes.push(code);
+  }
+
+  // Insert all codes
+  for (const code of codes) {
+    try {
+      await db.insert(premiumCodes).values({
+        code,
+        isUsed: false,
+        shiftsLimit: 60,
+        liveSharesLimit: 60,
+        reportsLimit: 60,
+      });
+    } catch (e) {
+      // Skip if code already exists
+    }
+  }
+
+  return codes;
+}

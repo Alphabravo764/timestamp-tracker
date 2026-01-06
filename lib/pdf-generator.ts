@@ -99,7 +99,8 @@ export const generatePdfHtml = async (shift: Shift, isInterim?: boolean): Promis
   const startLoc = locations[0];
   let startLocStr = shift.siteName;
   if (startLoc) {
-    startLocStr = `${shift.siteName}\n📍 (${startLoc.latitude.toFixed(5)}, ${startLoc.longitude.toFixed(5)})`;
+    const streetAddr = startLoc.address || '';
+    startLocStr = `${shift.siteName}\n📍 ${streetAddr ? streetAddr + '\n' : ''}(${startLoc.latitude.toFixed(5)}, ${startLoc.longitude.toFixed(5)})`;
   }
   timeline.push({
     time: formatTime(shift.startTime),
@@ -112,7 +113,7 @@ export const generatePdfHtml = async (shift: Shift, isInterim?: boolean): Promis
   shift.photos?.forEach((photo, idx) => {
     let photoLocStr = photo.address || 'Location captured';
     if (photo.location?.latitude && photo.location?.longitude) {
-      photoLocStr += `\n(${photo.location.latitude.toFixed(5)}, ${photo.location.longitude.toFixed(5)})`;
+      photoLocStr = `${photo.address || 'Location captured'}\n(${photo.location.latitude.toFixed(5)}, ${photo.location.longitude.toFixed(5)})`;
     }
     timeline.push({
       time: formatTime(photo.timestamp),
@@ -142,7 +143,8 @@ export const generatePdfHtml = async (shift: Shift, isInterim?: boolean): Promis
     const endLoc = locations[locations.length - 1];
     let endLocStr = 'Manual clock-out complete';
     if (endLoc) {
-      endLocStr = `Clocked out at ${shift.siteName}\n📍 (${endLoc.latitude.toFixed(5)}, ${endLoc.longitude.toFixed(5)})`;
+      const endAddr = endLoc.address || '';
+      endLocStr = `Clocked out at ${shift.siteName}\n📍 ${endAddr ? endAddr + '\n' : ''}(${endLoc.latitude.toFixed(5)}, ${endLoc.longitude.toFixed(5)})`;
     }
     timeline.push({
       time: formatTime(shift.endTime),
@@ -517,6 +519,7 @@ export const generatePdfHtml = async (shift: Shift, isInterim?: boolean): Promis
         STAMPIA
       </span>
       <span class="verified-badge">✓ Proof of Presence</span>
+      <span class="verified-badge" style="background: rgba(251, 191, 36, 0.2); border-color: rgba(251, 191, 36, 0.5); color: #fbbf24; margin-left: 8px;">⚠️ TRIAL VERSION</span>
     </div>
     <h1 class="report-title">SHIFT REPORT</h1>
     <div class="report-meta">
@@ -631,8 +634,8 @@ ${mapUrl ? `
     <div class="hash-label">Document Integrity Hash (SHA-256)</div>
     <div class="hash-value">${docHash}</div>
     <div class="footer-row">
-      <span class="footer-brand">TRUSTLAYER SECURITY SYSTEMS</span>
-      <span>🔒 Encrypted & Tamper-Proof</span>
+      <span class="footer-brand">STAMPIA - Timestamp Tracker</span>
+      <span>🔒 TRIAL VERSION | stampia.tech</span>
     </div>
   </div>
 </div>
@@ -642,8 +645,8 @@ ${mapUrl ? `
     <div class="hash-label">Document Integrity Hash (SHA-256)</div>
     <div class="hash-value">${docHash}</div>
     <div class="footer-row">
-      <span class="footer-brand">TRUSTLAYER SECURITY SYSTEMS</span>
-      <span>🔒 Encrypted & Tamper-Proof</span>
+      <span class="footer-brand">STAMPIA - Timestamp Tracker</span>
+      <span>🔒 TRIAL VERSION | stampia.tech</span>
     </div>
   </div>
 </div>

@@ -124,12 +124,19 @@ export function generateMapboxStaticUrl(
         return "";
     }
 
-    // Filter out low accuracy points (but use more lenient threshold)
-    let filteredLocations = locations.filter(loc => !loc.accuracy || loc.accuracy < 100);
+    // Filter out invalid points
+    let filteredLocations = locations.filter(loc =>
+        loc.latitude && loc.longitude &&
+        Math.abs(loc.latitude) <= 90 && Math.abs(loc.longitude) <= 180 &&
+        (!loc.accuracy || loc.accuracy < 100)
+    );
 
-    // If filtering removed everything, use original locations
     if (filteredLocations.length === 0) {
-        filteredLocations = locations;
+        filteredLocations = locations.filter(loc => loc.latitude && loc.longitude);
+    }
+
+    if (filteredLocations.length === 0) {
+        return "";
     }
 
     const start = filteredLocations[0];
@@ -138,37 +145,42 @@ export function generateMapboxStaticUrl(
     // Build overlays array
     const overlays: string[] = [];
 
-    // Add polyline path if we have multiple points
+    // Add polyline path if we have multiple points - use GeoJSON format which is more reliable
     if (filteredLocations.length > 1) {
-        // Sample points if too many
-        const maxPoints = 100;
+        // Sample points if too many (Mapbox URL length limit)
+        const maxPoints = 50;
         const step = Math.max(1, Math.floor(filteredLocations.length / maxPoints));
         const sampledLocations = filteredLocations.filter((_, i) => i % step === 0 || i === filteredLocations.length - 1);
 
-        // Encode polyline
-        const encodedPath = encodePolyline(sampledLocations);
-        // Use URL-safe base64 encoding for the path
-        const pathOverlay = `path-4+3b82f6-0.8(${encodeURIComponent(encodedPath)})`;
-        overlays.push(pathOverlay);
+        // Build path as coordinate pairs - simpler and more reliable
+        const pathCoords = sampledLocations.map(loc => `[${loc.longitude.toFixed(5)},${loc.latitude.toFixed(5)}]`).join(',');
+
+        // Use geojson overlay format for polyline
+        const geoJson = encodeURIComponent(JSON.stringify({
+            "type": "Feature",
+            "properties": { "stroke": "#3b82f6", "stroke-width": 4, "stroke-opacity": 0.8 },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": sampledLocations.map(loc => [loc.longitude, loc.latitude])
+            }
+        }));
+
+        overlays.push(`geojson(${geoJson})`);
     }
 
     // Add start marker (green pin)
-    overlays.push(`pin-l-s+22c55e(${start.longitude},${start.latitude})`);
+    overlays.push(`pin-l-s+22c55e(${start.longitude.toFixed(5)},${start.latitude.toFixed(5)})`);
 
-    // Add end marker (blue pin)
+    // Add end marker (red pin) if different from start
     if (filteredLocations.length > 1) {
-        overlays.push(`pin-l-e+3b82f6(${end.longitude},${end.latitude})`);
+        overlays.push(`pin-l-e+ef4444(${end.longitude.toFixed(5)},${end.latitude.toFixed(5)})`);
     }
 
     // Join overlays with comma
     const overlayString = overlays.join(',');
 
-    // Calculate bounds for auto zoom
-    // Use 'auto' for automatic bounding box
-    const bounds = 'auto';
-
-    // Build URL with @2x for retina display
-    const url = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${overlayString}/${bounds}/${width}x${height}@2x?access_token=${MAPBOX_TOKEN}&padding=40`;
+    // Build URL with auto bounds and padding
+    const url = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${overlayString}/auto/${width}x${height}@2x?access_token=${MAPBOX_TOKEN}&padding=50`;
 
     return url;
 }

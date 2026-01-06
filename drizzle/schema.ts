@@ -226,3 +226,21 @@ export const userConsents = mysqlTable("userConsents", {
 export type UserConsent = typeof userConsents.$inferSelect;
 export type InsertUserConsent = typeof userConsents.$inferInsert;
 
+// Premium Access Codes table - one-time-use codes for premium access
+export const premiumCodes = mysqlTable("premiumCodes", {
+  id: int("id").autoincrement().primaryKey(),
+  code: varchar("code", { length: 20 }).notNull().unique(),
+  isUsed: boolean("isUsed").default(false).notNull(),
+  usedByDeviceId: varchar("usedByDeviceId", { length: 128 }),
+  usedAt: timestamp("usedAt"),
+  shiftsLimit: int("shiftsLimit").default(60).notNull(),
+  liveSharesLimit: int("liveSharesLimit").default(60).notNull(),
+  reportsLimit: int("reportsLimit").default(60).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  codeIdx: index("code_idx").on(table.code),
+  isUsedIdx: index("isUsed_idx").on(table.isUsed),
+}));
+
+export type PremiumCode = typeof premiumCodes.$inferSelect;
+export type InsertPremiumCode = typeof premiumCodes.$inferInsert;

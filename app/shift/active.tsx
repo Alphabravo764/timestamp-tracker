@@ -32,7 +32,7 @@ import {
   addNoteToShift,
 } from "@/lib/shift-storage";
 import type { Shift } from "@/lib/shift-types";
-import { getSettings } from "@/lib/settings-storage";
+import { getSettings, canGenerateReport, incrementReportCount, canShareLiveView, incrementLiveShareCount } from "@/lib/settings-storage";
 import { router, useFocusEffect } from "expo-router";
 import { syncLocation, syncShiftEnd, syncPhoto, syncNote } from "@/lib/server-sync";
 import { photoToBase64DataUri } from "@/lib/photo-to-base64";
@@ -407,12 +407,26 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
           {
             text: "Generate",
             onPress: async () => {
+              // Check trial limits
+              const { allowed } = await canGenerateReport();
+              if (!allowed) {
+                Alert.alert(
+                  "Trial Limit Reached",
+                  "You've reached the trial limit for reports.\nPremium options are coming soon.",
+                  [{ text: "Got it" }]
+                );
+                return;
+              }
+
               try {
                 // Generate HTML with map polyline
                 const html = await generatePdfHtml(activeShift);
 
                 // Print/Share the PDF
                 await Print.printAsync({ html });
+
+                // Increment usage counter
+                await incrementReportCount();
 
                 if (Platform.OS !== "web") {
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -432,12 +446,27 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
 
   const handleShareLink = async () => {
     if (!activeShift?.pairCode) return;
+
+    // Check trial limits
+    const { allowed } = await canShareLiveView();
+    if (!allowed) {
+      Alert.alert(
+        "Trial Limit Reached",
+        "You've reached the trial limit for live shares.\nPremium options are coming soon.",
+        [{ text: "Got it" }]
+      );
+      return;
+    }
+
     const url = `https://stampia.tech/viewer/${activeShift.pairCode}`;
     try {
       await Share.share({
         message: `Track my shift live: ${url}`,
         url: url,
       });
+
+      // Increment usage counter
+      await incrementLiveShareCount();
     } catch (error) {
       console.error("Share error:", error);
     }
