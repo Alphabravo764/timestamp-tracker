@@ -710,22 +710,30 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
             {/* Start Event */}
             <View style={styles.timelineItem}>
               <View style={styles.timelineLeft}>
-                <View style={[styles.timelineDot, { backgroundColor: colors.muted }]} />
+                <View style={[styles.timelineDot, { backgroundColor: '#22c55e' }]} />
                 <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
               </View>
-              <View style={styles.timelineCard}>
+              <View style={[styles.timelineCard, { borderLeftColor: '#22c55e', borderLeftWidth: 3 }]}>
                 <View style={styles.timelineHeader}>
-                  <View style={[styles.tagSystem, { backgroundColor: colors.background }]}>
-                    <Text style={[styles.tagTextSystem, { color: colors.muted }]}>System</Text>
+                  <View style={[styles.tagSystem, { backgroundColor: '#dcfce7' }]}>
+                    <Text style={[styles.tagTextSystem, { color: '#16a34a' }]}>Start</Text>
                   </View>
                   <View style={styles.timeTag}>
                     <Ionicons name="time-outline" size={10} color={colors.muted} />
                     <Text style={[styles.timeText, { color: colors.muted }]}>
-                      {new Date(activeShift.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(activeShift.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </Text>
                   </View>
                 </View>
-                <Text style={[styles.timelineBody, { color: colors.text }]}>Shift started at {activeShift.siteName}. GPS tracking enabled.</Text>
+                <Text style={[styles.timelineBody, { color: colors.text, fontWeight: '600' }]}>
+                  {activeShift.staffName} clocked in at {activeShift.siteName}
+                </Text>
+                {activeShift.locations?.[0] && (
+                  <Text style={[styles.timelineBody, { color: colors.muted, fontSize: 11, marginTop: 4 }]}>
+                    📍 {currentAddress || 'Loading address...'}{'\n'}
+                    ({activeShift.locations[0].latitude.toFixed(5)}, {activeShift.locations[0].longitude.toFixed(5)})
+                  </Text>
+                )}
               </View>
             </View>
 
@@ -760,9 +768,16 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
                       style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12 }}
                       resizeMode="cover"
                     />
-                    <Text style={[styles.timelineBody, { flex: 1, color: colors.text }]} numberOfLines={2}>
-                      {photo.address || "Photo captured"}
-                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.timelineBody, { color: colors.text }]} numberOfLines={1}>
+                        {photo.address || "Photo captured"}
+                      </Text>
+                      {photo.location && (
+                        <Text style={{ color: colors.muted, fontSize: 10, marginTop: 2 }}>
+                          ({photo.location.latitude.toFixed(5)}, {photo.location.longitude.toFixed(5)})
+                        </Text>
+                      )}
+                    </View>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -783,13 +798,18 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
                     <View style={styles.timeTag}>
                       <Ionicons name="time-outline" size={10} color={colors.muted} />
                       <Text style={[styles.timeText, { color: colors.muted }]}>
-                        {note.timestamp ? new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Now"}
+                        {note.timestamp ? new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : "Now"}
                       </Text>
                     </View>
                   </View>
                   <Text style={[styles.timelineBody, { color: colors.text }]} numberOfLines={2}>
                     {note.text || note}
                   </Text>
+                  {note.location && (
+                    <Text style={{ color: colors.muted, fontSize: 10, marginTop: 4 }}>
+                      📍 ({note.location.latitude.toFixed(5)}, {note.location.longitude.toFixed(5)})
+                    </Text>
+                  )}
                 </View>
               </View>
             ))}

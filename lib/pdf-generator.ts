@@ -95,42 +95,60 @@ export const generatePdfHtml = async (shift: Shift, isInterim?: boolean): Promis
 
   const timeline: TimelineItem[] = [];
 
-  // Shift start
+  // Shift start with location
+  const startLoc = locations[0];
+  let startLocStr = shift.siteName;
+  if (startLoc) {
+    startLocStr = `${shift.siteName}\n📍 (${startLoc.latitude.toFixed(5)}, ${startLoc.longitude.toFixed(5)})`;
+  }
   timeline.push({
     time: formatTime(shift.startTime),
     type: 'start',
     title: 'Shift Started',
-    subtitle: `${shift.staffName} clocked in at ${shift.siteName}`
+    subtitle: `${shift.staffName} clocked in at ${startLocStr}`
   });
 
-  // Photos with evidence numbers
+  // Photos with evidence numbers and location
   shift.photos?.forEach((photo, idx) => {
+    let photoLocStr = photo.address || 'Location captured';
+    if (photo.location?.latitude && photo.location?.longitude) {
+      photoLocStr += `\n(${photo.location.latitude.toFixed(5)}, ${photo.location.longitude.toFixed(5)})`;
+    }
     timeline.push({
       time: formatTime(photo.timestamp),
       type: 'photo',
       title: `Photo Evidence – Evidence #${idx + 1}`,
-      subtitle: photo.address || undefined,
+      subtitle: photoLocStr,
       evidenceNum: idx + 1
     });
   });
 
-  // Notes
+  // Notes with location
   shift.notes?.forEach(note => {
+    let noteLocStr = note.text;
+    if (note.location?.latitude && note.location?.longitude) {
+      noteLocStr += `\n📍 (${note.location.latitude.toFixed(5)}, ${note.location.longitude.toFixed(5)})`;
+    }
     timeline.push({
       time: formatTime(note.timestamp),
       type: 'note',
       title: 'Note Added',
-      subtitle: note.text
+      subtitle: noteLocStr
     });
   });
 
-  // Shift end
+  // Shift end with location
   if (shift.endTime) {
+    const endLoc = locations[locations.length - 1];
+    let endLocStr = 'Manual clock-out complete';
+    if (endLoc) {
+      endLocStr = `Clocked out at ${shift.siteName}\n📍 (${endLoc.latitude.toFixed(5)}, ${endLoc.longitude.toFixed(5)})`;
+    }
     timeline.push({
       time: formatTime(shift.endTime),
       type: 'end',
       title: 'Shift Ended',
-      subtitle: 'Manual clock-out complete'
+      subtitle: endLocStr
     });
   }
 
