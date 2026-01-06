@@ -26,7 +26,7 @@ const escapeXml = (str: string): string => {
     .replace(/'/g, "&apos;");
 };
 
-// Create full-size SVG overlay with watermark at bottom
+// Create full-size SVG overlay with watermark at top
 const createFullSizeWatermarkSvg = (
   width: number,
   height: number,
@@ -40,7 +40,6 @@ const createFullSizeWatermarkSvg = (
   }
 ): string => {
   const boxHeight = Math.max(140, Math.floor(height * 0.18));
-  const boxTop = height - boxHeight;
   const padding = Math.max(20, Math.floor(width * 0.03));
   const fontSize = Math.max(28, Math.floor(width / 25));
   const mediumFont = Math.max(20, Math.floor(width / 35));
@@ -55,9 +54,9 @@ const createFullSizeWatermarkSvg = (
 
   const coords = `${options.latitude.toFixed(6)}, ${options.longitude.toFixed(6)}`;
 
-  // Build right-side text
+  // Build right-side text (positioned at top)
   let rightSideText = "";
-  let rightY = boxTop + 35;
+  let rightY = 35;
   if (options.siteName) {
     rightSideText += `<text x="${width - padding}" y="${rightY}" font-size="${smallFont}" fill="#AAAAAA" text-anchor="end" font-family="Arial, sans-serif">${escapeXml(options.siteName)}</text>`;
     rightY += smallFont + 6;
@@ -66,27 +65,27 @@ const createFullSizeWatermarkSvg = (
     rightSideText += `<text x="${width - padding}" y="${rightY}" font-size="${smallFont}" fill="#AAAAAA" text-anchor="end" font-family="Arial, sans-serif">${escapeXml(options.staffName)}</text>`;
   }
 
-  // Create full-size SVG that matches the image dimensions exactly
+  // Create full-size SVG that matches the image dimensions exactly (watermark at TOP)
   return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="grad" x1="0%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%" style="stop-color:rgb(0,0,0);stop-opacity:0" />
-        <stop offset="20%" style="stop-color:rgb(0,0,0);stop-opacity:0.6" />
-        <stop offset="100%" style="stop-color:rgb(0,0,0);stop-opacity:0.85" />
+        <stop offset="0%" style="stop-color:rgb(0,0,0);stop-opacity:0.85" />
+        <stop offset="80%" style="stop-color:rgb(0,0,0);stop-opacity:0.6" />
+        <stop offset="100%" style="stop-color:rgb(0,0,0);stop-opacity:0" />
       </linearGradient>
     </defs>
     
-    <!-- Gradient background at bottom -->
-    <rect x="0" y="${boxTop}" width="${width}" height="${boxHeight}" fill="url(#grad)"/>
+    <!-- Gradient background at TOP -->
+    <rect x="0" y="0" width="${width}" height="${boxHeight}" fill="url(#grad)"/>
     
     <!-- Timestamp (large, bold) -->
-    <text x="${padding}" y="${boxTop + 35}" font-size="${fontSize}" font-weight="bold" fill="#FFFFFF" font-family="Arial, sans-serif">${escapeXml(options.timestamp)}</text>
+    <text x="${padding}" y="35" font-size="${fontSize}" font-weight="bold" fill="#FFFFFF" font-family="Arial, sans-serif">${escapeXml(options.timestamp)}</text>
     
     <!-- Address -->
-    <text x="${padding}" y="${boxTop + 35 + fontSize + 10}" font-size="${mediumFont}" fill="#F0F0F0" font-family="Arial, sans-serif">${escapeXml(address)}</text>
+    <text x="${padding}" y="${35 + fontSize + 10}" font-size="${mediumFont}" fill="#F0F0F0" font-family="Arial, sans-serif">${escapeXml(address)}</text>
     
     <!-- GPS Coordinates -->
-    <text x="${padding}" y="${boxTop + 35 + fontSize + 10 + mediumFont + 8}" font-size="${smallFont}" fill="#CCCCCC" font-family="Arial, sans-serif">${coords}</text>
+    <text x="${padding}" y="${35 + fontSize + 10 + mediumFont + 8}" font-size="${smallFont}" fill="#CCCCCC" font-family="Arial, sans-serif">${coords}</text>
     
     <!-- Right side: Site and Staff -->
     ${rightSideText}

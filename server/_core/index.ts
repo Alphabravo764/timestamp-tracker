@@ -86,6 +86,32 @@ async function startServer() {
     res.sendFile(path.join(simpleWebDir, "policies", "terms-of-service.html"));
   });
 
+  // ---- Privacy & Legal pages ----
+  const viewsDir = path.join(process.cwd(), "server", "views");
+
+  app.get("/privacy-policy", (_req, res) => {
+    const policyPath = path.join(viewsDir, "privacy-policy.html");
+    if (fs.existsSync(policyPath)) {
+      res.sendFile(policyPath);
+    } else {
+      res.status(404).send("Privacy Policy not found");
+    }
+  });
+
+  app.get("/terms-of-service", (_req, res) => {
+    const termsPath = path.join(viewsDir, "terms-of-service.html");
+    if (fs.existsSync(termsPath)) {
+      res.sendFile(termsPath);
+    } else {
+      res.status(404).send("Terms of Service not found");
+    }
+  });
+
+  app.get("/terms", (_req, res) => {
+    // Redirect /terms to /terms-of-service
+    res.redirect(301, "/terms-of-service");
+  });
+
   // ---- OAuth + health ----
   registerOAuthRoutes(app);
 

@@ -25,7 +25,7 @@ let _skiaChecked = false;
 const getSkia = () => {
   if (_skiaChecked) return _Skia;
   _skiaChecked = true;
-  
+
   try {
     // Dynamic require to avoid bundler issues
     const SkiaModule = require("@shopify/react-native-skia");
@@ -35,7 +35,7 @@ const getSkia = () => {
     console.log("[WatermarkSkia] Skia not available:", e.message);
     _Skia = null;
   }
-  
+
   return _Skia;
 };
 
@@ -55,7 +55,7 @@ export const processWatermark = async (
   data: WatermarkData
 ): Promise<string> => {
   const Skia = getSkia();
-  
+
   if (!Skia) {
     console.log("[WatermarkSkia] Skia not available, returning original");
     return originalUri;
@@ -64,17 +64,17 @@ export const processWatermark = async (
   try {
     console.log("[WatermarkSkia] Starting watermark...");
     console.log("[WatermarkSkia] Original URI:", originalUri.substring(0, 60));
-    
+
     // 1. Read the original image as base64
     const base64Data = await FileSystem.readAsStringAsync(originalUri, {
       encoding: FileSystem.EncodingType.Base64,
     });
     console.log("[WatermarkSkia] Read base64, length:", base64Data.length);
-    
+
     // 2. Load into Skia
     const imageData = Skia.Data.fromBase64(base64Data);
     const image = Skia.Image.MakeImageFromEncoded(imageData);
-    
+
     if (!image) {
       console.error("[WatermarkSkia] Could not decode image");
       return originalUri;
@@ -103,7 +103,7 @@ export const processWatermark = async (
     const FONT_SIZE_MEDIUM = Math.round(width * 0.03);
     const FONT_SIZE_SMALL = Math.round(width * 0.025);
     const LINE_HEIGHT = 1.5;
-    
+
     // 6. Build text lines
     const gpsText = `${data.latitude.toFixed(6)}, ${data.longitude.toFixed(6)}`;
     const lines: Array<{ text: string; size: number }> = [
@@ -112,7 +112,7 @@ export const processWatermark = async (
       { text: `📍 ${data.address}`, size: FONT_SIZE_MEDIUM },
       { text: `🌐 ${gpsText}`, size: FONT_SIZE_SMALL },
     ];
-    
+
     if (data.siteName) {
       lines.push({ text: `🏢 ${data.siteName}`, size: FONT_SIZE_SMALL });
     }
@@ -126,20 +126,20 @@ export const processWatermark = async (
       totalHeight += line.size * LINE_HEIGHT;
     }
 
-    // 8. Draw semi-transparent background at bottom
+    // 8. Draw semi-transparent background at TOP
     const bgPaint = Skia.Paint();
     bgPaint.setColor(Skia.Color("rgba(0,0,0,0.7)"));
-    
-    const bgRect = Skia.XYWHRect(0, height - totalHeight, width, totalHeight);
+
+    const bgRect = Skia.XYWHRect(0, 0, width, totalHeight);
     canvas.drawRect(bgRect, bgPaint);
 
-    // 9. Draw text
+    // 9. Draw text from top
     const textPaint = Skia.Paint();
     textPaint.setColor(Skia.Color("white"));
     textPaint.setAntiAlias(true);
 
-    let yPos = height - totalHeight + PADDING;
-    
+    let yPos = PADDING; // Start from top
+
     for (const line of lines) {
       const font = Skia.Font(null, line.size);
       yPos += line.size * 0.8;
@@ -151,21 +151,21 @@ export const processWatermark = async (
     console.log("[WatermarkSkia] Exporting...");
     const finalImage = surface.makeImageSnapshot();
     const bytes = finalImage.encodeToBytes(Skia.ImageFormat.JPEG, 85);
-    
+
     if (!bytes || bytes.length === 0) {
       console.error("[WatermarkSkia] Failed to encode image");
       image.dispose?.();
       surface.dispose?.();
       return originalUri;
     }
-    
+
     // Convert to base64
     const base64Output = uint8ArrayToBase64(bytes);
-    
+
     // Save to cache
     const filename = `watermarked_${Date.now()}.jpg`;
     const destPath = `${FileSystem.cacheDirectory}${filename}`;
-    
+
     await FileSystem.writeAsStringAsync(destPath, base64Output, {
       encoding: FileSystem.EncodingType.Base64,
     });
@@ -192,28 +192,28 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
   for (let i = 0; i < len; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
-  
+
   if (typeof btoa !== "undefined") {
     return btoa(binary);
   }
-  
+
   // Fallback for environments without btoa
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   let result = "";
   let i = 0;
-  
+
   while (i < binary.length) {
     const a = binary.charCodeAt(i++);
     const b = i < binary.length ? binary.charCodeAt(i++) : 0;
     const c = i < binary.length ? binary.charCodeAt(i++) : 0;
-    
+
     const triplet = (a << 16) | (b << 8) | c;
-    
+
     result += chars[(triplet >> 18) & 0x3f];
     result += chars[(triplet >> 12) & 0x3f];
     result += i > binary.length + 1 ? "=" : chars[(triplet >> 6) & 0x3f];
     result += i > binary.length ? "=" : chars[triplet & 0x3f];
   }
-  
+
   return result;
 }

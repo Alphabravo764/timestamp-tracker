@@ -8,8 +8,6 @@ import "react-native-reanimated";
 import { Platform } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { TermsModal } from "@/components/terms-modal";
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
@@ -20,6 +18,7 @@ import type { EdgeInsets, Metrics, Rect } from "react-native-safe-area-context";
 
 import { trpc, createTRPCClient } from "@/lib/trpc";
 import { initManusRuntime, subscribeSafeAreaInsets } from "@/lib/_core/manus-runtime";
+import { ConsentGate } from "@/components/consent-gate";
 
 const DEFAULT_WEB_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 const DEFAULT_WEB_FRAME: Rect = { x: 0, y: 0, width: 0, height: 0 };
@@ -29,57 +28,17 @@ const DEFAULT_WEB_FRAME: Rect = { x: 0, y: 0, width: 0, height: 0 };
 //   anchor: "(tabs)",
 // };
 
-const TERMS_ACCEPTED_KEY = "@timestamp_tracker_terms_accepted";
-const TERMS_VERSION_KEY = "@timestamp_tracker_terms_version";
-const CURRENT_TERMS_VERSION = "1.0.0";
-
 export default function RootLayout() {
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
   const initialFrame = initialWindowMetrics?.frame ?? DEFAULT_WEB_FRAME;
 
   const [insets, setInsets] = useState<EdgeInsets>(initialInsets);
   const [frame, setFrame] = useState<Rect>(initialFrame);
-  const [termsAccepted, setTermsAccepted] = useState<boolean | null>(null);
-  const [showTermsModal, setShowTermsModal] = useState(false);
 
   // Initialize Manus runtime for cookie injection from parent container
   useEffect(() => {
     initManusRuntime();
   }, []);
-
-  // Check if user has accepted current version of terms
-  useEffect(() => {
-    async function checkTermsAcceptance() {
-      try {
-        const accepted = await AsyncStorage.getItem(TERMS_ACCEPTED_KEY);
-        const acceptedVersion = await AsyncStorage.getItem(TERMS_VERSION_KEY);
-        
-        // Show modal if never accepted OR if version changed
-        if (accepted === "true" && acceptedVersion === CURRENT_TERMS_VERSION) {
-          setTermsAccepted(true);
-        } else {
-          setTermsAccepted(false);
-          setShowTermsModal(true);
-        }
-      } catch (error) {
-        console.error("Error checking terms acceptance:", error);
-        setTermsAccepted(false);
-        setShowTermsModal(true);
-      }
-    }
-    checkTermsAcceptance();
-  }, []);
-
-  const handleAcceptTerms = async () => {
-    try {
-      await AsyncStorage.setItem(TERMS_ACCEPTED_KEY, "true");
-      await AsyncStorage.setItem(TERMS_VERSION_KEY, CURRENT_TERMS_VERSION);
-      setTermsAccepted(true);
-      setShowTermsModal(false);
-    } catch (error) {
-      console.error("Error saving terms acceptance:", error);
-    }
-  };
 
   const handleSafeAreaUpdate = useCallback((metrics: Metrics) => {
     setInsets(metrics.insets);
@@ -125,23 +84,21 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
-          {/* Default to hiding native headers so raw route segments don't appear (e.g. "(tabs)", "products/[id]"). */}
-          {/* If a screen needs the native header, explicitly enable it and set a human title via Stack.Screen options. */}
-          <Stack screenOptions={{ headerShown: false }} initialRouteName="(tabs)">
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="oauth/callback" />
-            <Stack.Screen name="shift/start" />
-            <Stack.Screen name="shift/active" />
-            <Stack.Screen name="shift/end" />
-            <Stack.Screen name="shift/complete" />
-            <Stack.Screen name="live/[token]" />
-            <Stack.Screen name="dev/theme-lab" />
-          </Stack>
-          <StatusBar style="auto" />
-          {/* Terms Modal */}
-          {termsAccepted !== null && (
-            <TermsModal visible={showTermsModal} onAccept={handleAcceptTerms} />
-          )}
+          <ConsentGate>
+            {/* Default to hiding native headers so raw route segments don't appear (e.g. "(tabs)", "products/[id]"). */}
+            {/* If a screen needs the native header, explicitly enable it and set a human title via Stack.Screen options. */}
+            <Stack screenOptions={{ headerShown: false }} initialRouteName="(tabs)">
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="oauth/callback" />
+              <Stack.Screen name="shift/start" />
+              <Stack.Screen name="shift/active" />
+              <Stack.Screen name="shift/end" />
+              <Stack.Screen name="shift/complete" />
+              <Stack.Screen name="live/[token]" />
+              <Stack.Screen name="dev/theme-lab" />
+            </Stack>
+            <StatusBar style="auto" />
+          </ConsentGate>
         </QueryClientProvider>
       </trpc.Provider>
     </GestureHandlerRootView>

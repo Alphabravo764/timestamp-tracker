@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as FileSystem from "expo-file-system";
 import type { Shift, ShiftPhoto, LocationPoint } from "./shift-types";
 
 const ACTIVE_SHIFT_KEY = "@timestamp_camera_active_shift";
@@ -36,7 +37,7 @@ export const startShift = async (
   try {
     // Clear any existing active shift first
     await AsyncStorage.removeItem(ACTIVE_SHIFT_KEY);
-    
+
     const shift: Shift = {
       id: `shift_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       staffName: staffName || "Staff",
@@ -47,6 +48,7 @@ export const startShift = async (
       isActive: true,
       locations: [location],
       photos: [],
+      notes: [],
     };
 
     await AsyncStorage.setItem(ACTIVE_SHIFT_KEY, JSON.stringify(shift));
@@ -78,6 +80,51 @@ export const addLocationToShift = async (
   }
 };
 
+// Persist photo to permanent storage
+export const persistPhoto = async (tempUri: string): Promise<string | null> => {
+  try {
+    // Null checks
+    if (!tempUri) {
+      console.error("persistPhoto: tempUri is empty");
+      return null;
+    }
+    if (!FileSystem.documentDirectory) {
+      console.error("persistPhoto: documentDirectory is null");
+      return null;
+    }
+
+    const filename = tempUri.split('/').pop() || `photo_${Date.now()}.jpg`;
+    const photosDir = FileSystem.documentDirectory + "photos/";
+
+    // Ensure directory exists
+    const dirInfo = await FileSystem.getInfoAsync(photosDir).catch(() => ({ exists: false }));
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(photosDir, { intermediates: true });
+    }
+
+    const destPath = photosDir + filename;
+    console.log(`[persistPhoto] Copying ${tempUri} -> ${destPath}`);
+
+    // Use copyAsync instead of moveAsync - more reliable
+    await FileSystem.copyAsync({
+      from: tempUri,
+      to: destPath
+    });
+
+    // Verify
+    const fileInfo = await FileSystem.getInfoAsync(destPath);
+    if (!fileInfo.exists) {
+      throw new Error("File copy verification failed");
+    }
+
+    console.log(`[persistPhoto] Success: ${destPath}`);
+    return destPath;
+  } catch (error) {
+    console.error("Error persisting photo:", error);
+    return null;
+  }
+};
+
 // Add photo to active shift
 export const addPhotoToShift = async (photo: ShiftPhoto): Promise<Shift | null> => {
   try {
@@ -87,12 +134,46 @@ export const addPhotoToShift = async (photo: ShiftPhoto): Promise<Shift | null> 
       return null;
     }
 
+    // Store photo directly - no file copy needed for Expo camera URIs
+    // They persist for the session and can be accessed later
+    console.log("[addPhotoToShift] Adding photo:", photo.id, photo.uri);
+
     shift.photos.push(photo);
     await AsyncStorage.setItem(ACTIVE_SHIFT_KEY, JSON.stringify(shift));
     console.log("Photo added to shift:", photo.id);
     return shift;
   } catch (error) {
     console.error("Error adding photo:", error);
+    return null;
+  }
+};
+
+// Add note to active shift
+export const addNoteToShift = async (text: string): Promise<Shift | null> => {
+  try {
+    const shift = await getActiveShift();
+    if (!shift || !shift.isActive) {
+      console.log("No active shift to add note");
+      return null;
+    }
+
+    const note = {
+      id: `note_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      text: text.trim(),
+    };
+
+    // Initialize notes array if it doesn't exist
+    if (!shift.notes) {
+      shift.notes = [];
+    }
+
+    shift.notes.push(note);
+    await AsyncStorage.setItem(ACTIVE_SHIFT_KEY, JSON.stringify(shift));
+    console.log("Note added to shift:", note.id);
+    return shift;
+  } catch (error) {
+    console.error("Error adding note:", error);
     return null;
   }
 };
@@ -105,7 +186,7 @@ export const endShift = async (): Promise<Shift | null> => {
       console.log("No active shift to end");
       return null;
     }
-    
+
     const shift: Shift = JSON.parse(json);
     shift.isActive = false;
     shift.endTime = new Date().toISOString();

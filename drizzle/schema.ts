@@ -204,3 +204,25 @@ export const pdfReports = mysqlTable("pdfReports", {
 
 export type PdfReport = typeof pdfReports.$inferSelect;
 export type InsertPdfReport = typeof pdfReports.$inferInsert;
+
+// UserConsents table - tracks user consent for privacy policy and terms (GDPR compliance)
+export const userConsents = mysqlTable("userConsents", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId"), // nullable for anonymous users (mobile only)
+  deviceId: varchar("deviceId", { length: 128 }), // device fingerprint for mobile
+  consentType: mysqlEnum("consentType", ["privacy_policy", "terms_of_service", "location", "camera"]).notNull(),
+  version: varchar("version", { length: 20 }).notNull(), // e.g., "1.0", "1.1"
+  consented: boolean("consented").default(true).notNull(),
+  ipAddress: varchar("ipAddress", { length: 45 }), // supports IPv6
+  userAgent: text("userAgent"),
+  consentedAt: timestamp("consentedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("userId_idx").on(table.userId),
+  deviceIdIdx: index("deviceId_idx").on(table.deviceId),
+  consentTypeIdx: index("consentType_idx").on(table.consentType),
+}));
+
+export type UserConsent = typeof userConsents.$inferSelect;
+export type InsertUserConsent = typeof userConsents.$inferInsert;
+

@@ -21,7 +21,7 @@ export const addWatermarkToPhoto = async (
       // On web, use canvas to add watermark (works locally)
       return await addWatermarkCanvas(photoUri, options);
     }
-    
+
     // On native iOS/Android, use server-side watermarking
     return await addWatermarkServer(photoUri, options);
   } catch (error) {
@@ -38,10 +38,10 @@ const addWatermarkServer = async (
 ): Promise<string> => {
   try {
     console.log("[WatermarkServer] Starting server watermark...");
-    
+
     // Read the photo as base64
     let base64Data: string;
-    
+
     if (photoUri.startsWith("data:")) {
       // Already base64
       console.log("[WatermarkServer] Photo is already base64");
@@ -54,19 +54,19 @@ const addWatermarkServer = async (
         console.error("[WatermarkServer] Photo file does not exist:", photoUri);
         return photoUri;
       }
-      
+
       base64Data = await FileSystem.readAsStringAsync(photoUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
     }
-    
+
     console.log("[WatermarkServer] Base64 data length:", base64Data.length);
-    
+
     // Call server watermark API
     const apiBaseUrl = getApiBaseUrl();
     console.log("[WatermarkServer] API Base URL:", apiBaseUrl);
     console.log("[WatermarkServer] Calling API...");
-    
+
     const response = await fetch(`${apiBaseUrl}/api/watermark`, {
       method: "POST",
       headers: {
@@ -82,30 +82,30 @@ const addWatermarkServer = async (
         siteName: options.siteName,
       }),
     });
-    
+
     console.log("[WatermarkServer] API response status:", response.status);
-    
+
     if (!response.ok) {
       console.error("[WatermarkServer] API error:", response.status);
       // Return original as data URI if server fails
       return `data:image/jpeg;base64,${base64Data}`;
     }
-    
+
     const result = await response.json();
     console.log("[WatermarkServer] API result success:", result.success);
-    
+
     if (result.success && result.watermarkedBase64) {
       console.log("[WatermarkServer] Got watermarked image, length:", result.watermarkedBase64.length);
       // Return watermarked image as data URI
       return `data:image/jpeg;base64,${result.watermarkedBase64}`;
     }
-    
+
     console.error("[WatermarkServer] API returned error:", result.error);
     // Return original as data URI
     return `data:image/jpeg;base64,${base64Data}`;
   } catch (error) {
     console.error("Server watermark error:", error);
-    
+
     // Try to return original as data URI
     try {
       if (photoUri.startsWith("data:")) {
@@ -139,37 +139,37 @@ const addWatermarkCanvas = async (
     try {
       const img = new Image();
       img.crossOrigin = "anonymous";
-      
+
       img.onload = () => {
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
-        
+
         if (!ctx) {
           resolve(photoUri);
           return;
         }
-        
+
         canvas.width = img.width;
         canvas.height = img.height;
-        
+
         // Draw original image
         ctx.drawImage(img, 0, 0);
-        
-        // Add semi-transparent background for text at bottom
+
+        // Add semi-transparent background for text at top
         const boxHeight = Math.max(140, canvas.height * 0.15);
-        const gradient = ctx.createLinearGradient(0, canvas.height - boxHeight, 0, canvas.height);
-        gradient.addColorStop(0, "rgba(0,0,0,0)");
-        gradient.addColorStop(0.2, "rgba(0,0,0,0.6)");
-        gradient.addColorStop(1, "rgba(0,0,0,0.85)");
+        const gradient = ctx.createLinearGradient(0, 0, 0, boxHeight);
+        gradient.addColorStop(0, "rgba(0,0,0,0.85)");
+        gradient.addColorStop(0.8, "rgba(0,0,0,0.6)");
+        gradient.addColorStop(1, "rgba(0,0,0,0)");
         ctx.fillStyle = gradient;
-        ctx.fillRect(0, canvas.height - boxHeight, canvas.width, boxHeight);
-        
+        ctx.fillRect(0, 0, canvas.width, boxHeight);
+
         // Text settings
         ctx.fillStyle = "#FFFFFF";
         ctx.textAlign = "left";
         const padding = Math.max(20, canvas.width * 0.03);
-        let y = canvas.height - boxHeight + 35;
-        
+        let y = 35; // Start from top with padding
+
         // Timestamp (large, bold)
         const fontSize = Math.max(28, Math.floor(canvas.width / 25));
         ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, Arial, sans-serif`;
@@ -179,15 +179,15 @@ const addWatermarkCanvas = async (
         ctx.shadowOffsetY = 2;
         ctx.fillText(options.timestamp, padding, y);
         y += fontSize + 10;
-        
+
         // Reset shadow for smaller text
         ctx.shadowBlur = 2;
-        
+
         // Address (medium)
         const mediumFont = Math.max(20, Math.floor(canvas.width / 35));
         ctx.font = `${mediumFont}px -apple-system, BlinkMacSystemFont, Arial, sans-serif`;
         ctx.fillStyle = "#F0F0F0";
-        
+
         // Truncate address if too long
         const maxWidth = canvas.width - padding * 2;
         let address = options.address || "Location unavailable";
@@ -196,22 +196,22 @@ const addWatermarkCanvas = async (
         }
         ctx.fillText(`📍 ${address}`, padding, y);
         y += mediumFont + 8;
-        
+
         // GPS Coordinates (small)
         const smallFont = Math.max(16, Math.floor(canvas.width / 45));
         ctx.font = `${smallFont}px -apple-system, BlinkMacSystemFont, Arial, sans-serif`;
         ctx.fillStyle = "#CCCCCC";
         const coords = `🌐 ${options.latitude.toFixed(6)}, ${options.longitude.toFixed(6)}`;
         ctx.fillText(coords, padding, y);
-        
+
         // Add staff/site info on the right side if provided
         if (options.staffName || options.siteName) {
           ctx.textAlign = "right";
           ctx.fillStyle = "#AAAAAA";
           ctx.font = `${smallFont}px -apple-system, BlinkMacSystemFont, Arial, sans-serif`;
           const rightX = canvas.width - padding;
-          let rightY = canvas.height - boxHeight + 35;
-          
+          let rightY = 35; // Start from top
+
           if (options.siteName) {
             ctx.fillText(`🏢 ${options.siteName}`, rightX, rightY);
             rightY += smallFont + 6;
@@ -220,21 +220,21 @@ const addWatermarkCanvas = async (
             ctx.fillText(`👤 ${options.staffName}`, rightX, rightY);
           }
         }
-        
+
         // Reset shadow
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
-        
+
         // Convert to data URL with high quality
         const watermarkedUri = canvas.toDataURL("image/jpeg", 0.92);
         resolve(watermarkedUri);
       };
-      
+
       img.onerror = () => {
         console.error("Failed to load image for watermark");
         resolve(photoUri);
       };
-      
+
       img.src = photoUri;
     } catch (error) {
       console.error("Canvas watermark error:", error);
@@ -266,13 +266,13 @@ export const generateWatermarkText = (options: WatermarkOptions): string => {
     `📍 ${options.address || "Location unavailable"}`,
     `🌐 ${options.latitude.toFixed(6)}, ${options.longitude.toFixed(6)}`,
   ];
-  
+
   if (options.siteName) {
     lines.push(`🏢 ${options.siteName}`);
   }
   if (options.staffName) {
     lines.push(`👤 ${options.staffName}`);
   }
-  
+
   return lines.join("\n");
 };

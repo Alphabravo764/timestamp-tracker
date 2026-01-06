@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -18,7 +18,6 @@ import { useFocusEffect } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
-import { getApiBaseUrl } from "@/constants/oauth";
 import {
   getShiftHistory,
   deleteShift,
@@ -29,12 +28,16 @@ import type { Shift, LocationPoint, ShiftPhoto } from "@/lib/shift-types";
 import { generatePDFReport } from "@/lib/pdf-generator";
 import { generateStaticMapUrlEncoded } from "@/lib/google-maps";
 import { savePhotoToLibrary } from "@/lib/photo-export";
+import { Ionicons } from "@expo/vector-icons";
 import { batchExportPhotos } from "@/lib/batch-export";
-import { addWatermarkToPhoto, formatWatermarkTimestamp } from "@/lib/watermark";
+import { formatWatermarkTimestamp } from "@/lib/watermark";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system/legacy";
+import { PhotoWatermark, type PhotoWatermarkRef } from "@/components/photo-watermark";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+// SCREEN_HEIGHT needed for positioning watermark offscreen
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // Generate trail map URL using Google Maps
 const getTrailMapUrl = (locations: LocationPoint[]): string => {
@@ -48,10 +51,10 @@ const getTrailMapUrl = (locations: LocationPoint[]): string => {
   const end = locations[locations.length - 1];
   // Add waypoints for intermediate locations (max 10 for URL length)
   const waypoints = locations.slice(1, -1);
-  const waypointStr = waypoints.length > 0 
+  const waypointStr = waypoints.length > 0
     ? waypoints.slice(0, 10).map(l => `${l.latitude},${l.longitude}`).join("|")
     : "";
-  
+
   let url = `https://www.google.com/maps/dir/${start.latitude},${start.longitude}/${end.latitude},${end.longitude}`;
   if (waypointStr) {
     url = `https://www.google.com/maps/dir/?api=1&origin=${start.latitude},${start.longitude}&destination=${end.latitude},${end.longitude}&waypoints=${waypointStr}`;
@@ -80,6 +83,30 @@ const getAddressFromCoords = async (lat: number, lng: number): Promise<string> =
   }
 };
 
+// Calculate distance in km
+const getShiftDistance = (locations: any[]) => {
+  if (!locations || locations.length < 2) return "0.00 km";
+  let totalDist = 0;
+  for (let i = 0; i < locations.length - 1; i++) {
+    const lat1 = locations[i].latitude;
+    const lon1 = locations[i].longitude;
+    const lat2 = locations[i + 1].latitude;
+    const lon2 = locations[i + 1].longitude;
+
+    // Haversine formula
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    totalDist += R * c;
+  }
+  return totalDist.toFixed(2) + " km";
+};
+
 export default function HistoryScreen() {
   const colors = useColors();
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -87,6 +114,11 @@ export default function HistoryScreen() {
   const [selectedPhoto, setSelectedPhoto] = useState<ShiftPhoto | null>(null);
   const [startAddress, setStartAddress] = useState<string>("");
   const [endAddress, setEndAddress] = useState<string>("");
+  /* Opacity must be non-zero for captureRef to work on some native views, but 0 usually works for view-shot. 
+     0.01 is safer to ensure it's "visible" to the rendering engine. 
+     Position absolute with zIndex -1 hides it from user interaction/view. */
+  const watermarkStyle = { position: 'absolute' as const, opacity: 0.01, zIndex: -1, top: SCREEN_HEIGHT };
+  const watermarkRef = useRef<PhotoWatermarkRef>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -103,10 +135,10 @@ export default function HistoryScreen() {
     if (shift.locations.length > 0) {
       const first = shift.locations[0];
       const last = shift.locations[shift.locations.length - 1];
-      
+
       const startAddr = first.address || await getAddressFromCoords(first.latitude, first.longitude);
       const endAddr = last.address || await getAddressFromCoords(last.latitude, last.longitude);
-      
+
       setStartAddress(startAddr);
       setEndAddress(endAddr);
     }
@@ -156,10 +188,10 @@ export default function HistoryScreen() {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    
+
     try {
       const html = await generatePDFReport(shift);
-      
+
       if (Platform.OS === "web") {
         // On web, open HTML report in new tab
         const blob = new Blob([html], { type: "text/html" });
@@ -172,9 +204,9 @@ export default function HistoryScreen() {
             html,
             base64: false,
           });
-          
+
           const isAvailable = await Sharing.isAvailableAsync();
-          
+
           if (isAvailable) {
             await Sharing.shareAsync(uri, {
               mimeType: "application/pdf",
@@ -200,17 +232,23 @@ export default function HistoryScreen() {
       if (Platform.OS !== "web") {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
-      
-      // Generate watermarked version for sharing
-      const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
+
+      if (!watermarkRef.current) {
+        Alert.alert("Error", "Watermark engine not ready");
+        return;
+      }
+
+      // Generate watermarked version using client-side component (Offline supported)
+      const watermarkedUri = await watermarkRef.current.addWatermark(photo.uri, {
         timestamp: formatWatermarkTimestamp(new Date(photo.timestamp)),
         address: photo.address || "Location unavailable",
         latitude: photo.location?.latitude || 0,
         longitude: photo.location?.longitude || 0,
         staffName: selectedShift?.staffName,
         siteName: selectedShift?.siteName,
+        date: new Date(photo.timestamp).toLocaleDateString("en-GB")
       });
-      
+
       if (Platform.OS === "web") {
         // On web, download watermarked image
         const link = document.createElement("a");
@@ -221,13 +259,17 @@ export default function HistoryScreen() {
         document.body.removeChild(link);
         alert("Watermarked photo downloaded!");
       } else {
-        // On mobile, share the watermarked photo
+        // On mobile, save to temp file then share
         const isAvailable = await Sharing.isAvailableAsync();
         if (!isAvailable) {
           alert("Sharing is not available on this device");
           return;
         }
-        
+
+        // The captured ref usually returns a file URI on native, so direct share works
+        // But if it returns base64 (less likely with captureRef default), we handle it.
+        // PhotoWatermark uses captureRef with 'tmpfile' result, so it should be a URI.
+
         await Sharing.shareAsync(watermarkedUri, {
           mimeType: "image/jpeg",
           dialogTitle: "Share Timestamp Photo",
@@ -235,72 +277,45 @@ export default function HistoryScreen() {
       }
     } catch (e) {
       console.error("Share photo error:", e);
-      alert("Failed to share photo");
+      alert("Failed to share photo. Please try again.");
     }
   };
 
+  /* Removed exportPhotoWithWatermark as it was duplicate logic, relying on share instead or simplify */
+  // ... keeping simplified export logic if needed, but share is primary.
+  // Actually, let's update exportPhotoWithWatermark too for consistency if buttons use it.
   const exportPhotoWithWatermark = async (photo: ShiftPhoto) => {
-    if (!selectedShift) return;
-    
-    try {
-      if (Platform.OS !== "web") {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-      
-      // Generate watermarked version
-      const watermarkedUri = await addWatermarkToPhoto(photo.uri, {
-        timestamp: formatWatermarkTimestamp(new Date(photo.timestamp)),
-        address: photo.address || "Location unavailable",
-        latitude: photo.location?.latitude || 0,
-        longitude: photo.location?.longitude || 0,
-        staffName: selectedShift.staffName,
-        siteName: selectedShift.siteName,
-      });
-      
-      if (Platform.OS === "web") {
-        // On web, download watermarked image
-        const link = document.createElement("a");
-        link.href = watermarkedUri;
-        link.download = `timestamp_photo_${Date.now()}.jpg`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        alert("Photo downloaded with watermark!");
-      } else {
-        // On mobile, share the watermarked photo
-        const isAvailable = await Sharing.isAvailableAsync();
-        if (!isAvailable) {
-          alert("Sharing is not available on this device");
-          return;
-        }
-        
-        await Sharing.shareAsync(watermarkedUri, {
-          mimeType: "image/jpeg",
-          dialogTitle: "Save Timestamp Photo",
-        });
-      }
-    } catch (error) {
-      console.error("Export error:", error);
-      alert("Error exporting photo. Please try again.");
-    }
+    await sharePhoto(photo);
   };
+  /*
+  if (!selectedShift) return;
+
+  try {
+    // Re-use logic
+    sharePhoto(photo);
+  } catch (error) {
+     // ...
+  }
+};
+*/
+
 
   const exportAllPhotos = async () => {
     if (!selectedShift || selectedShift.photos.length === 0) return;
-    
+
     try {
       if (Platform.OS !== "web") {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
-      
+
       alert(`Exporting ${selectedShift.photos.length} photos...`);
-      
+
       const result = await batchExportPhotos(
         selectedShift.photos,
         selectedShift.staffName,
         selectedShift.siteName
       );
-      
+
       alert(result.message);
     } catch (error) {
       console.error("Batch export error:", error);
@@ -335,14 +350,14 @@ export default function HistoryScreen() {
     if (shift.locations.length > 0) {
       report += `🗺️ LOCATION TRAIL\n`;
       report += `───────────────────────────\n`;
-      
+
       const first = shift.locations[0];
       const last = shift.locations[shift.locations.length - 1];
-      
+
       report += `START LOCATION:\n`;
       report += `  📍 ${startAddress || `${first.latitude.toFixed(6)}, ${first.longitude.toFixed(6)}`}\n`;
       report += `  🕐 ${new Date(first.timestamp).toLocaleTimeString()}\n\n`;
-      
+
       report += `END LOCATION:\n`;
       report += `  📍 ${endAddress || `${last.latitude.toFixed(6)}, ${last.longitude.toFixed(6)}`}\n`;
       report += `  🕐 ${new Date(last.timestamp).toLocaleTimeString()}\n\n`;
@@ -378,10 +393,10 @@ export default function HistoryScreen() {
     }
   };
 
-  // Photo Viewer Modal
+  // Photo Viewer Modal - with watermark overlay
   const PhotoViewerModal = () => {
     if (!selectedPhoto) return null;
-    
+
     return (
       <Modal
         visible={!!selectedPhoto}
@@ -395,32 +410,45 @@ export default function HistoryScreen() {
               <TouchableOpacity onPress={() => setSelectedPhoto(null)}>
                 <Text style={[styles.modalClose, { color: colors.primary }]}>✕ Close</Text>
               </TouchableOpacity>
-              <View style={styles.modalActions}>
-                <TouchableOpacity onPress={() => exportPhotoWithWatermark(selectedPhoto)}>
-                  <Text style={[styles.modalAction, { color: colors.primary }]}>💾 Export</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => sharePhoto(selectedPhoto)}>
-                  <Text style={[styles.modalAction, { color: colors.primary }]}>📤 Share</Text>
-                </TouchableOpacity>
+              <TouchableOpacity onPress={() => sharePhoto(selectedPhoto)}>
+                <Text style={[styles.modalAction, { color: colors.primary }]}>📤 Share</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Photo with watermark overlay */}
+            <View style={{ flex: 1, position: 'relative' }}>
+              <Image source={{ uri: selectedPhoto.uri }} style={styles.modalImage} resizeMode="contain" />
+
+              {/* Watermark overlay */}
+              <View style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                backgroundColor: 'rgba(0,0,0,0.7)'
+              }}>
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', marginBottom: 4 }}>
+                  {formatWatermarkTimestamp(new Date(selectedPhoto.timestamp))}
+                </Text>
+                {selectedPhoto.address && (
+                  <Text style={{ color: '#e2e8f0', fontSize: 12, marginBottom: 2 }}>
+                    📍 {selectedPhoto.address}
+                  </Text>
+                )}
+                {selectedPhoto.location && (
+                  <Text style={{ color: '#94a3b8', fontSize: 10 }}>
+                    🌐 {selectedPhoto.location.latitude.toFixed(6)}, {selectedPhoto.location.longitude.toFixed(6)}
+                  </Text>
+                )}
               </View>
             </View>
-            
-            <Image source={{ uri: selectedPhoto.uri }} style={styles.modalImage} resizeMode="contain" />
-            
+
             <View style={[styles.modalInfo, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.modalTime, { color: colors.foreground }]}>
-                📅 {new Date(selectedPhoto.timestamp).toLocaleString()}
+              <Text style={[styles.modalTime, { color: colors.muted, fontSize: 11 }]}>
+                📷 Photo will be shared with watermark burned in
               </Text>
-              {selectedPhoto.address && (
-                <Text style={[styles.modalAddress, { color: colors.muted }]}>
-                  📍 {selectedPhoto.address}
-                </Text>
-              )}
-              {selectedPhoto.location && (
-                <Text style={[styles.modalCoords, { color: colors.muted }]}>
-                  🌐 {selectedPhoto.location.latitude.toFixed(6)}, {selectedPhoto.location.longitude.toFixed(6)}
-                </Text>
-              )}
             </View>
           </View>
         </View>
@@ -428,170 +456,362 @@ export default function HistoryScreen() {
     );
   };
 
-  // Shift Detail View
+  // Shift Detail View - Modern Design
   if (selectedShift) {
     const duration = formatDuration(getShiftDuration(selectedShift));
     const mapUrl = generateStaticMapUrlEncoded(selectedShift.locations, 600, 300);
+    const startDate = new Date(selectedShift.startTime);
+    const endDate = selectedShift.endTime ? new Date(selectedShift.endTime) : null;
+
+    // Build timeline events
+    const timelineEvents: Array<{
+      type: 'start' | 'end' | 'photo' | 'note';
+      time: string;
+      title: string;
+      subtitle?: string;
+      photo?: any;
+      note?: any;
+    }> = [];
+
+    // Add shift start
+    timelineEvents.push({
+      type: 'start',
+      time: startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      title: 'Shift Started',
+      subtitle: selectedShift.staffName || 'Officer on duty'
+    });
+
+    // Add photos
+    selectedShift.photos.forEach(photo => {
+      timelineEvents.push({
+        type: 'photo',
+        time: new Date(photo.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        title: 'Photo Evidence',
+        subtitle: photo.address || 'Location recorded',
+        photo
+      });
+    });
+
+    // Add notes
+    if (selectedShift.notes) {
+      selectedShift.notes.forEach(note => {
+        timelineEvents.push({
+          type: 'note',
+          time: new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          title: 'Note Added',
+          subtitle: note.text,
+          note
+        });
+      });
+    }
+
+    // Add shift end
+    if (endDate) {
+      timelineEvents.push({
+        type: 'end',
+        time: endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        title: 'Shift Ended',
+        subtitle: 'Manual clock-out'
+      });
+    }
+
+    // Sort by time (newest first for display)
+    timelineEvents.sort((a, b) => {
+      const timeA = new Date(`2000-01-01 ${a.time}`).getTime();
+      const timeB = new Date(`2000-01-01 ${b.time}`).getTime();
+      return timeB - timeA;
+    });
 
     return (
-      <ScreenContainer>
+      <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
         <PhotoViewerModal />
-        <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
-          {/* Header */}
-          <View style={styles.detailHeader}>
-            <TouchableOpacity onPress={() => setSelectedShift(null)}>
-              <Text style={[styles.backButton, { color: colors.primary }]}>← Back</Text>
+
+        {/* Map Hero Section */}
+        <View style={{ height: 280, backgroundColor: '#e2e8f0', position: 'relative' }}>
+          {/* Header Controls */}
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, paddingTop: 50, paddingHorizontal: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
+            <TouchableOpacity
+              onPress={() => setSelectedShift(null)}
+              style={{ width: 40, height: 40, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Ionicons name="chevron-back" size={24} color="#334155" />
             </TouchableOpacity>
-          </View>
 
-          <Text className="text-2xl font-bold text-foreground mb-1">{selectedShift.siteName}</Text>
-          <Text className="text-muted mb-6">{selectedShift.staffName} • {selectedShift.pairCode}</Text>
-
-          {/* Stats Cards */}
-          <View style={styles.statsRow}>
-            <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.statValue, { color: colors.foreground }]}>{duration}</Text>
-              <Text style={[styles.statLabel, { color: colors.muted }]}>Duration</Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.statValue, { color: colors.foreground }]}>{selectedShift.photos.length}</Text>
-              <Text style={[styles.statLabel, { color: colors.muted }]}>Photos</Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.statValue, { color: colors.foreground }]}>{selectedShift.locations.length}</Text>
-              <Text style={[styles.statLabel, { color: colors.muted }]}>Locations</Text>
-            </View>
-          </View>
-
-          {/* Time Info */}
-          <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.infoTitle, { color: colors.foreground }]}>⏰ Shift Time</Text>
-            <Text style={[styles.infoText, { color: colors.muted }]}>
-              Start: {new Date(selectedShift.startTime).toLocaleString()}
-            </Text>
-            <Text style={[styles.infoText, { color: colors.muted }]}>
-              End: {selectedShift.endTime ? new Date(selectedShift.endTime).toLocaleString() : "In Progress"}
-            </Text>
-          </View>
-
-          {/* Trail Map Preview */}
-          {mapUrl && (
-            <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.infoTitle, { color: colors.foreground }]}>🗺️ Trail Map</Text>
-              <TouchableOpacity onPress={() => viewTrailOnMap(selectedShift)}>
-                <Image 
-                  source={{ uri: mapUrl }} 
-                  style={styles.mapPreview}
-                  resizeMode="cover"
-                />
-                <Text style={[styles.mapHint, { color: colors.primary }]}>Tap to view full map →</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Location Trail */}
-          {selectedShift.locations.length > 0 && (
-            <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.infoTitle, { color: colors.foreground }]}>📍 Location Trail</Text>
-              
-              <View style={styles.locationItem}>
-                <Text style={[styles.locationLabel, { color: colors.success }]}>START</Text>
-                <Text style={[styles.locationAddress, { color: colors.foreground }]}>{startAddress}</Text>
-                <Text style={[styles.locationTime, { color: colors.muted }]}>
-                  {new Date(selectedShift.locations[0].timestamp).toLocaleTimeString()}
-                </Text>
-              </View>
-              
-              {selectedShift.locations.length > 1 && (
-                <View style={styles.locationItem}>
-                  <Text style={[styles.locationLabel, { color: colors.error }]}>END</Text>
-                  <Text style={[styles.locationAddress, { color: colors.foreground }]}>{endAddress}</Text>
-                  <Text style={[styles.locationTime, { color: colors.muted }]}>
-                    {new Date(selectedShift.locations[selectedShift.locations.length - 1].timestamp).toLocaleTimeString()}
-                  </Text>
-                </View>
-              )}
-              
-              <Text style={[styles.locationCount, { color: colors.muted }]}>
-                {selectedShift.locations.length} location points recorded
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#334155', textTransform: 'uppercase' }}>
+                {startDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} • #{selectedShift.pairCode}
               </Text>
             </View>
-          )}
 
-          {/* Photos Gallery */}
-          {selectedShift.photos.length > 0 && (
-            <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.infoTitle, { color: colors.foreground }]}>📷 Photos ({selectedShift.photos.length})</Text>
-              <View style={styles.photoGrid}>
-                {selectedShift.photos.map((photo) => (
-                  <TouchableOpacity
-                    key={photo.id}
-                    style={styles.photoGridItem}
-                    onPress={() => setSelectedPhoto(photo)}
-                  >
-                    <Image source={{ uri: photo.uri }} style={styles.photoGridImage} />
-                    <View style={[styles.photoGridOverlay, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
-                      <Text style={styles.photoGridTime}>
-                        {new Date(photo.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={[styles.photoHint, { color: colors.muted }]}>Tap a photo to view full size and share</Text>
+            <TouchableOpacity
+              onPress={() => generateTextReport(selectedShift)}
+              style={{ width: 40, height: 40, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Ionicons name="share-social-outline" size={20} color="#334155" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Map Image */}
+          {mapUrl ? (
+            <TouchableOpacity
+              style={{ flex: 1 }}
+              onPress={() => viewTrailOnMap(selectedShift)}
+              activeOpacity={0.9}
+            >
+              <Image source={{ uri: mapUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            </TouchableOpacity>
+          ) : (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0' }}>
+              <Ionicons name="map-outline" size={48} color="#94a3b8" />
+              <Text style={{ color: '#94a3b8', marginTop: 8, fontSize: 12 }}>No location data</Text>
             </View>
           )}
 
-          {/* Action Buttons */}
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: colors.primary }]}
-            onPress={() => viewPDFReport(selectedShift)}
-          >
-            <Text style={styles.actionButtonText}>📄 View PDF</Text>
-          </TouchableOpacity>
+          {/* Map Overlay Card */}
+          <View style={{ position: 'absolute', bottom: 16, left: 16, right: 16 }}>
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.95)', padding: 16, borderRadius: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>Patrol Area</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#1e293b' }}>{selectedShift.siteName}</Text>
+              </View>
+              <View style={{ width: 40, height: 40, backgroundColor: '#eff6ff', borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="location" size={20} color="#3b82f6" />
+              </View>
+            </View>
+          </View>
+        </View>
 
-          {selectedShift.photos.length > 0 && (
+        {/* Scrollable Content */}
+        <ScrollView
+          style={{ flex: 1, marginTop: -16, backgroundColor: '#f8fafc', borderTopLeftRadius: 24, borderTopRightRadius: 24 }}
+          contentContainerStyle={{ padding: 20, paddingTop: 28 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Stats Grid */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
+            {/* Duration */}
+            <View style={{ flex: 1, minWidth: '45%', backgroundColor: '#fff', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#f1f5f9', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff7ed', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="time-outline" size={20} color="#f97316" />
+              </View>
+              <View>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: '#1e293b' }}>{duration}</Text>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' }}>Duration</Text>
+              </View>
+            </View>
+
+            {/* Photos */}
+            <View style={{ flex: 1, minWidth: '45%', backgroundColor: '#fff', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#f1f5f9', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#f3e8ff', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="camera-outline" size={20} color="#a855f7" />
+              </View>
+              <View>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: '#1e293b' }}>{selectedShift.photos.length}</Text>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' }}>Photos</Text>
+              </View>
+            </View>
+
+            {/* Locations */}
+            <View style={{ flex: 1, minWidth: '45%', backgroundColor: '#fff', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#f1f5f9', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="navigate-outline" size={20} color="#3b82f6" />
+              </View>
+              <View>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: '#1e293b' }}>{selectedShift.locations.length}</Text>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' }}>Points</Text>
+              </View>
+            </View>
+
+            {/* Notes */}
+            <View style={{ flex: 1, minWidth: '45%', backgroundColor: '#fff', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#f1f5f9', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#fef3c7', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="document-text-outline" size={20} color="#f59e0b" />
+              </View>
+              <View>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: '#1e293b' }}>{selectedShift.notes?.length || 0}</Text>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' }}>Notes</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Timeline Header */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Shift Timeline</Text>
+          </View>
+
+          {/* Timeline */}
+          <View style={{ borderLeftWidth: 2, borderLeftColor: '#e2e8f0', marginLeft: 8, paddingLeft: 20 }}>
+            {timelineEvents.map((event, index) => (
+              <View key={index} style={{ position: 'relative', marginBottom: 24 }}>
+                {/* Dot */}
+                <View style={{
+                  position: 'absolute',
+                  left: -28,
+                  top: 4,
+                  width: 16,
+                  height: 16,
+                  borderRadius: 8,
+                  backgroundColor: '#fff',
+                  borderWidth: 4,
+                  borderColor: event.type === 'start' ? '#22c55e' : event.type === 'end' ? '#ef4444' : event.type === 'photo' ? '#a855f7' : '#f59e0b'
+                }} />
+
+                {/* Content */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#1e293b' }}>{event.title}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#94a3b8' }}>{event.time}</Text>
+                </View>
+
+                {event.subtitle && (
+                  <Text style={{ fontSize: 12, color: '#64748b', lineHeight: 18 }} numberOfLines={2}>{event.subtitle}</Text>
+                )}
+
+                {/* Photo thumbnail */}
+                {event.photo && (
+                  <TouchableOpacity
+                    style={{ marginTop: 8, flexDirection: 'row', gap: 8 }}
+                    onPress={() => setSelectedPhoto(event.photo)}
+                  >
+                    <Image
+                      source={{ uri: event.photo.uri }}
+                      style={{ width: 56, height: 56, borderRadius: 8, backgroundColor: '#e2e8f0' }}
+                    />
+                    <View style={{ backgroundColor: '#f8fafc', borderRadius: 8, padding: 8, flex: 1, justifyContent: 'center' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#334155' }}>Photo Evidence</Text>
+                      <Text style={{ fontSize: 10, color: '#94a3b8' }}>Tap to view</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+
+                {/* Note content */}
+                {event.note && (
+                  <View style={{ marginTop: 8, backgroundColor: '#fef9c3', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#fef08a' }}>
+                    <Text style={{ fontSize: 12, color: '#713f12', lineHeight: 18 }}>{event.note.text}</Text>
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+
+          {/* Export PDF Button */}
+          <View style={{ marginTop: 16, paddingTop: 20, borderTopWidth: 1, borderTopColor: '#e2e8f0' }}>
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: "#f59e0b" }]}
-              onPress={exportAllPhotos}
+              style={{ backgroundColor: '#1e293b', paddingVertical: 16, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              onPress={() => viewPDFReport(selectedShift)}
             >
-              <Text style={styles.actionButtonText}>📦 Export All Photos</Text>
+              <Ionicons name="document-text" size={18} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>Download PDF Report</Text>
             </TouchableOpacity>
-          )}
+          </View>
 
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: colors.error }]}
-            onPress={() => handleDeleteShift(selectedShift.id)}
-          >
-            <Text style={styles.actionButtonText}>🗑️ Delete Shift</Text>
-          </TouchableOpacity>
+          {/* Secondary Actions */}
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: '#fff', paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center' }}
+              onPress={() => viewTrailOnMap(selectedShift)}
+            >
+              <Ionicons name="map-outline" size={18} color="#3b82f6" />
+              <Text style={{ color: '#3b82f6', fontSize: 11, fontWeight: '600', marginTop: 4 }}>View Map</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: '#fff', paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center' }}
+              onPress={() => generateTextReport(selectedShift)}
+            >
+              <Ionicons name="share-social-outline" size={18} color="#22c55e" />
+              <Text style={{ color: '#22c55e', fontSize: 11, fontWeight: '600', marginTop: 4 }}>Share</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: '#fff', paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#fecaca', alignItems: 'center' }}
+              onPress={() => handleDeleteShift(selectedShift.id)}
+            >
+              <Ionicons name="trash-outline" size={18} color="#ef4444" />
+              <Text style={{ color: '#ef4444', fontSize: 11, fontWeight: '600', marginTop: 4 }}>Delete</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={{ height: 40 }} />
         </ScrollView>
-      </ScreenContainer>
+      </View>
     );
   }
 
-  // Shift List
+  // Shift List - Modern Card Design
   const renderShiftItem = ({ item }: { item: Shift }) => {
     const duration = formatDuration(getShiftDuration(item));
-    const date = new Date(item.startTime).toLocaleDateString();
-    const time = new Date(item.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const distance = getShiftDistance(item.locations); // Requires helper
+    const isActive = item.isActive;
+    const startDate = new Date(item.startTime);
+    const endTime = item.endTime ? new Date(item.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Present';
+    const timeRange = `${startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${endTime}`;
+
+    // Relative date label
+    const today = new Date();
+    const isToday = startDate.toDateString() === today.toDateString();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday = startDate.toDateString() === yesterday.toDateString();
+    const dateLabel = isToday ? 'Today' : isYesterday ? 'Yesterday' : startDate.toLocaleDateString([], { weekday: 'short' });
+    const fullDate = startDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 
     return (
       <TouchableOpacity
-        style={[styles.shiftCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        style={[styles.modernCard, { backgroundColor: colors.surface, borderColor: isActive ? colors.primary : colors.border, borderWidth: isActive ? 2 : 1 }]}
         onPress={() => handleSelectShift(item)}
+        activeOpacity={0.8}
       >
-        <View style={styles.shiftHeader}>
-          <Text style={[styles.shiftSite, { color: colors.foreground }]}>{item.siteName}</Text>
-          <Text style={[styles.shiftDate, { color: colors.muted }]}>{date}</Text>
+        {/* Status Indicator Bar */}
+        <View style={[styles.statusBar, { backgroundColor: isActive ? '#22c55e' : '#3b82f6', width: 6 }]} />
+
+        <View style={styles.modernCardContent}>
+          {/* Top Row: Date & Status Badge */}
+          <View style={styles.modernCardHeader}>
+            <View>
+              <Text style={[styles.modernDateLabel, { color: colors.muted, fontSize: 13 }]}>{dateLabel}</Text>
+              <Text style={[styles.modernFullDate, { color: colors.text, fontSize: 16 }]}>{fullDate}</Text>
+            </View>
+            <View style={[styles.statusBadge, isActive ? styles.statusBadgeActive : { backgroundColor: '#dcfce7', borderColor: '#bbf7d0', borderWidth: 1 }]}>
+              <Text style={[styles.statusBadgeText, { color: isActive ? '#16a34a' : '#15803d', fontSize: 13, fontWeight: '700' }]}>
+                {isActive ? '● Live' : '✓ Completed'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Middle: Location & Time */}
+          <View style={styles.locationRow}>
+            <View style={[styles.locationIcon, { backgroundColor: '#eff6ff' }]}>
+              <Text style={{ fontSize: 16 }}>📍</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.siteName, { color: colors.text, fontSize: 19, fontWeight: '700' }]} numberOfLines={2}>{item.siteName}</Text>
+              <View style={[styles.timeRow, { marginTop: 6 }]}>
+                <Text style={{ fontSize: 12 }}>🕐</Text>
+                <Text style={[styles.timeText, { color: colors.text, fontSize: 14, fontWeight: '600' }]}>{timeRange}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Bottom: Stats Grid */}
+          <View style={[styles.statsGrid, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <View style={styles.statItem}>
+              <Text style={[styles.statItemLabel, { color: colors.muted }]}>Duration</Text>
+              <Text style={[styles.statItemValue, { color: '#0f172a', fontSize: 15 }]}>{duration}</Text>
+            </View>
+            <View style={[styles.statItem, styles.statItemBorder, { borderLeftColor: colors.border }]}>
+              <Text style={[styles.statItemLabel, { color: colors.muted }]}>Photos</Text>
+              <Text style={[styles.statItemValue, { color: '#0f172a', fontSize: 15 }]}>{item.photos.length}</Text>
+            </View>
+            <View style={[styles.statItem, styles.statItemBorder, { borderLeftColor: colors.border }]}>
+              <Text style={[styles.statItemLabel, { color: colors.muted }]}>Distance</Text>
+              <Text style={[styles.statItemValue, { color: '#0f172a', fontSize: 15 }]}>{distance}</Text>
+            </View>
+          </View>
         </View>
-        <Text style={[styles.shiftStaff, { color: colors.muted }]}>{item.staffName} • {time}</Text>
-        <View style={styles.shiftStats}>
-          <Text style={[styles.shiftStat, { color: colors.muted }]}>⏱️ {duration}</Text>
-          <Text style={[styles.shiftStat, { color: colors.muted }]}>📷 {item.photos.length}</Text>
-          <Text style={[styles.shiftStat, { color: colors.muted }]}>📍 {item.locations.length}</Text>
+
+        {/* Chevron */}
+        <View style={[styles.chevronContainer, { backgroundColor: '#f8fafc' }]}>
+          <Text style={{ color: '#94a3b8', fontSize: 20 }}>›</Text>
         </View>
       </TouchableOpacity>
     );
@@ -619,6 +839,10 @@ export default function HistoryScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      <View style={watermarkStyle}>
+        <PhotoWatermark ref={watermarkRef} />
+      </View>
     </ScreenContainer>
   );
 }
@@ -831,5 +1055,124 @@ const styles = StyleSheet.create({
   modalCoords: {
     fontSize: 12,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  // Modern Card Styles
+  modernCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+  },
+  statusBar: {
+    width: 6,
+  },
+  modernCardContent: {
+    flex: 1,
+    padding: 20,
+    paddingLeft: 16,
+  },
+  modernCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  modernDateLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  modernFullDate: {
+    fontSize: 12,
+    color: '#94a3b8',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  statusBadgeActive: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#d1fae5',
+  },
+  statusBadgeCompleted: {
+    backgroundColor: '#f8fafc',
+    borderColor: '#f1f5f9',
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    gap: 12,
+  },
+  locationIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#eef2ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  siteName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 2,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  timeText: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    paddingTop: 16,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statItemBorder: {
+    borderLeftWidth: 1,
+    borderLeftColor: '#f1f5f9',
+  },
+  statItemLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#94a3b8',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  statItemValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  chevronContainer: {
+    justifyContent: 'center',
+    paddingRight: 12,
   },
 });

@@ -30,22 +30,11 @@ const RAILWAY_URL = 'https://timestamp-tracker-production.up.railway.app';
 
 /**
  * Get the API base URL.
- * In development: uses local server (http://127.0.0.1:3000)
- * In production: uses Railway production URL
+ * Always uses Railway production URL for reliable connectivity
  */
 export function getApiBaseUrl(): string {
-  // Check if we're in development mode
-  const isDevelopment = __DEV__ || process.env.NODE_ENV === 'development';
-  
-  if (isDevelopment) {
-    // In development, use local server
-    const localUrl = env.apiBaseUrl || 'http://127.0.0.1:3000';
-    console.log("[getApiBaseUrl] Development mode, using local:", localUrl);
-    return localUrl;
-  }
-  
-  // In production, use Railway
-  console.log("[getApiBaseUrl] Production mode, using Railway:", RAILWAY_URL);
+  // Always use Railway for now - localhost doesn't work on physical devices
+  console.log("[getApiBaseUrl] Using Railway:", RAILWAY_URL);
   return RAILWAY_URL;
 }
 

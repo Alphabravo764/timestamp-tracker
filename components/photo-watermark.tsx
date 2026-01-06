@@ -25,10 +25,10 @@ const CAPTURE_HEIGHT = SCREEN_WIDTH * 1.33;
 /**
  * PhotoWatermark - UK Security Industry Standard
  * 
- * Professional timestamp footer for security patrol evidence photos.
+ * Professional timestamp header for security patrol evidence photos.
  * Matches industry standards used by UK security companies.
  * 
- * Footer includes:
+ * Header includes:
  * - Large timestamp (HH:MM:SS) - primary evidence
  * - Date (DD/MM/YYYY) - UK format
  * - Full address with postcode
@@ -57,17 +57,17 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
     try {
       // Wait for render to complete
       await new Promise(r => setTimeout(r, 150));
-      
+
       console.log("[PhotoWatermark] Capturing composite...");
-      
+
       const capturedUri = await captureRef(containerRef.current, {
         format: "jpg",
         quality: 0.9,
         result: "tmpfile",
       });
-      
+
       console.log("[PhotoWatermark] Captured:", capturedUri?.substring(0, 60));
-      
+
       if (capturedUri && resolveRef.current) {
         resolveRef.current(capturedUri);
       }
@@ -88,13 +88,13 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
   useImperativeHandle(ref, () => ({
     addWatermark: async (uri: string, data: WatermarkData): Promise<string> => {
       console.log("[PhotoWatermark] Starting watermark...");
-      
+
       return new Promise((resolve) => {
         resolveRef.current = resolve;
         setIsProcessing(true);
         setWatermarkData(data);
         setPhotoUri(uri);
-        
+
         // Timeout fallback
         setTimeout(() => {
           if (resolveRef.current) {
@@ -115,8 +115,8 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
 
   return (
     <View style={styles.hiddenContainer} pointerEvents="none">
-      <View 
-        ref={containerRef} 
+      <View
+        ref={containerRef}
         style={styles.captureContainer}
         collapsable={false}
       >
@@ -134,9 +134,9 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
             }
           }}
         />
-        
-        {/* UK Security Industry Standard Footer */}
-        <View style={styles.footer}>
+
+        {/* UK Security Industry Standard Header */}
+        <View style={styles.header}>
           {/* Row 1: Time and Site/Staff */}
           <View style={styles.row}>
             <View style={styles.timeSection}>
@@ -152,12 +152,12 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
               )}
             </View>
           </View>
-          
+
           {/* Row 2: Address */}
           <Text style={styles.addressText} numberOfLines={2}>
             {watermarkData.address}
           </Text>
-          
+
           {/* Row 3: GPS Coordinates */}
           <Text style={styles.coordsText}>
             GPS: {coords}
@@ -188,17 +188,17 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  // UK Security Industry Standard Footer
-  footer: {
+  // UK Security Industry Standard Header
+  header: {
     position: "absolute",
-    bottom: 0,
+    top: 0,
     left: 0,
     right: 0,
     backgroundColor: "rgba(0, 0, 0, 0.85)",
     paddingVertical: 12,
     paddingHorizontal: 14,
-    borderTopWidth: 2,
-    borderTopColor: "#FF6600", // Orange accent - common in security apps
+    borderBottomWidth: 2,
+    borderBottomColor: "#FF6600", // Orange accent - common in security apps
   },
   row: {
     flexDirection: "row",

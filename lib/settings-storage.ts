@@ -6,12 +6,14 @@ export interface AppSettings {
   darkMode: "system" | "light" | "dark";
   autoSaveTemplates: boolean;
   locationInterval: number; // seconds
+  userName: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
   darkMode: "system",
   autoSaveTemplates: true,
   locationInterval: 30,
+  userName: "",
 };
 
 // Get all settings

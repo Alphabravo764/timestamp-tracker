@@ -1,1435 +1,768 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+
+import { useState, useCallback, useEffect } from "react";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Platform,
-  TextInput,
-  ScrollView,
-  Share,
-  Image,
-  Modal,
-  Dimensions,
+    View,
+    Text,
+    TouchableOpacity,
+    StyleSheet,
+    Platform,
+    TextInput,
+    ScrollView,
+    Alert,
+    Dimensions,
+    ActivityIndicator,
+    Animated,
+    Modal
 } from "react-native";
-import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
-import { useFocusEffect } from "expo-router";
-import { ScreenContainer } from "@/components/screen-container";
-import { useColors } from "@/hooks/use-colors";
+import { useFocusEffect, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Location from "expo-location";
+import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import * as WebBrowser from "expo-web-browser";
-import Constants from "expo-constants";
+import * as Location from "expo-location";
 import {
-  startShift,
-  getActiveShift,
-  endShift,
-  addLocationToShift,
-  addPhotoToShift,
-  formatDuration,
-  getShiftDuration,
+    startShift as startLocalShift,
+    getActiveShift as getLocalActiveShift,
 } from "@/lib/shift-storage";
-import type { Shift, LocationPoint, ShiftPhoto } from "@/lib/shift-types";
-import { addNoteToShift, getShiftNotes } from "@/lib/shift-notes";
-import { batchExportPhotos } from "@/lib/batch-export";
-import { getTemplates, saveTemplate, useTemplate, type ShiftTemplate } from "@/lib/shift-templates";
-import * as Sharing from "expo-sharing";
-import * as FileSystem from "expo-file-system/legacy";
-import { syncShiftStart, syncLocation, syncPhoto, syncNote, syncShiftEnd } from "@/lib/server-sync";
-import { PhotoWatermark, PhotoWatermarkRef } from "@/components/photo-watermark";
-import { PhotoWatermarkOverlay } from "@/components/photo-watermark-overlay";
-// Note: captureRef from react-native-view-shot cannot capture camera feed (produces black images)
-import { getApiBaseUrl } from "@/constants/oauth";
-import { SyncStatusIndicator } from "@/components/sync-status-indicator";
-import { useSyncState } from "@/lib/sync-state";
-
-type AppState = "idle" | "startForm" | "active" | "camera" | "confirmEnd" | "gallery";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-
-// Reverse geocoding using Nominatim (free, no API key)
-const getAddressFromCoords = async (lat: number, lng: number): Promise<string> => {
-  try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-      { headers: { "User-Agent": "TimestampCamera/1.0" } }
-    );
-    const data = await response.json();
-    if (data.address) {
-      const { road, house_number, postcode, city, town, village } = data.address;
-      const street = house_number ? `${house_number} ${road}` : road;
-      const area = city || town || village || "";
-      const parts = [street, area, postcode].filter(Boolean);
-      return parts.join(", ") || data.display_name?.split(",").slice(0, 3).join(",") || "Unknown location";
-    }
-    return "Unknown location";
-  } catch (e) {
-    console.error("Geocoding error:", e);
-    return "Location unavailable";
-  }
-};
-
-// Generate trail map URL using Google Maps
-const getTrailMapUrl = (locations: LocationPoint[]): string => {
-  if (locations.length === 0) return "";
-  if (locations.length === 1) {
-    const loc = locations[0];
-    return `https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`;
-  }
-  // For multiple points, create Google Maps directions URL to show the trail
-  const start = locations[0];
-  const end = locations[locations.length - 1];
-  // Add waypoints for intermediate locations (max 10 for URL length)
-  const waypoints = locations.slice(1, -1);
-  const waypointStr = waypoints.length > 0 
-    ? waypoints.slice(0, 10).map(l => `${l.latitude},${l.longitude}`).join("|")
-    : "";
-  
-  let url = `https://www.google.com/maps/dir/${start.latitude},${start.longitude}/${end.latitude},${end.longitude}`;
-  if (waypointStr) {
-    url = `https://www.google.com/maps/dir/?api=1&origin=${start.latitude},${start.longitude}&destination=${end.latitude},${end.longitude}&waypoints=${waypointStr}`;
-  }
-  return url;
-};
+import { getTemplates, useTemplate, type ShiftTemplate } from "@/lib/shift-templates";
+import { syncShiftStart } from "@/lib/server-sync";
+import ActiveShiftScreen from "../shift/active";
+import { getSettings } from "@/lib/settings-storage";
+import { useColors } from "@/hooks/use-colors";
 
 export default function HomeScreen() {
-  const colors = useColors();
-  const insets = useSafeAreaInsets();
-  const { photoSyncStatus, locationSyncStatus, lastPhotoSyncMessage, lastLocationSyncMessage } = useSyncState();
-  const [permission, requestPermission] = useCameraPermissions();
-  const [activeShift, setActiveShift] = useState<Shift | null>(null);
-  const [currentLocation, setCurrentLocation] = useState<Location.LocationObject | null>(null);
-  const [currentAddress, setCurrentAddress] = useState<string>("Getting address...");
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [siteName, setSiteName] = useState("");
-  const [staffName, setStaffName] = useState("");
-  const [appState, setAppState] = useState<AppState>("idle");
-  const [facing, setFacing] = useState<CameraType>("back");
-  const [isLoading, setIsLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [lastPhoto, setLastPhoto] = useState<string | null>(null);
-  const [selectedPhoto, setSelectedPhoto] = useState<ShiftPhoto | null>(null);
-  const [noteText, setNoteText] = useState("");
-  const [showNoteInput, setShowNoteInput] = useState(false);
-  const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
-  const cameraRef = useRef<CameraView>(null);
-  const watermarkRef = useRef<PhotoWatermarkRef>(null);
-  // Note: ViewShot cannot capture camera feed (produces black images)
-  // We use camera.takePictureAsync() + fast watermark compositing instead
+    const colors = useColors();
+    const insets = useSafeAreaInsets();
+    const [activeShift, setActiveShift] = useState<any | null>(null);
+    const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
+    const [showStartForm, setShowStartForm] = useState(false);
 
-  // Update time every second
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+    // Form State
+    const [siteName, setSiteName] = useState("");
+    const [staffName, setStaffName] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [currentAddress, setCurrentAddress] = useState("Locating...");
 
-  // Load active shift on focus
-  useFocusEffect(
-    useCallback(() => {
-      loadActiveShift();
-      requestLocationPermission();
-      loadTemplates();
-    }, [])
-  );
-
-  const loadTemplates = async () => {
-    const loaded = await getTemplates();
-    setTemplates(loaded);
-  };
-
-  // Track location during active shift
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
-    if (activeShift?.isActive && appState === "active") {
-      trackLocation();
-      interval = setInterval(() => trackLocation(), 15000); // 15 seconds for better map trails
-    }
-    return () => { if (interval) clearInterval(interval); };
-  }, [activeShift?.isActive, appState]);
-
-  // Update address when location changes
-  useEffect(() => {
-    if (currentLocation) {
-      getAddressFromCoords(
-        currentLocation.coords.latitude,
-        currentLocation.coords.longitude
-      ).then(setCurrentAddress);
-    }
-  }, [currentLocation?.coords.latitude, currentLocation?.coords.longitude]);
-
-  const loadActiveShift = async () => {
-    const shift = await getActiveShift();
-    if (shift) {
-      setActiveShift(shift);
-      setAppState("active");
-    } else {
-      setAppState("idle");
-    }
-  };
-
-  const requestLocationPermission = async () => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === "granted") {
-        const location = await Location.getCurrentPositionAsync({});
-        setCurrentLocation(location);
-      }
-    } catch (e) {
-      console.error("Location error:", e);
-    }
-  };
-
-  const trackLocation = async () => {
-    try {
-      // First check if we have location permission
-      const { status } = await Location.getForegroundPermissionsAsync();
-      if (status !== "granted") {
-        console.log("Location permission not granted, skipping tracking");
-        return;
-      }
-      
-      // Try to get location with timeout and accuracy settings
-      let location;
-      try {
-        location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 10000,
-          distanceInterval: 5,
+    // Pre-fill Staff Name
+    useEffect(() => {
+        getSettings().then(settings => {
+            if (settings.userName) {
+                setStaffName(settings.userName);
+            }
         });
-      } catch (locError) {
-        // If high accuracy fails, try with lower accuracy
-        console.log("High accuracy location failed, trying lower accuracy");
+    }, []);
+
+    // Check for active shift
+    const checkActiveShift = useCallback(async () => {
+        const localShift = await getLocalActiveShift();
+        if (localShift && localShift.isActive) {
+            setActiveShift(localShift);
+        } else {
+            setActiveShift(null);
+        }
+    }, []);
+
+    const loadTemplates = async () => {
+        const temps = await getTemplates();
+        setTemplates(temps);
+    };
+
+    // Cached location for instant access
+    const [cachedLocation, setCachedLocation] = useState<Location.LocationObject | null>(null);
+
+    const getLocation = async () => {
         try {
-          location = await Location.getLastKnownPositionAsync({});
-        } catch (fallbackError) {
-          console.log("Location unavailable, using cached location if available");
-          if (currentLocation) {
-            location = currentLocation;
-          } else {
-            console.log("No location available, skipping this tracking interval");
+            const { status } = await Location.getForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                setCurrentAddress("Tap to enable location");
+                return;
+            }
+
+            // INSTANT: Try last known position first (no network required)
+            const lastKnown = await Location.getLastKnownPositionAsync({});
+            if (lastKnown) {
+                setCachedLocation(lastKnown);
+                // Show coordinates immediately
+                setCurrentAddress(`${lastKnown.coords.latitude.toFixed(4)}, ${lastKnown.coords.longitude.toFixed(4)}`);
+
+                // Background geocode (don't await)
+                Location.reverseGeocodeAsync({
+                    latitude: lastKnown.coords.latitude,
+                    longitude: lastKnown.coords.longitude
+                }).then(([address]) => {
+                    if (address) {
+                        const addrStr = [address.street, address.city].filter(Boolean).join(", ");
+                        if (addrStr) setCurrentAddress(addrStr);
+                    }
+                }).catch(() => { });
+            }
+
+            // Background: Try to get fresh location (non-blocking)
+            // Use very short timeout, we already have last known
+            Promise.race([
+                Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }),
+                new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000))
+            ]).then((freshLoc) => {
+                if (freshLoc && freshLoc.coords) {
+                    setCachedLocation(freshLoc as Location.LocationObject);
+                    setCurrentAddress(`${freshLoc.coords.latitude.toFixed(4)}, ${freshLoc.coords.longitude.toFixed(4)}`);
+                    // Background geocode for fresh position
+                    Location.reverseGeocodeAsync({
+                        latitude: freshLoc.coords.latitude,
+                        longitude: freshLoc.coords.longitude
+                    }).then(([address]) => {
+                        if (address) {
+                            const addrStr = [address.street, address.city].filter(Boolean).join(", ");
+                            if (addrStr) setCurrentAddress(addrStr);
+                        }
+                    }).catch(() => { });
+                }
+            }).catch(() => { });
+
+            // If no last known, show getting location briefly
+            if (!lastKnown) {
+                setCurrentAddress("Getting location...");
+            }
+        } catch (e) {
+            setCurrentAddress("Location unavailable");
+        }
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            checkActiveShift();
+            loadTemplates();
+            getLocation();
+        }, [])
+    );
+
+    // Hooks must always run. Do not return early.
+    // We will handle the conditional render in the main return block.
+
+    // Pre-load location when form opens
+    useEffect(() => {
+        if (showStartForm) {
+            getLocation();
+        }
+    }, [showStartForm]);
+
+    const handleStartShift = async () => {
+        if (!siteName.trim()) {
+            Alert.alert("Required", "Please enter a site name");
             return;
-          }
         }
-      }
-      
-      if (!location) {
-        console.log("No location data available");
-        return;
-      }
-      
-      setCurrentLocation(location);
-      
-      // Get address for this location point
-      const address = await getAddressFromCoords(
-        location.coords.latitude,
-        location.coords.longitude
-      );
-      
-      const point: LocationPoint = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        timestamp: new Date().toISOString(),
-        accuracy: location.coords.accuracy ?? undefined,
-        address: address,
-      };
-      const updated = await addLocationToShift(point);
-      if (updated) {
-        setActiveShift(updated);
-        // Sync location to server
+
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status !== 'granted') {
+            const permissionResponse = await Location.requestForegroundPermissionsAsync();
+            if (permissionResponse.status !== 'granted') {
+                Alert.alert("Permission Denied", "Location is required.");
+                return;
+            }
+        }
+
+        setLoading(true);
         try {
-          await syncLocation({
-            shiftId: updated.id,
-            pairCode: updated.pairCode,
-            latitude: point.latitude,
-            longitude: point.longitude,
-            accuracy: point.accuracy,
-            address: point.address,
-            timestamp: point.timestamp,
-          });
-        } catch (syncError) {
-          console.log("Location sync error (non-blocking):", syncError);
-        }
-      }
-    } catch (e) {
-      // Silently handle errors - location tracking is best-effort
-      console.log("Track location skipped:", e instanceof Error ? e.message : "Unknown error");
-    }
-  };
+            // INSTANT: Use cached location if available (already fetched when form opened)
+            let location = cachedLocation;
 
-  const handleStartShift = async () => {
-    if (!siteName.trim()) {
-      alert("Please enter the site name.");
-      return;
-    }
-    
-    setIsLoading(true);
-    try {
-      let location = currentLocation;
-      if (!location) {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === "granted") {
-          location = await Location.getCurrentPositionAsync({});
-          setCurrentLocation(location);
-        }
-      }
-      
-      if (!location) {
-        alert("Please enable location services.");
-        setIsLoading(false);
-        return;
-      }
+            // If no cached location, try last known (instant, no network)
+            if (!location) {
+                location = await Location.getLastKnownPositionAsync({});
+            }
 
-      if (Platform.OS !== "web") {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
+            // Only if still no location, try quick fresh fetch with very short timeout
+            if (!location) {
+                try {
+                    location = await Promise.race([
+                        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }),
+                        new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500))
+                    ]) as Location.LocationObject | null;
+                } catch {
+                    location = null;
+                }
+            }
 
-      // Get address for initial location
-      const initialAddress = await getAddressFromCoords(
-        location.coords.latitude,
-        location.coords.longitude
-      );
+            // Fallback to zero coords if absolutely nothing available
+            const coords = location?.coords || { latitude: 0, longitude: 0, accuracy: 0 };
 
-      const point: LocationPoint = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        timestamp: new Date().toISOString(),
-        accuracy: location.coords.accuracy ?? undefined,
-        address: initialAddress,
-      };
-
-      const shift = await startShift(staffName || "Staff", siteName, point);
-      setActiveShift(shift);
-      setAppState("active");
-      
-      // Sync to server for live viewing
-      try {
-        console.log("[startShift] Attempting sync to Railway...");
-        const result = await syncShiftStart({
-          id: shift.id,
-          pairCode: shift.pairCode,
-          staffName: shift.staffName,
-          siteName: shift.siteName,
-          startTime: shift.startTime,
-          startLocation: {
-            latitude: point.latitude,
-            longitude: point.longitude,
-            address: point.address || "Unknown location",
-          },
-        });
-        console.log("[startShift] Sync successful:", result);
-      } catch (syncError) {
-        console.error("[startShift] Sync FAILED:", syncError);
-        // Show user-visible alert for debugging
-        if (Platform.OS !== "web") {
-          setTimeout(() => {
-            alert(`Sync to server failed: ${String(syncError)}\n\nShift saved locally only.`);
-          }, 500);
-        }
-      }
-      
-      // Save as template for quick access
-      if (siteName.trim()) {
-        await saveTemplate(siteName.trim(), staffName.trim() || "Staff");
-        loadTemplates();
-      }
-      
-      setSiteName("");
-      setStaffName("");
-    } catch (e) {
-      console.error("Start shift error:", e);
-      alert("Failed to start shift");
-    }
-    setIsLoading(false);
-  };
-
-  const handleEndShift = async () => {
-    setIsLoading(true);
-    const currentShift = activeShift; // Save reference before clearing
-    try {
-      if (Platform.OS !== "web") {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-      const completed = await endShift();
-      setActiveShift(null);
-      setAppState("idle");
-      
-      // Sync shift end to server
-      if (currentShift) {
-        try {
-          await syncShiftEnd({
-            shiftId: currentShift.id,
-            pairCode: currentShift.pairCode,
-            endTime: new Date().toISOString(),
-          });
-        } catch (syncError) {
-          console.log("End shift sync error (non-blocking):", syncError);
-        }
-      }
-      
-      if (completed) {
-        const duration = formatDuration(getShiftDuration(completed));
-        alert(`Shift Completed!\n\nDuration: ${duration}\nPhotos: ${completed.photos.length}\nLocations: ${completed.locations.length}\n\nGo to History tab to view report.`);
-      }
-    } catch (e) {
-      console.error("End shift error:", e);
-      alert("Failed to end shift");
-    }
-    setIsLoading(false);
-  };
-
-  const copyPairCode = async () => {
-    if (activeShift?.pairCode) {
-      try {
-        if (navigator.clipboard) {
-          await navigator.clipboard.writeText(activeShift.pairCode);
-        }
-        if (Platform.OS !== "web") {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } catch (e) {
-        console.error("Copy error:", e);
-      }
-    }
-  };
-
-  const sharePairCode = async () => {
-    if (!activeShift) return;
-    
-    // Use getApiBaseUrl to ensure consistency with sync
-    const baseUrl = getApiBaseUrl().replace(/\/$/, "");
-    const liveUrl = `${baseUrl}/viewer/${activeShift.pairCode}`;
-    
-    console.log("[sharePairCode] Sharing URL:", liveUrl);
-    
-    try {
-      await Share.share({
-        message: `📍 Live Location Tracking\n\nStaff: ${activeShift.staffName}\nSite: ${activeShift.siteName}\n\n🔗 View Live Location & Trail:\n${liveUrl}\n\nPair Code: ${activeShift.pairCode}\n\nCurrent Location:\n${currentAddress}`,
-      });
-    } catch (e) {
-      console.error("Share error:", e);
-    }
-  };
-
-  const addNote = async () => {
-    if (!noteText.trim() || !activeShift) return;
-    
-    try {
-      if (Platform.OS !== "web") {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-      
-      const location = currentLocation ? {
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-        timestamp: new Date().toISOString(),
-      } : undefined;
-      
-      const note = await addNoteToShift(noteText.trim(), location);
-      if (note) {
-        const updated = await getActiveShift();
-        if (updated) {
-          setActiveShift(updated);
-          // Sync note to server with location
-          try {
-            await syncNote({
-              shiftId: updated.id,
-              pairCode: updated.pairCode,
-              noteId: note.id,
-              text: note.text,
-              timestamp: note.timestamp,
-              latitude: note.location?.latitude,
-              longitude: note.location?.longitude,
-              accuracy: note.location?.accuracy,
+            const shift = await startLocalShift(staffName, siteName, {
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+                accuracy: coords.accuracy ?? 0,
+                timestamp: new Date().toISOString()
             });
-          } catch (syncError) {
-            console.log("Note sync error (non-blocking):", syncError);
-          }
+
+            // Sync shift to Railway server (for live tracking)
+            // Try up to 3 times with exponential backoff
+            const syncWithRetry = async (retries = 3): Promise<boolean> => {
+                for (let i = 0; i < retries; i++) {
+                    try {
+                        console.log(`[SYNC] Attempting to sync shift to server (attempt ${i + 1}/${retries})...`);
+                        const result = await syncShiftStart(shift);
+                        console.log('[SYNC] Shift synced successfully:', result);
+                        return true;
+                    } catch (err) {
+                        console.error(`[SYNC] Sync attempt ${i + 1} failed:`, err);
+                        if (i < retries - 1) {
+                            // Wait before retrying (1s, 2s, 4s)
+                            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
+                        }
+                    }
+                }
+                return false;
+            };
+
+            // Non-blocking sync with retry
+            syncWithRetry().then(success => {
+                if (!success) {
+                    console.warn('[SYNC] Failed to sync shift after 3 attempts. Live tracking may not work.');
+                }
+            });
+
+            if (Platform.OS !== "web") {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
+
+            setSiteName("");
+            setShowStartForm(false);
+            setActiveShift(shift);
+
+        } catch (e: any) {
+            Alert.alert("Error", e.message);
+        } finally {
+            setLoading(false);
         }
-        setNoteText("");
-        setShowNoteInput(false);
-        alert("Note added!");
-      }
-    } catch (e) {
-      console.error("Add note error:", e);
-      alert("Failed to add note");
-    }
-  };
+    };
 
-  const shareCurrentReport = async () => {
-    if (!activeShift) return;
-    
-    try {
-      if (Platform.OS !== "web") {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-      
-      // Get the API base URL (Railway production)
-      const apiUrl = getApiBaseUrl();
-      
-      // Open viewer page with print=true to trigger PDF print dialog
-      // This ensures both app and viewer use the SAME PDF template
-      const viewerUrl = `${apiUrl}/viewer/${activeShift.pairCode}?print=true`;
-      
-      if (Platform.OS === "web") {
-        // On web, open viewer in new tab (it will auto-trigger print)
-        window.open(viewerUrl, '_blank');
-      } else {
-        // On mobile, open viewer in browser (it will auto-trigger print)
-        await WebBrowser.openBrowserAsync(viewerUrl);
-      }
-    } catch (e) {
-      console.error("Share report error:", e);
-      alert("Failed to open report viewer");
-    }
-  };
+    const selectTemplate = (t: ShiftTemplate) => {
+        setSiteName(t.siteName);
+        setStaffName(t.staffName);
+        useTemplate(t.id);
+    };
 
-  const sharePhoto = async (photo: ShiftPhoto) => {
-    try {
-      if (Platform.OS !== "web") {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-      
-      // Photos are already watermarked when captured
-      const photoUri = photo.uri;
-      
-      if (Platform.OS === "web") {
-        const link = document.createElement("a");
-        link.href = photoUri;
-        link.download = `timestamp_photo_${Date.now()}.jpg`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        alert("Photo downloaded!");
-      } else {
-        const isAvailable = await Sharing.isAvailableAsync();
-        if (!isAvailable) {
-          alert("Sharing is not available on this device");
-          return;
-        }
-        
-        // expo-sharing requires file:// URLs
-        let fileUri = photoUri;
-        if (photoUri.startsWith("data:")) {
-          const base64Data = photoUri.split(",")[1];
-          const tempPath = `${FileSystem.cacheDirectory}timestamp_photo_${Date.now()}.jpg`;
-          await FileSystem.writeAsStringAsync(tempPath, base64Data, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          fileUri = tempPath;
-        }
-        
-        await Sharing.shareAsync(fileUri, {
-          mimeType: "image/jpeg",
-          dialogTitle: "Share Timestamp Photo",
-        });
-      }
-    } catch (e) {
-      console.error("Share photo error:", e);
-      alert("Failed to share photo");
-    }
-  };
+    // Start Shift Form Modal or Main Dashboard
+    // We handle the return logic at the end to ensure hooks pass
 
-  const takePicture = async () => {
-    if (!activeShift) {
-      alert("No active shift");
-      return;
-    }
-    
-    try {
-      // Set loading to prevent navigation during capture
-      setIsLoading(true);
-      
-      if (Platform.OS !== "web") {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
-      
-      // Get current location for the photo
-      let photoLocation = currentLocation;
-      try {
-        photoLocation = await Location.getCurrentPositionAsync({});
-        setCurrentLocation(photoLocation);
-      } catch (e) {
-        console.log("Using cached location for photo");
-      }
+    // Main Render Logic
 
-      let finalUri: string;
-      
-      // ========== CAMERA CAPTURE + WATERMARK ==========
-      // ViewShot cannot capture camera feed (produces black images)
-      // Always use camera.takePictureAsync() + fast watermark compositing
-      
-      console.log("[Camera] Taking picture...");
-      finalUri = await captureWithCameraAndWatermark();
-      
-      // Helper function for INSTANT camera capture (no watermarking)
-      async function captureWithCameraAndWatermark(): Promise<string> {
-        if (!cameraRef.current) {
-          throw new Error("Camera not ready");
-        }
-        
-        // INSTANT capture: no base64, no compression, no watermarking
-        const photo = await cameraRef.current.takePictureAsync({ 
-          quality: 0.8,
-          base64: false,
-          exif: true,
-          skipProcessing: true, // Android: huge speedup
-        });
-        
-        if (!photo || !photo.uri) {
-          throw new Error("Failed to capture photo");
-        }
-        
-        console.log("[Camera] Photo captured instantly:", photo.uri.substring(0, 50));
-        
-        // Return raw photo URI immediately - watermark will be overlay in UI
-        return photo.uri;
-      }
-      
-      // Step 3: Save to permanent file location on native
-      if (Platform.OS !== "web" && finalUri.startsWith("file://")) {
-        try {
-          const fileName = `photo_${Date.now()}.jpg`;
-          const destPath = `${FileSystem.documentDirectory}photos/${fileName}`;
-          
-          // Ensure photos directory exists
-          const dirInfo = await FileSystem.getInfoAsync(`${FileSystem.documentDirectory}photos`);
-          if (!dirInfo.exists) {
-            await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}photos`, { intermediates: true });
-          }
-          
-          await FileSystem.copyAsync({ from: finalUri, to: destPath });
-          
-          // Verify file exists and has size
-          const fileInfo = await FileSystem.getInfoAsync(destPath);
-          if (!fileInfo.exists) {
-            throw new Error("Photo save failed: file does not exist");
-          }
-          if (fileInfo.size === 0) {
-            throw new Error("Photo save failed: file is empty");
-          }
-          
-          finalUri = destPath;
-          console.log("[Photo] Saved to:", finalUri, "size:", fileInfo.size);
-        } catch (saveError) {
-          console.log("[Photo] Could not save to documents:", saveError);
-        }
-      }
-
-      const shiftPhoto: ShiftPhoto = {
-        id: Date.now().toString(),
-        uri: finalUri,
-        timestamp: new Date().toISOString(),
-        location: photoLocation ? {
-          latitude: photoLocation.coords.latitude,
-          longitude: photoLocation.coords.longitude,
-          timestamp: new Date().toISOString(),
-          accuracy: photoLocation.coords.accuracy ?? undefined,
-        } : null,
-        address: currentAddress,
-      };
-
-      const updated = await addPhotoToShift(shiftPhoto);
-      if (updated) {
-        setActiveShift(updated);
-        setLastPhoto(finalUri);
-        
-        // Sync photo to server in background (non-blocking)
-        // This will convert to base64 and upload without blocking UI
-        syncPhotoInBackground(finalUri, shiftPhoto, updated).catch(err => {
-          console.log("[Photo Sync] Background sync failed:", err);
-        });
-      }
-    } catch (error) {
-      console.error("Error taking photo:", error);
-      alert("Failed to take photo. Please try again.");
-    } finally {
-      setIsLoading(false);
+    // 1. Active Shift View
+    if (activeShift) {
+        return <ActiveShiftScreen onShiftEnd={() => setActiveShift(null)} />;
     }
-  };
-  
-  // Background photo sync (non-blocking)
-  async function syncPhotoInBackground(
-    photoUri: string,
-    shiftPhoto: ShiftPhoto,
-    shift: Shift
-  ) {
-    try {
-      console.log("[Photo Sync] Starting background sync for:", photoUri.substring(0, 50));
-      
-      // Use photoToBase64DataUri which handles all platforms (web blob, native file://)
-      const { photoToBase64DataUri } = await import("@/lib/photo-to-base64");
-      const photoDataUri = await photoToBase64DataUri(photoUri, 1920, 0.7);
-      
-      if (!photoDataUri || !photoDataUri.startsWith("data:image/")) {
-        console.log("[Photo Sync] Could not convert to data URI, skipping");
-        return;
-      }
-      
-      console.log("[Photo Sync] Data URI ready, uploading...");
-      
-      const syncResult = await syncPhoto({
-        shiftId: shift.id,
-        pairCode: shift.pairCode,
-        photoUri: photoDataUri,
-        latitude: shiftPhoto.location?.latitude,
-        longitude: shiftPhoto.location?.longitude,
-        address: shiftPhoto.address,
-        timestamp: shiftPhoto.timestamp,
-      });
-      
-      if (syncResult.photoUrl) {
-        console.log("[Photo Sync] Uploaded to cloud:", syncResult.photoUrl);
-      }
-    } catch (syncError) {
-      console.log("[Photo Sync] Background sync error (non-blocking):", syncError);
-    }
-  }
 
-  const formatTime = () => currentTime.toLocaleTimeString("en-US", { hour12: false });
-  const formatDate = () => currentTime.toLocaleDateString();
-
-  // ========== PHOTO VIEWER - Calculate values outside render ==========
-  const photoViewerIndex = useMemo(() => {
-    if (!selectedPhoto || !activeShift) return -1;
-    return activeShift.photos.findIndex(p => p.id === selectedPhoto.id);
-  }, [selectedPhoto?.id, activeShift?.photos]);
-  
-  const photoViewerHasPrevious = photoViewerIndex > 0;
-  const photoViewerHasNext = activeShift ? photoViewerIndex < activeShift.photos.length - 1 : false;
-  
-  const goToPreviousPhoto = useCallback(() => {
-    if (activeShift && photoViewerIndex > 0) {
-      setSelectedPhoto(activeShift.photos[photoViewerIndex - 1]);
-    }
-  }, [photoViewerIndex, activeShift?.photos]);
-  
-  const goToNextPhoto = useCallback(() => {
-    if (activeShift && photoViewerIndex < activeShift.photos.length - 1) {
-      setSelectedPhoto(activeShift.photos[photoViewerIndex + 1]);
-    }
-  }, [photoViewerIndex, activeShift?.photos]);
-  
-  const closePhotoViewer = useCallback(() => {
-    setSelectedPhoto(null);
-  }, []);
-  
-  // Render photo viewer modal as inline JSX (not a nested component)
-  const renderPhotoViewerModal = () => {
-    if (!selectedPhoto || !activeShift) return null;
-    
+    // 2. Main Dashboard (OFF DUTY VIEW) with Modal Popup
     return (
-      <Modal
-        visible={true}
-        animationType="fade"
-        transparent
-        onRequestClose={closePhotoViewer}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            {/* Header with safe area */}
-            <View style={[styles.modalHeader, { paddingTop: Math.max(insets.top, 20) + 10 }]}>
-              <TouchableOpacity 
-                onPress={closePhotoViewer}
-                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-                style={styles.headerButton}
-              >
-                <Text style={[styles.modalClose, { color: colors.primary }]}>✕ Close</Text>
-              </TouchableOpacity>
-              <Text style={[styles.modalCounter, { color: colors.muted }]}>
-                {photoViewerIndex + 1} / {activeShift.photos.length}
-              </Text>
-              <TouchableOpacity 
-                onPress={() => sharePhoto(selectedPhoto)}
-                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-                style={styles.headerButton}
-              >
-                <Text style={[styles.modalShare, { color: colors.primary }]}>📤 Share</Text>
-              </TouchableOpacity>
-            </View>
-            
-            {/* Photo with navigation arrows */}
-            <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
-              {/* Previous button */}
-              {photoViewerHasPrevious && (
-                <TouchableOpacity 
-                  onPress={goToPreviousPhoto}
-                  style={styles.navButton}
-                  hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-                >
-                  <Text style={{ color: "#FFF", fontSize: 32 }}>‹</Text>
-                </TouchableOpacity>
-              )}
-              
-              {/* Photo with watermark overlay */}
-              <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 10, position: "relative" }}>
-                {Platform.OS === "web" ? (
-                  <img 
-                    src={selectedPhoto.uri} 
-                    style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} 
-                    alt="Photo"
-                    onError={(e) => console.log("[PhotoViewer] Image load error")}
-                  />
-                ) : (
-                  <Image 
-                    source={{ uri: selectedPhoto.uri }} 
-                    style={{ width: "100%", height: "100%" }} 
-                    resizeMode="contain"
-                    onError={(e) => console.log("[PhotoViewer] Image load error:", e.nativeEvent.error)}
-                  />
-                )}
-                
-                {/* Watermark overlay */}
-                {selectedPhoto.location && (
-                  <PhotoWatermarkOverlay
-                    timestamp={new Date(selectedPhoto.timestamp).toLocaleTimeString("en-US", { hour12: false })}
-                    date={new Date(selectedPhoto.timestamp).toLocaleDateString()}
-                    address={selectedPhoto.address || "Location unavailable"}
-                    latitude={selectedPhoto.location.latitude}
-                    longitude={selectedPhoto.location.longitude}
-                    staffName={activeShift?.staffName}
-                    siteName={activeShift?.siteName}
-                  />
-                )}
-              </View>
-              
-              {/* Next button */}
-              {photoViewerHasNext && (
-                <TouchableOpacity 
-                  onPress={goToNextPhoto}
-                  style={styles.navButton}
-                  hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-                >
-                  <Text style={{ color: "#FFF", fontSize: 32 }}>›</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            
-            {/* Info */}
-            <View style={[styles.modalInfo, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.modalTime, { color: colors.foreground }]}>
-                📅 {new Date(selectedPhoto.timestamp).toLocaleString()}
-              </Text>
-              {selectedPhoto.address && (
-                <Text style={[styles.modalAddress, { color: colors.muted }]}>
-                  📍 {selectedPhoto.address}
-                </Text>
-              )}
-              {selectedPhoto.location && (
-                <Text style={[styles.modalCoords, { color: colors.muted }]}>
-                  🌐 {selectedPhoto.location.latitude.toFixed(6)}, {selectedPhoto.location.longitude.toFixed(6)}
-                </Text>
-              )}
-            </View>
-          </View>
-        </View>
-      </Modal>
-    );
-  };
+        <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: colors.background }]}>
 
-  // ========== IDLE STATE ==========
-  if (appState === "idle") {
-    return (
-      <ScreenContainer className="p-6">
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <Text style={[styles.heroTitle, { color: colors.foreground }]}>Timestamp Camera</Text>
-          <Text style={[styles.heroSubtitle, { color: colors.muted }]}>
-            Start a shift to begin tracking
-          </Text>
-
-          <TouchableOpacity
-            style={[styles.bigBtn, { backgroundColor: colors.primary }]}
-            onPress={() => setAppState("startForm")}
-          >
-            <Text style={styles.bigBtnText}>Start Shift</Text>
-          </TouchableOpacity>
-
-          <Text style={[styles.hint, { color: colors.muted }]}>
-            Location tracked every 30 seconds{"\n"}
-            Photos include timestamp & GPS
-          </Text>
-        </View>
-      </ScreenContainer>
-    );
-  }
-
-  // ========== START FORM ==========
-  const selectTemplate = async (template: ShiftTemplate) => {
-    setSiteName(template.siteName);
-    setStaffName(template.staffName);
-    await useTemplate(template.id);
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-  };
-
-  if (appState === "startForm") {
-    return (
-      <ScreenContainer className="p-6">
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <Text style={[styles.title, { color: colors.foreground }]}>Start New Shift</Text>
-          
-          {/* Quick Templates */}
-          {templates.length > 0 && (
-            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.label, { color: colors.foreground }]}>⚡ Quick Start</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.templatesScroll}>
-                {templates.slice(0, 5).map((template) => (
-                  <TouchableOpacity
-                    key={template.id}
-                    style={[styles.templateChip, { backgroundColor: colors.primary + "15", borderColor: colors.primary + "30" }]}
-                    onPress={() => selectTemplate(template)}
-                  >
-                    <Text style={[styles.templateSite, { color: colors.primary }]}>{template.siteName}</Text>
-                    <Text style={[styles.templateStaff, { color: colors.muted }]}>{template.staffName}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-          
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.label, { color: colors.foreground }]}>Site Name *</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-              placeholder="e.g., Main Office, Warehouse A"
-              placeholderTextColor={colors.muted}
-              value={siteName}
-              onChangeText={setSiteName}
-              autoFocus
-            />
-            
-            <Text style={[styles.label, { color: colors.foreground, marginTop: 16 }]}>Your Name</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-              placeholder="Optional"
-              placeholderTextColor={colors.muted}
-              value={staffName}
-              onChangeText={setStaffName}
-            />
-          </View>
-
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.label, { color: colors.foreground }]}>Current Location</Text>
-            <Text style={[styles.address, { color: colors.foreground }]}>{currentAddress}</Text>
-            {currentLocation && (
-              <Text style={[styles.coords, { color: colors.muted }]}>
-                {currentLocation.coords.latitude.toFixed(6)}, {currentLocation.coords.longitude.toFixed(6)}
-              </Text>
-            )}
-          </View>
-
-          <TouchableOpacity
-            style={[styles.primaryBtn, { backgroundColor: colors.primary, opacity: isLoading ? 0.7 : 1 }]}
-            onPress={handleStartShift}
-            disabled={isLoading}
-          >
-            <Text style={styles.primaryBtnText}>{isLoading ? "Starting..." : "Start Shift"}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.secondaryBtn, { borderColor: colors.border }]}
-            onPress={() => setAppState("idle")}
-          >
-            <Text style={[styles.secondaryBtnText, { color: colors.muted }]}>Cancel</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </ScreenContainer>
-    );
-  }
-
-  // ========== CONFIRM END ==========
-  if (appState === "confirmEnd") {
-    return (
-      <ScreenContainer className="p-6">
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <Text style={[styles.heroTitle, { color: colors.foreground }]}>End Shift?</Text>
-          <Text style={[styles.heroSubtitle, { color: colors.muted, marginBottom: 40 }]}>
-            This will stop tracking and save your shift data.
-          </Text>
-
-          <TouchableOpacity
-            style={[styles.dangerBtn, { backgroundColor: colors.error, marginBottom: 16, width: "100%" }]}
-            onPress={handleEndShift}
-            disabled={isLoading}
-          >
-            <Text style={styles.dangerBtnText}>{isLoading ? "Ending..." : "Yes, End Shift"}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.secondaryBtn, { borderColor: colors.border, width: "100%" }]}
-            onPress={() => setAppState("active")}
-          >
-            <Text style={[styles.secondaryBtnText, { color: colors.muted }]}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      </ScreenContainer>
-    );
-  }
-
-  // ========== PHOTO GALLERY ==========
-  if (appState === "gallery" && activeShift) {
-    return (
-      <ScreenContainer>
-        {renderPhotoViewerModal()}
-        <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
-          {/* Header */}
-          <View style={styles.galleryHeader}>
-            <TouchableOpacity onPress={() => setAppState("active")}>
-              <Text style={[styles.backText, { color: colors.primary }]}>← Back</Text>
-            </TouchableOpacity>
-            <Text style={[styles.galleryTitle, { color: colors.foreground }]}>
-              Photos ({activeShift.photos.length})
-            </Text>
-            <View style={{ width: 50 }} />
-          </View>
-
-          {activeShift.photos.length === 0 ? (
-            <View style={styles.emptyGallery}>
-              <Text style={[styles.emptyText, { color: colors.muted }]}>
-                No photos yet.{"\n"}Take some photos during your shift!
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.photoGrid}>
-              {activeShift.photos.map((photo) => (
-                <TouchableOpacity
-                  key={photo.id}
-                  style={styles.photoGridItem}
-                  onPress={() => setSelectedPhoto(photo)}
-                >
-                  <Image source={{ uri: photo.uri }} style={styles.photoGridImage} />
-                  <View style={[styles.photoGridOverlay, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
-                    <Text style={styles.photoGridTime}>
-                      {new Date(photo.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          <TouchableOpacity
-            style={[styles.primaryBtn, { backgroundColor: colors.primary, marginTop: 20 }]}
-            onPress={() => setAppState("camera")}
-          >
-            <Text style={styles.primaryBtnText}>📷 Take More Photos</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </ScreenContainer>
-    );
-  }
-
-  // ========== CAMERA VIEW ==========
-  if (appState === "camera" && activeShift) {
-    if (!permission?.granted) {
-      return (
-        <ScreenContainer className="items-center justify-center p-6">
-          <Text style={{ color: colors.foreground, textAlign: "center", marginBottom: 16, fontSize: 18 }}>
-            Camera permission required
-          </Text>
-          <Text style={{ color: colors.muted, textAlign: "center", marginBottom: 24 }}>
-            Please allow camera access to take timestamped photos
-          </Text>
-          <TouchableOpacity
-            style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
-            onPress={requestPermission}
-          >
-            <Text style={styles.primaryBtnText}>Grant Permission</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.secondaryBtn, { borderColor: colors.border, marginTop: 12 }]}
-            onPress={() => setAppState("active")}
-          >
-            <Text style={[styles.secondaryBtnText, { color: colors.muted }]}>Back</Text>
-          </TouchableOpacity>
-        </ScreenContainer>
-      );
-    }
-
-    return (
-      <View style={{ flex: 1, backgroundColor: "#000" }}>
-        {/* Hidden watermark component (fallback) */}
-        <PhotoWatermark ref={watermarkRef} />
-        
-        {/* Camera container with overlay preview (watermark is added post-capture) */}
-        <View 
-          style={StyleSheet.absoluteFill}
-          collapsable={false}
-        >
-          {/* Camera view */}
-          <CameraView 
-            ref={cameraRef} 
-            style={StyleSheet.absoluteFill} 
-            facing={facing}
-            onCameraReady={() => console.log("Camera ready")}
-          />
-          
-          {/* Watermark overlay - VISIBLE on preview AND burned into capture */}
-          <View style={styles.cameraInfo} pointerEvents="none">
-            <View style={styles.infoBox}>
-              <Text style={styles.infoTime}>{formatTime()}</Text>
-              <Text style={styles.infoDate}>{formatDate()}</Text>
-              <Text style={styles.infoAddress}>📍 {currentAddress}</Text>
-              {currentLocation && (
-                <Text style={styles.infoCoords}>
-                  🌐 {currentLocation.coords.latitude.toFixed(6)}, {currentLocation.coords.longitude.toFixed(6)}
-                </Text>
-              )}
-              {activeShift?.siteName && (
-                <Text style={styles.infoSite}>🏢 {activeShift.siteName}</Text>
-              )}
-              {activeShift?.staffName && (
-                <Text style={styles.infoStaff}>👤 {activeShift.staffName}</Text>
-              )}
-            </View>
-          </View>
-        </View>
-
-        {/* Top bar with close button - positioned safely using safe area insets */}
-        <View style={{ position: "absolute", top: Math.max(insets.top, 20) + 10, left: 16, right: 16, zIndex: 10, flexDirection: "row", justifyContent: "space-between" }}>
-          <TouchableOpacity
-            style={[styles.backBtn, { backgroundColor: "rgba(0,0,0,0.7)", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, opacity: isLoading ? 0.5 : 1 }]}
-            onPress={() => !isLoading && setAppState("active")}
-            disabled={isLoading}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 16 }}>{isLoading ? "Processing..." : "✕ Close"}</Text>
-          </TouchableOpacity>
-          {activeShift && activeShift.photos.length > 0 && (
-            <View style={{ backgroundColor: "rgba(0,0,0,0.7)", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 }}>
-              <Text style={{ color: "#FFF", fontSize: 14, fontWeight: "500" }}>📷 {activeShift.photos.length}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Last photo preview - tap to open gallery */}
-        {activeShift && activeShift.photos.length > 0 && (
-          <TouchableOpacity 
-            style={styles.lastPhotoContainer}
-            onPress={() => {
-              // Open the most recent photo in the viewer
-              const latestPhoto = activeShift.photos[activeShift.photos.length - 1];
-              setSelectedPhoto(latestPhoto);
-            }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            activeOpacity={0.7}
-          >
-            <Image 
-              source={{ uri: activeShift.photos[activeShift.photos.length - 1].uri }} 
-              style={styles.lastPhotoThumb} 
-            />
-          </TouchableOpacity>
-        )}
-
-        {/* Camera controls */}
-        <View style={[styles.cameraControls, { position: "absolute", bottom: 40, left: 0, right: 0 }]}>
-          <TouchableOpacity
-            style={[styles.flipBtn, { backgroundColor: "rgba(255,255,255,0.3)" }]}
-            onPress={() => setFacing(f => f === "back" ? "front" : "back")}
-          >
-            <Text style={{ color: "#FFF", fontSize: 14 }}>🔄</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.captureBtn} onPress={takePicture}>
-            <View style={styles.captureBtnInner} />
-          </TouchableOpacity>
-
-          <View style={{ width: 50 }} />
-        </View>
-      </View>
-    );
-  }
-
-  // ========== ACTIVE SHIFT DASHBOARD ==========
-  if (!activeShift) {
-    return (
-      <ScreenContainer className="p-6">
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <Text style={{ color: colors.muted }}>Loading...</Text>
-        </View>
-      </ScreenContainer>
-    );
-  }
-
-  const duration = formatDuration(getShiftDuration(activeShift));
-
-  return (
-    <ScreenContainer>
-      {renderPhotoViewerModal()}
-      <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={[styles.statusBadge, { backgroundColor: colors.success }]}>
-            <Text style={styles.statusText}>● ACTIVE</Text>
-          </View>
-          <Text style={[styles.duration, { color: colors.foreground }]}>{duration}</Text>
-        </View>
-
-        {/* Site Info */}
-        <Text style={[styles.siteName, { color: colors.foreground }]}>{activeShift.siteName}</Text>
-        <Text style={[styles.staffNameText, { color: colors.muted }]}>{activeShift.staffName}</Text>
-        
-        {/* Sync Status Indicators */}
-        <View style={styles.syncIndicators}>
-          {photoSyncStatus !== "idle" && (
-            <SyncStatusIndicator status={photoSyncStatus} message={lastPhotoSyncMessage} />
-          )}
-          {locationSyncStatus !== "idle" && (
-            <SyncStatusIndicator status={locationSyncStatus} message={lastLocationSyncMessage} />
-          )}
-        </View>
-
-        {/* Pair Code Card */}
-        <View style={[styles.pairCodeCard, { backgroundColor: colors.primary }]}>
-          <Text style={styles.pairCodeLabel}>PAIR CODE</Text>
-          <TouchableOpacity onPress={copyPairCode}>
-            <Text style={styles.pairCodeValue}>{activeShift.pairCode}</Text>
-          </TouchableOpacity>
-          <Text style={styles.pairCodeHint}>{copied ? "✓ Copied!" : "Tap to copy"}</Text>
-          
-          <TouchableOpacity style={styles.shareBtn} onPress={sharePairCode}>
-            <Text style={styles.shareBtnText}>📤 Share Location & Code</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Current Location */}
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.label, { color: colors.foreground }]}>📍 Current Location</Text>
-          <Text style={[styles.address, { color: colors.foreground }]}>{currentAddress}</Text>
-          {currentLocation && (
-            <Text style={[styles.coords, { color: colors.muted }]}>
-              {currentLocation.coords.latitude.toFixed(6)}, {currentLocation.coords.longitude.toFixed(6)}
-            </Text>
-          )}
-          <Text style={[styles.timestamp, { color: colors.muted }]}>{formatTime()} • {formatDate()}</Text>
-        </View>
-
-        {/* Stats */}
-        <View style={styles.statsRow}>
-          <TouchableOpacity 
-            style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => activeShift.photos.length > 0 && setAppState("gallery")}
-          >
-            <Text style={[styles.statValue, { color: colors.foreground }]}>{activeShift.photos.length}</Text>
-            <Text style={[styles.statLabel, { color: colors.muted }]}>Photos</Text>
-            {activeShift.photos.length > 0 && (
-              <Text style={[styles.statHint, { color: colors.primary }]}>Tap to view</Text>
-            )}
-          </TouchableOpacity>
-          <View style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.statValue, { color: colors.foreground }]}>{activeShift.locations.length}</Text>
-            <Text style={[styles.statLabel, { color: colors.muted }]}>Locations</Text>
-          </View>
-        </View>
-
-        {/* Notes Section */}
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.photoHeaderRow}>
-            <Text style={[styles.label, { color: colors.foreground }]}>📝 Notes ({(activeShift.notes || []).length})</Text>
-            <TouchableOpacity onPress={() => setShowNoteInput(!showNoteInput)}>
-              <Text style={[styles.viewAllText, { color: colors.primary }]}>{showNoteInput ? "Cancel" : "+ Add Note"}</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {showNoteInput && (
-            <View style={styles.noteInputContainer}>
-              <TextInput
-                style={[styles.noteInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-                placeholder="Enter note..."
-                placeholderTextColor={colors.muted}
-                value={noteText}
-                onChangeText={setNoteText}
-                multiline
-                numberOfLines={3}
-                returnKeyType="done"
-              />
-              <TouchableOpacity
-                style={[styles.addNoteBtn, { backgroundColor: colors.primary, opacity: noteText.trim() ? 1 : 0.5 }]}
-                onPress={addNote}
-                disabled={!noteText.trim()}
-              >
-                <Text style={styles.addNoteBtnText}>Add Note</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          
-          {(activeShift.notes || []).length > 0 && (
-            <View style={styles.notesList}>
-              {(activeShift.notes || []).slice(-3).reverse().map((note) => (
-                <View key={note.id} style={[styles.noteItem, { borderColor: colors.border }]}>
-                  <Text style={[styles.noteTime, { color: colors.muted }]}>
-                    {new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </Text>
-                  <Text style={[styles.noteText, { color: colors.foreground }]}>{note.text}</Text>
+            {/* Top Bar */}
+            <View style={[styles.topBar, { borderBottomColor: colors.border }]}>
+                <View style={[styles.offDutyBadge, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
+                    <View style={styles.statusDot} />
+                    <Text style={[styles.offDutyText, { color: colors.muted }]}>OFF DUTY</Text>
                 </View>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* Photo Thumbnails */}
-        {activeShift.photos.length > 0 && (
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={styles.photoHeaderRow}>
-              <Text style={[styles.label, { color: colors.foreground }]}>📷 Recent Photos</Text>
-              <TouchableOpacity onPress={() => setAppState("gallery")}>
-                <Text style={[styles.viewAllText, { color: colors.primary }]}>View All →</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
-              {activeShift.photos.slice(-5).reverse().map((photo) => (
-                <TouchableOpacity 
-                  key={photo.id} 
-                  style={styles.photoThumbContainer}
-                  onPress={() => setSelectedPhoto(photo)}
+                <TouchableOpacity
+                    style={[styles.settingsButton, { backgroundColor: colors.surface }]}
+                    onPress={() => router.push("/(tabs)/settings")}
                 >
-                  <Image source={{ uri: photo.uri }} style={styles.photoThumb} />
-                  <Text style={[styles.photoThumbTime, { color: colors.muted }]}>
-                    {new Date(photo.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </Text>
+                    <Ionicons name="settings-outline" size={24} color={colors.text} />
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
+            </View>
 
-        {/* Action Buttons */}
-        <TouchableOpacity
-          style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
-          onPress={() => setAppState("camera")}
-        >
-          <Text style={styles.primaryBtnText}>📷 Take Photo</Text>
-        </TouchableOpacity>
+            {/* Center Content */}
+            <View style={styles.centerContent}>
 
-        <TouchableOpacity
-          style={[styles.secondaryBtn, { borderColor: colors.primary }]}
-          onPress={shareCurrentReport}
-        >
-          <Text style={[styles.secondaryBtnText, { color: colors.primary }]}>📋 Generate PDF Now</Text>
-        </TouchableOpacity>
+                {/* Welcome Header */}
+                <View style={styles.welcomeSection}>
+                    <View style={[styles.userIconCircle, { backgroundColor: colors.primary + '10' }]}>
+                        <Ionicons name="person-outline" size={40} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.welcomeTitle, { color: colors.text }]}>Welcome Back</Text>
+                    <Text style={styles.welcomeSubtitle}>Ready to start your patrol?</Text>
+                </View>
 
-        {activeShift.photos.length > 0 && (
-          <TouchableOpacity
-            style={[styles.secondaryBtn, { borderColor: colors.border }]}
-            onPress={() => setAppState("gallery")}
-          >
-            <Text style={[styles.secondaryBtnText, { color: colors.muted }]}>🖼️ View All Photos</Text>
-          </TouchableOpacity>
-        )}
+                {/* GIANT START BUTTON */}
+                <View style={styles.startButtonContainer}>
+                    {/* Pulse Rings - Blue */}
+                    <View style={[styles.pulseRing, { transform: [{ scale: 1.2 }], opacity: 0.3, backgroundColor: colors.primary }]} />
+                    <View style={[styles.pulseRing, { transform: [{ scale: 1.5 }], opacity: 0.1, backgroundColor: colors.primary }]} />
 
-        <TouchableOpacity
-          style={[styles.dangerBtn, { backgroundColor: colors.error }]}
-          onPress={() => setAppState("confirmEnd")}
-        >
-          <Text style={styles.dangerBtnText}>End Shift</Text>
-        </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.giantStartButton, { backgroundColor: colors.primary, borderColor: "#fff", borderWidth: 4 }]}
+                        onPress={() => {
+                            getLocation();
+                            setShowStartForm(true);
+                        }}
+                        activeOpacity={0.9}
+                    >
+                        <Ionicons name="play" size={64} color="#fff" style={{ marginLeft: 6 }} />
+                        <Text style={styles.giantButtonText}>Start Shift</Text>
+                    </TouchableOpacity>
+                </View>
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
-    </ScreenContainer>
-  );
+                {/* Footer Info */}
+                <View style={styles.footerInfo}>
+                    <View style={styles.verifiedBadge}>
+                        <Ionicons name="checkmark-circle" size={14} color="#2563eb" />
+                        <Text style={styles.verifiedText}>VERIFIED PROVIDER</Text>
+                    </View>
+                    <Text style={styles.footerTagline}>PROUD TIMESTAMP PROVIDER • SECURE & VERIFIED</Text>
+                </View>
+
+            </View>
+
+            {/* START SHIFT MODAL POPUP */}
+            <Modal
+                visible={showStartForm}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowStartForm(false)}
+            >
+                <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setShowStartForm(false)}
+                >
+                    <TouchableOpacity
+                        activeOpacity={1}
+                        style={[styles.modalContent, { backgroundColor: colors.surface }]}
+                        onPress={() => { }} // Prevent closing when tapping inside
+                    >
+                        {/* Modal Header */}
+                        <View style={styles.modalHeader}>
+                            <Text style={[styles.modalTitle, { color: colors.text }]}>Start New Shift</Text>
+                            <TouchableOpacity onPress={() => setShowStartForm(false)}>
+                                <Ionicons name="close" size={24} color={colors.muted} />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Recent Sites */}
+                        {templates.length > 0 && (
+                            <View style={styles.modalSection}>
+                                <Text style={[styles.modalLabel, { color: colors.muted }]}>Recent Sites</Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                    {templates.map(t => (
+                                        <TouchableOpacity
+                                            key={t.id}
+                                            style={[styles.templateChip, { backgroundColor: colors.background }]}
+                                            onPress={() => selectTemplate(t)}
+                                        >
+                                            <Text style={[styles.templateText, { color: colors.text }]}>{t.siteName}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        )}
+
+                        {/* Site Name Input */}
+                        <View style={styles.modalSection}>
+                            <Text style={[styles.modalLabel, { color: colors.muted }]}>Site Name *</Text>
+                            <View style={[styles.modalInput, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                                <Ionicons name="business-outline" size={18} color={colors.muted} />
+                                <TextInput
+                                    style={[styles.modalInputText, { color: colors.text }]}
+                                    value={siteName}
+                                    onChangeText={setSiteName}
+                                    placeholder="e.g. Headquarters"
+                                    placeholderTextColor={colors.muted}
+                                    autoFocus
+                                />
+                            </View>
+                        </View>
+
+                        {/* Staff Name Input */}
+                        <View style={styles.modalSection}>
+                            <Text style={[styles.modalLabel, { color: colors.muted }]}>Staff Name</Text>
+                            <View style={[styles.modalInput, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                                <Ionicons name="person-outline" size={18} color={colors.muted} />
+                                <TextInput
+                                    style={[styles.modalInputText, { color: colors.text }]}
+                                    value={staffName}
+                                    onChangeText={setStaffName}
+                                    placeholder="Optional"
+                                    placeholderTextColor={colors.muted}
+                                />
+                            </View>
+                        </View>
+
+                        {/* Location Preview */}
+                        <View style={[styles.modalLocation, { backgroundColor: colors.primary + '15' }]}>
+                            <Ionicons name="location" size={16} color={colors.primary} />
+                            <Text style={[styles.modalLocationText, { color: colors.primary }]}>{currentAddress}</Text>
+                        </View>
+
+                        {/* OK Button */}
+                        <TouchableOpacity
+                            style={[styles.modalOkButton, loading && { opacity: 0.7 }]}
+                            onPress={handleStartShift}
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="#fff" />
+                            ) : (
+                                <Text style={styles.modalOkButtonText}>OK - Start Shift</Text>
+                            )}
+                        </TouchableOpacity>
+                    </TouchableOpacity>
+                </TouchableOpacity>
+            </Modal>
+        </View>
+    );
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: 28, fontWeight: "bold", marginBottom: 24 },
-  card: { padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 16 },
-  label: { fontSize: 14, fontWeight: "600", marginBottom: 8 },
-  input: { height: 48, borderRadius: 8, borderWidth: 1, paddingHorizontal: 16, fontSize: 16 },
-  address: { fontSize: 16, fontWeight: "500", marginBottom: 4 },
-  coords: { fontSize: 12, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
-  timestamp: { fontSize: 12, marginTop: 8 },
-  primaryBtn: { padding: 16, borderRadius: 12, alignItems: "center", marginBottom: 12 },
-  primaryBtnText: { color: "#FFF", fontSize: 18, fontWeight: "600" },
-  secondaryBtn: { padding: 16, borderRadius: 12, alignItems: "center", borderWidth: 1, marginBottom: 12 },
-  secondaryBtnText: { fontSize: 16, fontWeight: "500" },
-  dangerBtn: { padding: 16, borderRadius: 12, alignItems: "center", marginBottom: 12 },
-  dangerBtnText: { color: "#FFF", fontSize: 18, fontWeight: "600" },
-  heroTitle: { fontSize: 32, fontWeight: "bold", marginBottom: 8, textAlign: "center" },
-  heroSubtitle: { fontSize: 16, marginBottom: 32, textAlign: "center" },
-  bigBtn: { width: 180, height: 180, borderRadius: 90, justifyContent: "center", alignItems: "center" },
-  bigBtnText: { color: "#FFF", fontSize: 22, fontWeight: "bold" },
-  hint: { marginTop: 24, textAlign: "center", fontSize: 14, lineHeight: 22 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
-  statusText: { color: "#FFF", fontSize: 12, fontWeight: "bold" },
-  duration: { fontSize: 18, fontWeight: "600" },
-  siteName: { fontSize: 28, fontWeight: "bold", marginBottom: 4 },
-  staffNameText: { fontSize: 16, marginBottom: 8 },
-  syncIndicators: { flexDirection: "row", gap: 8, marginBottom: 12, flexWrap: "wrap" },
-  pairCodeCard: { padding: 24, borderRadius: 16, alignItems: "center", marginBottom: 20 },
-  pairCodeLabel: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600", letterSpacing: 1 },
-  pairCodeValue: { color: "#FFF", fontSize: 42, fontWeight: "bold", letterSpacing: 6, marginVertical: 8, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
-  pairCodeHint: { color: "rgba(255,255,255,0.7)", fontSize: 12, marginBottom: 16 },
-  shareBtn: { backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 20 },
-  shareBtnText: { color: "#FFF", fontWeight: "600", fontSize: 15 },
-  statsRow: { flexDirection: "row", gap: 12, marginBottom: 16 },
-  statCard: { flex: 1, padding: 16, borderRadius: 12, borderWidth: 1, alignItems: "center" },
-  statValue: { fontSize: 28, fontWeight: "bold" },
-  statLabel: { fontSize: 12, marginTop: 4 },
-  statHint: { fontSize: 11, marginTop: 4 },
-  cameraTop: { position: "absolute", top: 50, left: 20, right: 20, zIndex: 10 },
-  backBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, alignSelf: "flex-start" },
-  cameraInfo: { position: "absolute", top: 100, left: 20, right: 20, zIndex: 10 },
-  infoBox: { backgroundColor: "rgba(0,0,0,0.7)", padding: 12, borderRadius: 8 },
-  infoTime: { color: "#FFF", fontSize: 28, fontWeight: "bold" },
-  infoDate: { color: "#CCC", fontSize: 14, marginBottom: 8 },
-  infoAddress: { color: "#FFF", fontSize: 14, fontWeight: "500", marginBottom: 4 },
-  infoCoords: { color: "#AAA", fontSize: 11, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
-  infoSite: { color: "#CCC", fontSize: 12, marginTop: 4 },
-  infoStaff: { color: "#CCC", fontSize: 12 },
-  lastPhotoContainer: { position: "absolute", bottom: 140, left: 20, zIndex: 10 },
-  lastPhotoThumb: { width: 60, height: 60, borderRadius: 8, borderWidth: 2, borderColor: "#FFF" },
-  cameraControls: { position: "absolute", bottom: 50, left: 0, right: 0, flexDirection: "row", justifyContent: "space-around", alignItems: "center", paddingHorizontal: 50, zIndex: 10 },
-  flipBtn: { width: 50, height: 50, borderRadius: 25, justifyContent: "center", alignItems: "center" },
-  captureBtn: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, borderColor: "#FFF", justifyContent: "center", alignItems: "center" },
-  captureBtnInner: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FFF" },
-  // Gallery styles
-  galleryHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  galleryTitle: { fontSize: 20, fontWeight: "bold" },
-  backText: { fontSize: 16, fontWeight: "600" },
-  emptyGallery: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 60 },
-  emptyText: { textAlign: "center", fontSize: 16, lineHeight: 24 },
-  photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  photoGridItem: { width: (SCREEN_WIDTH - 56) / 3, height: (SCREEN_WIDTH - 56) / 3, borderRadius: 8, overflow: "hidden" },
-  photoGridImage: { width: "100%", height: "100%" },
-  photoGridOverlay: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 4 },
-  photoGridTime: { color: "#FFF", fontSize: 10, textAlign: "center" },
-  // Photo thumbnails in dashboard
-  photoHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  viewAllText: { fontSize: 14, fontWeight: "500" },
-  photoScroll: { marginTop: 8 },
-  photoThumbContainer: { marginRight: 12, alignItems: "center" },
-  photoThumb: { width: 70, height: 70, borderRadius: 8 },
-  photoThumbTime: { fontSize: 10, marginTop: 4 },
-  // Modal styles
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.9)", justifyContent: "center", alignItems: "center" },
-  modalContent: { width: "100%", height: "100%" },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16 },
-  headerButton: { padding: 12, minWidth: 80 },
-  modalClose: { fontSize: 17, fontWeight: "600" },
-  modalShare: { fontSize: 17, fontWeight: "600" },
-  modalCounter: { fontSize: 15, fontWeight: "500" },
-  navButton: { padding: 16, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 24 },
-  modalImage: { flex: 1, width: "100%" },
-  modalInfo: { padding: 20 },
-  modalTime: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
-  modalAddress: { fontSize: 14, marginBottom: 4 },
-  modalCoords: { fontSize: 12, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
-  // Note styles
-  noteInputContainer: { marginTop: 8 },
-  noteInput: { borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 14, minHeight: 80, textAlignVertical: "top" },
-  addNoteBtn: { marginTop: 8, padding: 12, borderRadius: 8, alignItems: "center" },
-  addNoteBtnText: { color: "#FFF", fontWeight: "600", fontSize: 14 },
-  notesList: { marginTop: 12 },
-  noteItem: { borderTopWidth: 1, paddingTop: 8, marginTop: 8 },
-  noteTime: { fontSize: 11, marginBottom: 2 },
-  noteText: { fontSize: 14, lineHeight: 20 },
-  // Template styles
-  templatesScroll: { marginTop: 8 },
-  templateChip: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, borderWidth: 1, marginRight: 10, minWidth: 120 },
-  templateSite: { fontSize: 14, fontWeight: "600", marginBottom: 2 },
-  templateStaff: { fontSize: 12 },
+    container: {
+        flex: 1,
+        backgroundColor: '#fff',
+    },
+    topBar: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 24,
+        paddingVertical: 16,
+    },
+    offDutyBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f1f5f9',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        gap: 8,
+    },
+    statusDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: '#94a3b8',
+    },
+    offDutyText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#64748b',
+        letterSpacing: 0.5,
+    },
+    settingsButton: {
+        width: 44,
+        height: 44,
+        backgroundColor: '#f8fafc',
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    centerContent: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 24,
+    },
+    welcomeSection: {
+        alignItems: 'center',
+        marginBottom: 48,
+    },
+    userIconCircle: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: '#eff6ff',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 24,
+        shadowColor: '#2563eb',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.1,
+        shadowRadius: 20,
+    },
+    welcomeTitle: {
+        fontSize: 32,
+        fontWeight: '900',
+        color: '#0f172a',
+        marginBottom: 8,
+        letterSpacing: -1,
+    },
+    welcomeSubtitle: {
+        fontSize: 18,
+        color: '#94a3b8',
+        fontWeight: '500',
+    },
+    startButtonContainer: {
+        position: 'relative',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 64,
+    },
+    pulseRing: {
+        position: 'absolute',
+        width: 240,
+        height: 240,
+        borderRadius: 120,
+        backgroundColor: '#dbeafe',
+        zIndex: -1,
+    },
+    giantStartButton: {
+        width: 240,
+        height: 240,
+        borderRadius: 120,
+        backgroundColor: '#2563eb',
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#2563eb',
+        shadowOffset: { width: 0, height: 20 },
+        shadowOpacity: 0.4,
+        shadowRadius: 30,
+        elevation: 20,
+        borderWidth: 8,
+        borderColor: '#fff',
+    },
+    giantButtonText: {
+        fontSize: 24,
+        fontWeight: '800',
+        color: '#fff',
+        marginTop: 8,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+    footerInfo: {
+        alignItems: 'center',
+        gap: 12,
+        opacity: 0.8,
+    },
+    verifiedBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: '#eff6ff',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+    },
+    verifiedText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#2563eb',
+        letterSpacing: 0.5,
+    },
+    footerTagline: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#cbd5e1',
+        letterSpacing: 1.5,
+        textTransform: 'uppercase',
+    },
+
+    // Form Styles
+    formHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 24,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+    },
+    closeButton: {
+        width: 40,
+        height: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    formTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#1e293b',
+    },
+    formContent: {
+        flex: 1,
+        paddingHorizontal: 24,
+        paddingTop: 24,
+    },
+    templatesSection: {
+        marginBottom: 24,
+    },
+    inputLabel: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#64748b',
+        marginBottom: 8,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    templateChip: {
+        backgroundColor: '#f1f5f9',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 12,
+        marginRight: 8,
+    },
+    templateText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#1e293b',
+    },
+    inputGroup: {
+        marginBottom: 20,
+    },
+    inputWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        gap: 12,
+    },
+    input: {
+        flex: 1,
+        height: 52,
+        fontSize: 16,
+        color: '#1e293b',
+    },
+    locationPreview: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: '#eff6ff',
+        padding: 12,
+        borderRadius: 12,
+        marginTop: 8,
+    },
+    locationPreviewText: {
+        fontSize: 13,
+        color: '#3b82f6',
+        fontWeight: '500',
+    },
+    formFooter: {
+        padding: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    bigRedButton: {
+        width: 180,
+        height: 180,
+        borderRadius: 90,
+        backgroundColor: '#dc2626',
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#dc2626',
+        shadowOffset: { width: 0, height: 15 },
+        shadowOpacity: 0.4,
+        shadowRadius: 25,
+        elevation: 15,
+        borderWidth: 6,
+        borderColor: '#fff',
+    },
+    bigRedButtonText: {
+        fontSize: 20,
+        fontWeight: '900',
+        color: '#fff',
+        marginTop: 4,
+        textTransform: 'uppercase',
+        letterSpacing: 2,
+    },
+    submitButton: {
+        backgroundColor: '#1e293b',
+        borderRadius: 20, // Increased radius
+        height: 88, // Increased height from 72
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 24,
+        gap: 16,
+    },
+    submitIconBox: {
+        width: 56, // Increased from 44
+        height: 56, // Increased from 44
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        borderRadius: 28,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    submitButtonText: {
+        fontSize: 22, // Increased from 18
+        fontWeight: '900',
+        color: '#fff',
+        letterSpacing: 1,
+    },
+    submitButtonSubtext: {
+        fontSize: 14, // Increased from 11
+        color: 'rgba(255,255,255,0.8)',
+        fontWeight: '600',
+    },
+    // Modal Popup Styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+    },
+    modalContent: {
+        width: '100%',
+        maxWidth: 400,
+        borderRadius: 20,
+        padding: 24,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.25,
+        shadowRadius: 20,
+        elevation: 10,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+    },
+    modalSection: {
+        marginBottom: 16,
+    },
+    modalLabel: {
+        fontSize: 12,
+        fontWeight: '600',
+        marginBottom: 8,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    modalInput: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingHorizontal: 14,
+        gap: 10,
+    },
+    modalInputText: {
+        flex: 1,
+        height: 48,
+        fontSize: 16,
+    },
+    modalLocation: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        padding: 12,
+        borderRadius: 10,
+        marginBottom: 20,
+    },
+    modalLocationText: {
+        fontSize: 13,
+        fontWeight: '500',
+        flex: 1,
+    },
+    modalOkButton: {
+        backgroundColor: '#dc2626',
+        borderRadius: 14,
+        height: 52,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    modalOkButtonText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#fff',
+    },
 });
