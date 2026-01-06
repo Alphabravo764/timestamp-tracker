@@ -1,49 +1,35 @@
 import type { Shift, ShiftPhoto, LocationPoint, ShiftNote } from "./shift-types";
-import { generateStaticMapUrlEncoded } from "./google-maps";
+import { generateMapboxStaticUrl, reverseGeocodeMapbox, formatMapboxAddress } from "./mapbox";
 import { photoToBase64DataUri } from "./photo-to-base64";
 
 // Batch reverse geocode locations that don't have addresses
 const batchReverseGeocode = async (locations: LocationPoint[]): Promise<LocationPoint[]> => {
   const results: LocationPoint[] = [];
-  
+
   for (const loc of locations) {
     // If already has a valid address, keep it
     if (loc.address && loc.address !== "Unknown location" && loc.address !== "Location unavailable") {
       results.push(loc);
       continue;
     }
-    
-    // Try to reverse geocode
+
+    // Try to reverse geocode using Mapbox
     try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.latitude}&lon=${loc.longitude}&zoom=18&addressdetails=1`,
-        { headers: { "User-Agent": "TimestampCamera/1.0" } }
-      );
-      const data = await response.json();
-      
-      if (data && data.address) {
-        const addr = data.address;
-        const parts: string[] = [];
-        
-        // Build address: street, city, postcode
-        if (addr.road || addr.street) parts.push(addr.road || addr.street);
-        if (addr.city || addr.town || addr.village) parts.push(addr.city || addr.town || addr.village);
-        if (addr.postcode) parts.push(addr.postcode);
-        
-        const address = parts.length > 0 ? parts.join(", ") : data.display_name?.split(",").slice(0, 3).join(",") || "Unknown";
-        results.push({ ...loc, address });
+      const geocoded = await reverseGeocodeMapbox(loc.latitude, loc.longitude);
+      if (geocoded) {
+        results.push({ ...loc, address: formatMapboxAddress(geocoded) });
       } else {
         results.push(loc);
       }
-      
-      // Rate limit: wait 100ms between requests to respect Nominatim limits
-      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Rate limit: wait 50ms between requests
+      await new Promise(resolve => setTimeout(resolve, 50));
     } catch (e) {
       console.log("Geocode error:", e);
       results.push(loc);
     }
   }
-  
+
   return results;
 };
 
@@ -52,10 +38,10 @@ const formatDuration = (shift: Shift): string => {
   const start = new Date(shift.startTime);
   const end = shift.endTime ? new Date(shift.endTime) : new Date();
   const diff = end.getTime() - start.getTime();
-  
+
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  
+
   return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 };
 
@@ -71,9 +57,9 @@ const calculateDistance = (locations: LocationPoint[]): number => {
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos((prev.latitude * Math.PI) / 180) *
-        Math.cos((curr.latitude * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
+      Math.cos((curr.latitude * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     total += R * c;
   }
@@ -83,8 +69,8 @@ const calculateDistance = (locations: LocationPoint[]): number => {
 // Format time for display
 const formatTime = (timestamp: string): string => {
   const date = new Date(timestamp);
-  return date.toLocaleTimeString("en-GB", { 
-    hour: "2-digit", 
+  return date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
     minute: "2-digit",
     second: "2-digit"
   });
@@ -101,22 +87,12 @@ const formatDate = (timestamp: string): string => {
   });
 };
 
-// Get address from coordinates using Nominatim
+// Get address from coordinates using Mapbox
 const getAddressFromCoords = async (lat: number, lng: number): Promise<string> => {
   try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-      { headers: { "User-Agent": "TimestampCamera/1.0" } }
-    );
-    const data = await response.json();
-    
-    if (data && data.address) {
-      const addr = data.address;
-      const parts: string[] = [];
-      if (addr.road || addr.street) parts.push(addr.road || addr.street);
-      if (addr.city || addr.town || addr.village) parts.push(addr.city || addr.town || addr.village);
-      if (addr.postcode) parts.push(addr.postcode);
-      return parts.length > 0 ? parts.join(", ") : data.display_name?.split(",").slice(0, 3).join(",") || "Unknown";
+    const geocoded = await reverseGeocodeMapbox(lat, lng);
+    if (geocoded) {
+      return formatMapboxAddress(geocoded);
     }
     return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
   } catch {
@@ -137,7 +113,7 @@ interface Activity {
 
 const buildActivities = async (shift: Shift, locations: LocationPoint[]): Promise<Activity[]> => {
   const activities: Activity[] = [];
-  
+
   // Add shift start
   if (locations.length > 0) {
     const startLoc = locations[0];
@@ -149,7 +125,7 @@ const buildActivities = async (shift: Shift, locations: LocationPoint[]): Promis
       content: startAddress
     });
   }
-  
+
   // Add photos
   if (shift.photos) {
     for (const photo of shift.photos) {
@@ -159,7 +135,7 @@ const buildActivities = async (shift: Shift, locations: LocationPoint[]): Promis
       } else if (photo.address) {
         content = photo.address;
       }
-      
+
       activities.push({
         type: 'photo',
         time: photo.timestamp,
@@ -169,7 +145,7 @@ const buildActivities = async (shift: Shift, locations: LocationPoint[]): Promis
       });
     }
   }
-  
+
   // Add notes
   if (shift.notes && shift.notes.length > 0) {
     for (const note of shift.notes) {
@@ -179,7 +155,7 @@ const buildActivities = async (shift: Shift, locations: LocationPoint[]): Promis
       if (noteLat && noteLng) {
         noteLocation = await getAddressFromCoords(noteLat, noteLng);
       }
-      
+
       activities.push({
         type: 'note',
         time: note.timestamp,
@@ -190,7 +166,7 @@ const buildActivities = async (shift: Shift, locations: LocationPoint[]): Promis
       });
     }
   }
-  
+
   // Add shift end
   if (shift.endTime) {
     const durationText = formatDuration(shift);
@@ -201,10 +177,10 @@ const buildActivities = async (shift: Shift, locations: LocationPoint[]): Promis
       content: `Duration: ${durationText}`
     });
   }
-  
+
   // Sort by time
   activities.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
-  
+
   return activities;
 };
 
@@ -215,44 +191,44 @@ const buildActivities = async (shift: Shift, locations: LocationPoint[]): Promis
 export const generatePdfHtml = async (shift: Shift): Promise<string> => {
   // Get locations with addresses
   const locations = shift.locations ? await batchReverseGeocode(shift.locations) : [];
-  
+
   // Calculate stats
   const durationText = formatDuration(shift);
   const distance = calculateDistance(locations);
   const distanceText = distance > 0 ? `${distance.toFixed(2)} km` : '0 km';
   const photoCount = shift.photos?.length || 0;
   const noteCount = shift.notes?.length || 0;
-  
+
   // Get initials
   const initials = (shift.staffName || 'U').substring(0, 2).toUpperCase();
-  
+
   // Get latest location
   const latestLocation = locations.length > 0 ? locations[locations.length - 1] : null;
   let latestAddress = '';
   if (latestLocation) {
     latestAddress = latestLocation.address || await getAddressFromCoords(latestLocation.latitude, latestLocation.longitude);
   }
-  
+
   // Build activities
   const activities = await buildActivities(shift, locations);
-  
+
   // Generate map URL
   let mapUrl = '';
   if (locations.length > 0) {
-    mapUrl = generateStaticMapUrlEncoded(locations, 800, 400) || '';
+    mapUrl = generateMapboxStaticUrl(locations, 800, 400) || '';
   }
-  
+
   // Convert photos to base64 and burn watermark
   const photoDataUris: Map<string, string> = new Map();
   if (shift.photos) {
     const { burnWatermark } = await import("./burn-watermark");
-    
+
     for (const photo of shift.photos) {
       try {
         // First convert to base64
         let dataUri = await photoToBase64DataUri(photo.uri || '');
         if (!dataUri) continue;
-        
+
         // Then burn watermark for PDF
         if (photo.location) {
           const watermarkedUri = await burnWatermark(dataUri, {
@@ -266,14 +242,14 @@ export const generatePdfHtml = async (shift: Shift): Promise<string> => {
           });
           dataUri = watermarkedUri;
         }
-        
+
         photoDataUris.set(photo.uri, dataUri);
       } catch (e) {
         console.log("Photo conversion/watermark error:", e);
       }
     }
   }
-  
+
   // Generate HTML matching viewer design
   return `<!DOCTYPE html>
 <html lang="en">
@@ -741,8 +717,8 @@ export const generatePdfHtml = async (shift: Shift): Promise<string> => {
       <div class="feed-content">
         ${activities.filter(a => a.type === 'photo').length === 0 ? '<div class="empty-state">No photos captured</div>' : ''}
         ${activities.filter(a => a.type === 'photo').map(activity => {
-          const photoUri = activity.photoUri ? (photoDataUris.get(activity.photoUri) || activity.photoUri) : '';
-          return `
+    const photoUri = activity.photoUri ? (photoDataUris.get(activity.photoUri) || activity.photoUri) : '';
+    return `
             <div class="feed-item">
               <div class="timeline-connector">
                 <div class="timeline-dot photo">📷</div>
@@ -761,7 +737,7 @@ export const generatePdfHtml = async (shift: Shift): Promise<string> => {
               </div>
             </div>
           `;
-        }).join('')}
+  }).join('')}
       </div>
     </div>
     
