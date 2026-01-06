@@ -904,7 +904,17 @@
       const hash = generateHash(shift);
       const latestLoc = shift.locations?.[shift.locations.length - 1];
       const events = [];
-      events.push({ time: shift.startTime, type: 'start', title: 'Shift Started', desc: `${shift.staffName} clocked in at ${shift.siteName}` });
+      
+      // Get start location address with coordinates
+      const startLoc = shift.locations?.[0];
+      let startAddress = shift.siteName;
+      let startCoords = '';
+      if (startLoc?.latitude && startLoc?.longitude) {
+        const geoAddr = await reverseGeocode(startLoc.latitude, startLoc.longitude);
+        if (geoAddr) startAddress = geoAddr;
+        startCoords = ` (${startLoc.latitude.toFixed(5)}, ${startLoc.longitude.toFixed(5)})`;
+      }
+      events.push({ time: shift.startTime, type: 'start', title: 'Shift Started', desc: `${shift.staffName} clocked in at ${startAddress}${startCoords}` });
 
       // Add photos with reverse geocoding for addresses
       for (let i = 0; i < (shift.photos?.length || 0); i++) {

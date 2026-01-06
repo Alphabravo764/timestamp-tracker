@@ -124,11 +124,12 @@ export function generateMapboxStaticUrl(
         return "";
     }
 
-    // Filter out low accuracy points
-    const filteredLocations = locations.filter(loc => !loc.accuracy || loc.accuracy < 50);
+    // Filter out low accuracy points (but use more lenient threshold)
+    let filteredLocations = locations.filter(loc => !loc.accuracy || loc.accuracy < 100);
 
+    // If filtering removed everything, use original locations
     if (filteredLocations.length === 0) {
-        return "";
+        filteredLocations = locations;
     }
 
     const start = filteredLocations[0];
