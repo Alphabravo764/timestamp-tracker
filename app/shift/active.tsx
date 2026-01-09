@@ -306,8 +306,13 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
       // 4. Close camera and update UI IMMEDIATELY
       setShowCamera(false);
 
-      // Do NOT reload shift immediately to prevent race conditions
-      // await loadShift(false);
+      // Reload shift to show the new photo in UI
+      try {
+        await loadShift(false);
+      } catch (loadError) {
+        console.error('[Photo] Failed to reload shift:', loadError);
+        // Continue anyway - photo is saved locally
+      }
 
       // 5. Background: Direct upload to storage (Fire-and-forget)
       const pairCode = activeShift?.pairCode;
