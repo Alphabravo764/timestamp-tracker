@@ -280,7 +280,8 @@
         .device-screen img {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
+            object-position: top center;
         }
 
         /* Features Bento Grid */
@@ -530,6 +531,98 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+        }
+
+        /* App Gallery */
+        .gallery-section {
+            padding: 100px 24px;
+            background: white;
+        }
+
+        .gallery-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .gallery-title {
+            font-size: clamp(32px, 5vw, 48px);
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .gallery-subtitle {
+            color: var(--text-secondary);
+            font-size: 18px;
+            margin-bottom: 60px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .gallery-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .gallery-grid {
+                grid-template-columns: 1fr;
+                max-width: 300px;
+                margin: 0 auto;
+            }
+
+            .gallery-section {
+                padding: 60px 16px;
+            }
+        }
+
+        .gallery-item {
+            background: var(--bg-grey);
+            border-radius: 24px;
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .gallery-item:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: 400px;
+            object-fit: cover;
+            object-position: top center;
+        }
+
+        @media (max-width: 640px) {
+            .gallery-item img {
+                height: 500px;
+            }
+        }
+
+        .gallery-caption {
+            padding: 20px;
+            text-align: left;
+        }
+
+        .gallery-caption h4 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .gallery-caption p {
+            color: var(--text-secondary);
+            font-size: 14px;
         }
 
         /* Value Props */
@@ -833,6 +926,46 @@
                     </div>
                     <h3>Live Sharing.</h3>
                     <p>Give clients peace of mind with a secure live tracking link.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- App Gallery -->
+    <section class="gallery-section">
+        <div class="gallery-container">
+            <h2 class="gallery-title">See STAMPIA in Action</h2>
+            <p class="gallery-subtitle">From shift start to verified reports — experience seamless proof-of-presence
+                tracking.</p>
+
+            <div class="gallery-grid">
+                <div class="gallery-item">
+                    <img src="/images/app-watch-shifts.png" alt="Watch Shifts Feature">
+                    <div class="gallery-caption">
+                        <h4>Watch Shifts</h4>
+                        <p>Monitor live shifts with pair codes</p>
+                    </div>
+                </div>
+                <div class="gallery-item">
+                    <img src="/images/app-watch-activity.png" alt="Activity Log">
+                    <div class="gallery-caption">
+                        <h4>Activity Log</h4>
+                        <p>Verified timeline with all evidence</p>
+                    </div>
+                </div>
+                <div class="gallery-item">
+                    <img src="/images/activity-log.png" alt="Web Viewer">
+                    <div class="gallery-caption">
+                        <h4>Web Viewer</h4>
+                        <p>Share shift details with clients</p>
+                    </div>
+                </div>
+                <div class="gallery-item">
+                    <img src="/images/app-onboarding.png" alt="Privacy First">
+                    <div class="gallery-caption">
+                        <h4>Privacy First</h4>
+                        <p>Clear consent and data transparency</p>
+                    </div>
                 </div>
             </div>
         </div>
