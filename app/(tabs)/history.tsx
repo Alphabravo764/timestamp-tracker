@@ -14,7 +14,7 @@ import {
   Modal,
   Dimensions,
 } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, router } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import * as Haptics from "expo-haptics";
@@ -825,10 +825,22 @@ export default function HistoryScreen() {
       </View>
 
       {shifts.length === 0 ? (
-        <View className="flex-1 items-center justify-center p-6">
-          <Text className="text-muted text-center text-lg">
-            No completed shifts yet.{"\n"}Start and end a shift to see it here.
+        <View style={styles.emptyState}>
+          <View style={styles.emptyIconContainer}>
+            <Ionicons name="briefcase-outline" size={64} color="#94a3b8" />
+          </View>
+          <Text style={styles.emptyTitle}>No Shift History</Text>
+          <Text style={styles.emptySubtitle}>
+            Complete your first shift to see it here.{'\n'}
+            Your shift records will appear automatically.
           </Text>
+          <TouchableOpacity
+            style={styles.emptyButton}
+            onPress={() => router.push('/(tabs)')}
+          >
+            <Ionicons name="play-circle" size={20} color="#fff" />
+            <Text style={styles.emptyButtonText}>Start a Shift</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -1174,5 +1186,48 @@ const styles = StyleSheet.create({
   chevronContainer: {
     justifyContent: 'center',
     paddingRight: 12,
+  },
+  // Empty state styles
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  emptyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  emptyButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

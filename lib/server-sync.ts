@@ -45,6 +45,8 @@ type NotePayload = {
   latitude?: number;
   longitude?: number;
   accuracy?: number;
+  address?: string;
+  postcode?: string;
 };
 
 type ShiftEndPayload = {
@@ -114,7 +116,7 @@ export async function syncShiftStart(payload: ShiftStartPayload) {
 export async function syncLocation(payload: LocationPayload) {
   const { setLocationSyncStatus } = useSyncState.getState();
   setLocationSyncStatus("syncing", "Syncing location...");
-  
+
   try {
     const result = await postJson<{ success: boolean }>("/api/sync/location", payload);
     setLocationSyncStatus("success", "Location synced");
@@ -133,7 +135,7 @@ export async function syncLocation(payload: LocationPayload) {
 export async function syncPhoto(payload: PhotoPayload): Promise<{ success: boolean; photoUrl?: string }> {
   const { setPhotoSyncStatus } = useSyncState.getState();
   setPhotoSyncStatus("syncing", "Uploading photo...");
-  
+
   try {
     const result = await postJson<{ success: boolean; photoUrl?: string }>("/api/sync/photo", payload);
     setPhotoSyncStatus("success", "Photo uploaded");

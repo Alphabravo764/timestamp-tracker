@@ -149,7 +149,17 @@ export const addPhotoToShift = async (photo: ShiftPhoto): Promise<Shift | null> 
 };
 
 // Add note to active shift
-export const addNoteToShift = async (text: string): Promise<Shift | null> => {
+export const addNoteToShift = async (
+  text: string,
+  location?: {
+    latitude: number;
+    longitude: number;
+    accuracy: number;
+    capturedAt: number;
+    address: string;
+    postcode: string;
+  }
+): Promise<Shift | null> => {
   try {
     const shift = await getActiveShift();
     if (!shift || !shift.isActive) {
@@ -160,7 +170,17 @@ export const addNoteToShift = async (text: string): Promise<Shift | null> => {
     const note = {
       id: `note_${Date.now()}`,
       timestamp: new Date().toISOString(),
+      ts: Date.now(), // Unix timestamp for consistent sorting
       text: text.trim(),
+      // Location data
+      location: location ? {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        timestamp: new Date(location.capturedAt).toISOString(),
+        accuracy: location.accuracy,
+      } : null,
+      address: location?.address || null,
+      postcode: location?.postcode || null,
     };
 
     // Initialize notes array if it doesn't exist
@@ -170,7 +190,7 @@ export const addNoteToShift = async (text: string): Promise<Shift | null> => {
 
     shift.notes.push(note);
     await AsyncStorage.setItem(ACTIVE_SHIFT_KEY, JSON.stringify(shift));
-    console.log("Note added to shift:", note.id);
+    console.log("Note added to shift:", note.id, "with location:", !!location);
     return shift;
   } catch (error) {
     console.error("Error adding note:", error);

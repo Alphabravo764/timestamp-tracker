@@ -18,8 +18,11 @@ export interface ShiftPhoto {
 export interface ShiftNote {
   id: string;
   timestamp: string;
+  ts?: number;           // Unix timestamp in ms for consistent sorting
   text: string;
-  location?: LocationPoint;
+  location?: LocationPoint | null;
+  address?: string | null;
+  postcode?: string | null;
 }
 
 export interface GeofenceArea {

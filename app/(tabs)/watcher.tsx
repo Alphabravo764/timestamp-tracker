@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, TextInput, Platform, Alert, Linking } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, TextInput, Platform, Alert, Linking, KeyboardAvoidingView, ScrollView } from "react-native";
 import { WebView } from "react-native-webview";
 import { useFocusEffect } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
@@ -118,10 +118,15 @@ export default function WatcherScreen() {
             placeholder="Enter pair code (e.g., ABC123)"
             placeholderTextColor={colors.muted}
             value={pairCode}
-            onChangeText={setPairCode}
+            onChangeText={(text) => {
+              // Sanitize input: uppercase, alphanumeric only, max 6 chars
+              const sanitized = text.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+              setPairCode(sanitized);
+            }}
             autoCapitalize="characters"
             autoCorrect={false}
             maxLength={6}
+            keyboardType="default"
           />
           <TouchableOpacity
             style={[styles.addButton, { backgroundColor: colors.primary }]}
@@ -161,8 +166,22 @@ export default function WatcherScreen() {
               ))}
             </View>
             <Text style={[styles.hint, { color: colors.muted }]}>
-              Tap to view • Long press to remove
+              Tap to view
             </Text>
+          </View>
+        )}
+
+        {/* Selected Code Actions */}
+        {selectedCode && (
+          <View style={[styles.selectedCodeActions, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+            <Text style={[styles.selectedLabel, { color: colors.muted }]}>Selected:</Text>
+            <Text style={[styles.selectedCodeText, { color: colors.primary }]}>{selectedCode}</Text>
+            <TouchableOpacity
+              style={[styles.deleteButton, { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }]}
+              onPress={() => handleRemoveCode(selectedCode)}
+            >
+              <Text style={[styles.deleteButtonText, { color: '#dc2626' }]}>Remove</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -325,5 +344,33 @@ const styles = StyleSheet.create({
   viewerUrl: {
     fontSize: 12,
     marginTop: 8,
+  },
+  // Selected code actions styles
+  selectedCodeActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    gap: 8,
+  },
+  selectedLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  selectedCodeText: {
+    fontSize: 16,
+    fontWeight: '700',
+    flex: 1,
+  },
+  deleteButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  deleteButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

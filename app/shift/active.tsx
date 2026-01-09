@@ -37,6 +37,7 @@ import { router, useFocusEffect } from "expo-router";
 import { syncLocation, syncShiftEnd, syncPhoto, syncNote } from "@/lib/server-sync";
 import { photoToBase64DataUri } from "@/lib/photo-to-base64";
 import { mapboxReverseGeocode, generateMapboxStaticUrl } from "@/lib/mapbox";
+import { getFreshLocation } from "@/lib/fresh-location";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
@@ -239,46 +240,32 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
-      // 2. Metadata (Metadata is fast)
-      const now = new Date();
-      const timestamp = now.toISOString();
+      // 2. Get FRESH location for this photo (not cached!)
+      const now = Date.now();
+      const timestamp = new Date(now).toISOString();
 
-      let address = currentAddress || "Location unavailable";
-      let lat = 0;
-      let lng = 0;
+      // Use getFreshLocation which enforces freshness rules
+      const freshLoc = await getFreshLocation();
 
-      // Use cached location immediately if available (FASTEST)
-      let location = currentLocation;
+      let address = freshLoc?.address || "Location unavailable";
+      let lat = freshLoc?.latitude || 0;
+      let lng = freshLoc?.longitude || 0;
+      let accuracy = freshLoc?.accuracy || 0;
 
-      // Only fetch if absolutely necessary and don't block
-      if (!location) {
-        // Try getting last known position first (fastest fallback)
-        location = await Location.getLastKnownPositionAsync({});
-      }
-
-      if (location) {
-        lat = location.coords.latitude;
-        lng = location.coords.longitude;
-        // Don't await geocode here if possible, use cached or coordinates
-        if (!address || address === "Locating...") {
-          address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-          // Trigger background geocode update if needed?
-          // For now, raw coords are faster than waiting for API
-        }
-      }
+      console.log('[Photo] Fresh location captured:', { lat, lng, accuracy, address });
 
       // 3. Save Raw URI w/ Metadata
-      const photoId = `photo_${Date.now()}`;
+      const photoId = `photo_${now}`;
 
       await addPhotoToShift({
         id: photoId,
         uri: photo.uri,
         timestamp,
-        location: location ? {
+        location: freshLoc ? {
           latitude: lat,
           longitude: lng,
           timestamp: timestamp,
-          accuracy: location.coords.accuracy || 0
+          accuracy: accuracy
         } : null,
         address
       });
@@ -302,7 +289,7 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
                 photoUri: base64Uri,
                 latitude: lat,
                 longitude: lng,
-                accuracy: location?.coords.accuracy ?? undefined,
+                accuracy: accuracy,
                 timestamp: timestamp,
                 address: address
               });
@@ -770,82 +757,116 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
               </View>
             </View>
 
-            {/* Dynamic Photo Events with Thumbnails */}
-            {activeShift.photos.slice(0, 3).map((photo, idx) => (
-              <TouchableOpacity
-                style={styles.timelineItem}
-                key={photo.id}
-                onPress={() => router.push("/shift/gallery" as any)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.timelineLeft}>
-                  <View style={[styles.timelineDot, { backgroundColor: "#3b82f6" }]} />
-                  {idx !== activeShift.photos.length - 1 && <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />}
-                </View>
-                <View style={[styles.timelineCard, { borderLeftColor: "#3b82f6", borderLeftWidth: 3 }]}>
-                  <View style={styles.timelineHeader}>
-                    <View style={[styles.tagSystem, { backgroundColor: "#dbeafe" }]}>
-                      <Text style={[styles.tagTextSystem, { color: "#1d4ed8" }]}>Photo</Text>
-                    </View>
-                    <View style={styles.timeTag}>
-                      <Ionicons name="time-outline" size={10} color={colors.muted} />
-                      <Text style={[styles.timeText, { color: colors.muted }]}>
-                        {new Date(photo.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </Text>
-                    </View>
-                  </View>
-                  {/* Photo Thumbnail */}
-                  <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center' }}>
-                    <Image
-                      source={{ uri: photo.uri }}
-                      style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12 }}
-                      resizeMode="cover"
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.timelineBody, { color: colors.text }]} numberOfLines={1}>
-                        {photo.address || "Photo captured"}
-                      </Text>
-                      {photo.location && (
-                        <Text style={{ color: colors.muted, fontSize: 10, marginTop: 2 }}>
-                          ({photo.location.latitude.toFixed(5)}, {photo.location.longitude.toFixed(5)})
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
+            {/* Unified Timeline - Photos and Notes merged and sorted by time */}
+            {(() => {
+              // Create unified event list
+              const events: Array<{
+                type: 'photo' | 'note';
+                ts: number;
+                id: string;
+                data: any;
+              }> = [
+                  ...activeShift.photos.map((photo: any) => ({
+                    type: 'photo' as const,
+                    ts: photo.ts || new Date(photo.timestamp).getTime(),
+                    id: photo.id,
+                    data: photo,
+                  })),
+                  ...(activeShift.notes || []).map((note: any) => ({
+                    type: 'note' as const,
+                    ts: note.ts || new Date(note.timestamp).getTime(),
+                    id: note.id,
+                    data: note,
+                  })),
+                ];
 
-            {/* Dynamic Notes Events */}
-            {(activeShift.notes || []).slice(0, 3).map((note: any, idx: number) => (
-              <View style={styles.timelineItem} key={note.id || idx}>
-                <View style={styles.timelineLeft}>
-                  <View style={[styles.timelineDot, { backgroundColor: "#f59e0b" }]} />
-                  <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
-                </View>
-                <View style={[styles.timelineCard, { borderLeftColor: "#f59e0b", borderLeftWidth: 3 }]}>
-                  <View style={styles.timelineHeader}>
-                    <View style={[styles.tagSystem, { backgroundColor: "#fef3c7" }]}>
-                      <Text style={[styles.tagTextSystem, { color: "#d97706" }]}>Note</Text>
+              // Sort by timestamp ascending (oldest first)
+              events.sort((a, b) => a.ts - b.ts);
+
+              // Take last 5 events (reversed to show newest first)
+              const recentEvents = events.slice(-5).reverse();
+
+              return recentEvents.map((event, idx) => {
+                if (event.type === 'photo') {
+                  const photo = event.data;
+                  return (
+                    <TouchableOpacity
+                      style={styles.timelineItem}
+                      key={photo.id}
+                      onPress={() => router.push("/shift/gallery" as any)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.timelineLeft}>
+                        <View style={[styles.timelineDot, { backgroundColor: "#3b82f6" }]} />
+                        {idx !== recentEvents.length - 1 && <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />}
+                      </View>
+                      <View style={[styles.timelineCard, { borderLeftColor: "#3b82f6", borderLeftWidth: 3 }]}>
+                        <View style={styles.timelineHeader}>
+                          <View style={[styles.tagSystem, { backgroundColor: "#dbeafe" }]}>
+                            <Text style={[styles.tagTextSystem, { color: "#1d4ed8" }]}>Photo</Text>
+                          </View>
+                          <View style={styles.timeTag}>
+                            <Ionicons name="time-outline" size={10} color={colors.muted} />
+                            <Text style={[styles.timeText, { color: colors.muted }]}>
+                              {new Date(photo.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center' }}>
+                          <Image
+                            source={{ uri: photo.uri }}
+                            style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12 }}
+                            resizeMode="cover"
+                          />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.timelineBody, { color: colors.text }]} numberOfLines={1}>
+                              {photo.address || "Photo captured"}
+                            </Text>
+                            {photo.location && (
+                              <Text style={{ color: colors.muted, fontSize: 10, marginTop: 2 }}>
+                                ({photo.location.latitude.toFixed(5)}, {photo.location.longitude.toFixed(5)})
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                } else {
+                  const note = event.data;
+                  return (
+                    <View style={styles.timelineItem} key={note.id || idx}>
+                      <View style={styles.timelineLeft}>
+                        <View style={[styles.timelineDot, { backgroundColor: "#f59e0b" }]} />
+                        {idx !== recentEvents.length - 1 && <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />}
+                      </View>
+                      <View style={[styles.timelineCard, { borderLeftColor: "#f59e0b", borderLeftWidth: 3 }]}>
+                        <View style={styles.timelineHeader}>
+                          <View style={[styles.tagSystem, { backgroundColor: "#fef3c7" }]}>
+                            <Text style={[styles.tagTextSystem, { color: "#d97706" }]}>Note</Text>
+                          </View>
+                          <View style={styles.timeTag}>
+                            <Ionicons name="time-outline" size={10} color={colors.muted} />
+                            <Text style={[styles.timeText, { color: colors.muted }]}>
+                              {note.timestamp ? new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : "Now"}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={[styles.timelineBody, { color: colors.text }]} numberOfLines={2}>
+                          {note.text || note}
+                        </Text>
+                        {(note.address || note.location) && (
+                          <Text style={{ color: colors.muted, fontSize: 10, marginTop: 4 }}>
+                            📍 {note.address || ''}{note.address && note.location ? '\n' : ''}
+                            {note.location && `(${note.location.latitude.toFixed(5)}, ${note.location.longitude.toFixed(5)})`}
+                          </Text>
+                        )}
+                      </View>
                     </View>
-                    <View style={styles.timeTag}>
-                      <Ionicons name="time-outline" size={10} color={colors.muted} />
-                      <Text style={[styles.timeText, { color: colors.muted }]}>
-                        {note.timestamp ? new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : "Now"}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.timelineBody, { color: colors.text }]} numberOfLines={2}>
-                    {note.text || note}
-                  </Text>
-                  {note.location && (
-                    <Text style={{ color: colors.muted, fontSize: 10, marginTop: 4 }}>
-                      📍 ({note.location.latitude.toFixed(5)}, {note.location.longitude.toFixed(5)})
-                    </Text>
-                  )}
-                </View>
-              </View>
-            ))}
+                  );
+                }
+              });
+            })()}
 
           </View>
         </View>
@@ -924,17 +945,23 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
               }}
               onPress={async () => {
                 if (noteText.trim()) {
-                  await addNoteToShift(noteText.trim());
+                  // Get fresh location for this note
+                  const freshLoc = await getFreshLocation();
+                  console.log('[Note] Fresh location captured:', freshLoc);
+
+                  // Pass location to addNoteToShift
+                  await addNoteToShift(noteText.trim(), freshLoc || undefined);
+
                   // Sync note to server
                   if (activeShift?.pairCode) {
-                    const noteId = `note_${Date.now()}`;
                     syncNote({
                       pairCode: activeShift.pairCode,
                       text: noteText.trim(),
                       timestamp: new Date().toISOString(),
-                      latitude: currentLocation?.coords.latitude,
-                      longitude: currentLocation?.coords.longitude,
-                      accuracy: currentLocation?.coords.accuracy ?? undefined,
+                      latitude: freshLoc?.latitude,
+                      longitude: freshLoc?.longitude,
+                      accuracy: freshLoc?.accuracy,
+                      address: freshLoc?.address,
                     }).catch(e => console.log('Note sync error:', e));
                   }
                   setNoteText("");
