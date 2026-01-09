@@ -231,12 +231,12 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
 
     setProcessing(true);
     try {
-      // 1. FAST Capture (Raw, no processing)
+      // 1. INSTANT photo capture
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.7,
         base64: false,
         exif: true,
-        skipProcessing: true // Android optimization
+        skipProcessing: true
       });
 
       if (!photo?.uri) throw new Error("Photo capture failed");
@@ -245,29 +245,25 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
-      // 2. Get FRESH location for this photo (not cached!)
       const now = Date.now();
       const timestamp = new Date(now).toISOString();
 
-      // Use getFreshLocation which enforces freshness rules
-      // Timeout after 3s to keep UI snappy (will fallback to cache if needed)
-      const freshLoc = await getFreshLocation({ timeout: 3000 });
+      // 2. USE CACHED LOCATION IMMEDIATELY - DON'T WAIT!
+      // currentLocation is already being tracked in useEffect
+      let lat = currentLocation?.coords?.latitude || 0;
+      let lng = currentLocation?.coords?.longitude || 0;
+      let accuracy = currentLocation?.coords?.accuracy || 0;
+      let address = currentAddress || "Location pending";
 
-      let address = freshLoc?.address || "Location unavailable";
-      let lat = freshLoc?.latitude || 0;
-      let lng = freshLoc?.longitude || 0;
-      let accuracy = freshLoc?.accuracy || 0;
+      console.log('[Photo] Using cached location:', { lat, lng, accuracy, address });
 
-      console.log('[Photo] Fresh location captured:', { lat, lng, accuracy, address });
-
-      // 3. Save Raw URI w/ Metadata
+      // 3. Save photo IMMEDIATELY with cached location
       const photoId = `photo_${now}`;
-
       await addPhotoToShift({
         id: photoId,
         uri: photo.uri,
         timestamp,
-        location: freshLoc ? {
+        location: lat && lng ? {
           latitude: lat,
           longitude: lng,
           timestamp: timestamp,
@@ -276,38 +272,31 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
         address
       });
 
-      // 4. Sync photo to server in background (completely non-blocking)
-      // Use setTimeout to ensure the UI thread continues immediately
+      // 4. Close camera and update UI IMMEDIATELY
+      setShowCamera(false);
+      await loadShift(false);
+
+      // 5. Background: Sync to server (completely async, don't wait)
       const pairCode = activeShift?.pairCode;
       const photoPath = photo.uri;
       setTimeout(() => {
         if (pairCode) {
-          console.log('[SYNC] Starting background photo upload...');
-          photoToBase64DataUri(photoPath, 600, 0.6)  // Smaller size for faster upload
+          photoToBase64DataUri(photoPath, 600, 0.6)
             .then(base64Uri => {
-              if (!base64Uri || base64Uri.startsWith('file:')) {
-                console.error('[SYNC] Photo conversion failed, skipping sync');
-                return;
-              }
-              console.log('[SYNC] Uploading photo, size:', Math.round(base64Uri.length / 1024), 'KB');
+              if (!base64Uri || base64Uri.startsWith('file:')) return;
               return syncPhoto({
-                pairCode: pairCode,
+                pairCode,
                 photoUri: base64Uri,
                 latitude: lat,
                 longitude: lng,
-                accuracy: accuracy,
-                timestamp: timestamp,
-                address: address
+                accuracy,
+                timestamp,
+                address
               });
             })
-            .then(() => console.log('[SYNC] Photo uploaded successfully'))
             .catch(err => console.error('[SYNC] Photo upload failed:', err));
         }
-      }, 100);  // Small delay to let UI update first
-
-      // 5. Update UI immediately (no loading flash)
-      await loadShift(false);
-      setShowCamera(false);
+      }, 50);
 
     } catch (error) {
       console.error("Photo capture error:", error);
