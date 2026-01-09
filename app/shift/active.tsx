@@ -36,7 +36,7 @@ import { getSettings, canGenerateReport, incrementReportCount, canShareLiveView,
 import { router, useFocusEffect } from "expo-router";
 import { syncLocation, syncShiftEnd, syncPhoto, syncNote } from "@/lib/server-sync";
 import { uploadPhotoDirect, photoToBase64DataUri } from "@/lib/direct-upload";
-import { mapboxReverseGeocode, MapboxGeocodingResult } from "@/lib/mapbox";
+import { mapboxReverseGeocode } from "@/lib/mapbox";
 import { LeafletMap } from "@/components/LeafletMap";
 import { ScreenErrorBoundary } from "@/components/ScreenErrorBoundary";
 import { getFreshLocation } from "@/lib/fresh-location";
@@ -137,8 +137,8 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
           mapboxReverseGeocode(
             lastKnown.coords.latitude,
             lastKnown.coords.longitude
-          ).then((res: MapboxGeocodingResult | null) => {
-            if (res?.address) setCurrentAddress(res.address);
+          ).then((address: string) => {
+            if (address) setCurrentAddress(address);
           }).catch(() => { });
         }
 
@@ -152,8 +152,8 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
             mapboxReverseGeocode(
               freshLoc.coords.latitude,
               freshLoc.coords.longitude
-            ).then((res: MapboxGeocodingResult | null) => {
-              if (res?.address) setCurrentAddress(res.address);
+            ).then((address: string) => {
+              if (address) setCurrentAddress(address);
             }).catch(() => { });
           }
         }).catch(() => { });
