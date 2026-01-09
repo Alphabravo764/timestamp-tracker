@@ -467,6 +467,7 @@ export default function HistoryScreen() {
     const timelineEvents: Array<{
       type: 'start' | 'end' | 'photo' | 'note';
       time: string;
+      timestamp: number; // actual timestamp for sorting
       title: string;
       subtitle?: string;
       photo?: any;
@@ -477,29 +478,41 @@ export default function HistoryScreen() {
     timelineEvents.push({
       type: 'start',
       time: startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: startDate.getTime(),
       title: 'Shift Started',
       subtitle: selectedShift.staffName || 'Officer on duty'
     });
 
     // Add photos
     selectedShift.photos.forEach(photo => {
+      const photoDate = new Date(photo.timestamp);
       timelineEvents.push({
         type: 'photo',
-        time: new Date(photo.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        time: photoDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: photoDate.getTime(),
         title: 'Photo Evidence',
         subtitle: photo.address || 'Location recorded',
         photo
       });
     });
 
-    // Add notes
+    // Add notes with location
     if (selectedShift.notes) {
       selectedShift.notes.forEach(note => {
+        const noteDate = new Date(note.timestamp);
+        // Build subtitle with text and location
+        let noteSubtitle = note.text;
+        if (note.address) {
+          noteSubtitle += `\n📍 ${note.address}`;
+        } else if (note.location?.latitude && note.location?.longitude) {
+          noteSubtitle += `\n📍 ${note.location.latitude.toFixed(5)}, ${note.location.longitude.toFixed(5)}`;
+        }
         timelineEvents.push({
           type: 'note',
-          time: new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          time: noteDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          timestamp: noteDate.getTime(),
           title: 'Note Added',
-          subtitle: note.text,
+          subtitle: noteSubtitle,
           note
         });
       });
@@ -510,17 +523,14 @@ export default function HistoryScreen() {
       timelineEvents.push({
         type: 'end',
         time: endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: endDate.getTime(),
         title: 'Shift Ended',
         subtitle: 'Manual clock-out'
       });
     }
 
-    // Sort by time (newest first for display)
-    timelineEvents.sort((a, b) => {
-      const timeA = new Date(`2000-01-01 ${a.time}`).getTime();
-      const timeB = new Date(`2000-01-01 ${b.time}`).getTime();
-      return timeB - timeA;
-    });
+    // Sort by actual timestamp (oldest first for chronological order)
+    timelineEvents.sort((a, b) => a.timestamp - b.timestamp);
 
     return (
       <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
