@@ -562,13 +562,19 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
   }
 
   // Generate static map URL using Google Maps with location trail
-  const staticMapUrl = activeShift.locations.length > 0
-    ? generateMapboxStaticUrl(activeShift.locations.map(l => ({
-      latitude: l.latitude,
-      longitude: l.longitude,
-      accuracy: l.accuracy
-    })), 600, 300)
-    : null;
+  let staticMapUrl: string | null = null;
+  try {
+    if (activeShift.locations.length > 0) {
+      staticMapUrl = generateMapboxStaticUrl(activeShift.locations.map(l => ({
+        latitude: l.latitude,
+        longitude: l.longitude,
+        accuracy: l.accuracy
+      })), 600, 300);
+    }
+  } catch (mapError) {
+    console.warn('[Map] Failed to generate static map URL:', mapError);
+    staticMapUrl = null;
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -699,7 +705,12 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
         >
           <View style={styles.mapContainer}>
             {staticMapUrl ? (
-              <Image source={{ uri: staticMapUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              <Image
+                source={{ uri: staticMapUrl }}
+                style={StyleSheet.absoluteFill}
+                resizeMode="cover"
+                onError={(e) => console.warn('[Map Image] Load error:', e.nativeEvent?.error)}
+              />
             ) : (
               <View style={[styles.mapPlaceholder, { backgroundColor: colors.background }]}>
                 <View style={styles.mapPattern} />
