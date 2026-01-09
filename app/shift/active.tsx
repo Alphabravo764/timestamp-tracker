@@ -961,7 +961,7 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
                   }
                   setNoteText("");
                   setShowNotesModal(false);
-                  loadShift(); // Refresh shift data
+                  loadShift(false); // Refresh shift data without loading flash
                   if (Platform.OS !== "web") {
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                   }
