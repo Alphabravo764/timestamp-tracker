@@ -88,8 +88,12 @@ export async function uploadPhotoDirect(
 
         console.log('[Direct Upload] Upload successful');
 
-        // Step 4: Save metadata to database
-        const metadataPayload: PhotoMetadata = {
+        // Step 4: Get device ID for premium validation
+        const { getDeviceId } = await import('@/lib/settings-storage');
+        const deviceId = await getDeviceId();
+
+        // Step 5: Save metadata to database with deviceId for server-side premium check
+        const metadataPayload: PhotoMetadata & { deviceId: string } = {
             shiftId: metadata.shiftId,
             pairCode: metadata.pairCode,
             photoId: uploadData.photoId,
@@ -99,6 +103,7 @@ export async function uploadPhotoDirect(
             longitude: metadata.longitude,
             accuracy: metadata.accuracy,
             address: metadata.address,
+            deviceId, // For server-side premium validation
         };
 
         const metadataResponse = await fetch(`${API_BASE_URL}/api/sync/photo-metadata`, {

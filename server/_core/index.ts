@@ -9,6 +9,10 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { storagePut } from "../storage";
+import * as syncDb from "../sync-db.js";
+import { getDb } from "../db.js";
+import { sql, eq, and } from "drizzle-orm";
+import { photoEvents, premiumCodes, shifts } from "../../drizzle/schema.js";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -247,29 +251,96 @@ async function startServer() {
   // Photo metadata endpoint (for direct upload flow)
   app.post("/api/sync/photo-metadata", async (req, res) => {
     try {
-      const { pairCode, photoId, url, latitude, longitude, accuracy, timestamp, address } = req.body;
+      const { pairCode, photoId, url, latitude, longitude, accuracy, timestamp, address, deviceId } = req.body;
 
+      // ✅ Input validation
       if (!pairCode || !photoId || !url) {
         return res.status(400).json({ error: "pairCode, photoId, and url required" });
       }
 
-      // ✅ SERVER-SIDE PHOTO CAP ENFORCEMENT
-      const shift = await syncDb.getShiftByPairCode(pairCode);
-      if (!shift) {
+      // Validate pairCode format (XXX-XXX)
+      if (!/^[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(pairCode)) {
+        return res.status(400).json({ error: "Invalid pairCode format" });
+      }
+
+      // Validate photoId is UUID format
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(photoId)) {
+        return res.status(400).json({ error: "Invalid photoId format" });
+      }
+
+      // ✅ Rate limiting (per pairCode)
+      const rateLimitKey = `photo-${pairCode}`;
+      const uploadRequestCounts = (global as any)._photoMetadataRateLimits || new Map();
+      (global as any)._photoMetadataRateLimits = uploadRequestCounts;
+
+      const now = Date.now();
+      const record = uploadRequestCounts.get(rateLimitKey);
+      const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+      const MAX_REQUESTS_PER_WINDOW = 35; // Allow 35/min for photo metadata
+
+      if (!record || now > record.resetAt) {
+        uploadRequestCounts.set(rateLimitKey, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+      } else if (record.count >= MAX_REQUESTS_PER_WINDOW) {
+        return res.status(429).json({ error: "Rate limit exceeded. Too many photos uploaded." });
+      } else {
+        record.count++;
+      }
+
+      // Get shift for validation (query directly for numeric ID)
+      const db = await getDb();
+      if (!db) {
+        return res.status(500).json({ error: "Database unavailable" });
+      }
+
+      const shiftResult = await db
+        .select()
+        .from(shifts)
+        .where(eq(shifts.pairCode, pairCode.toUpperCase()))
+        .limit(1);
+
+      if (shiftResult.length === 0) {
         return res.status(404).json({ error: "Shift not found" });
       }
 
+      const shift = shiftResult[0];
       const TRIAL_PHOTO_LIMIT = 30;
-      const currentPhotoCount = shift.photos?.length || 0;
 
-      // Enforce trial limit (premium validation to be added with auth)
-      if (currentPhotoCount >= TRIAL_PHOTO_LIMIT) {
-        console.warn(`[Photo Cap] BLOCKED: ${pairCode} at ${currentPhotoCount}/${TRIAL_PHOTO_LIMIT} photos`);
+      // ✅ ATOMIC PHOTO COUNT QUERY (not array length!)
+
+      // Count photos for this shift atomically
+      const countResult = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(photoEvents)
+        .where(eq(photoEvents.shiftId, shift.id));
+
+      const currentPhotoCount = Number(countResult[0]?.count || 0);
+
+      // ✅ SERVER-SIDE PREMIUM VALIDATION (bound to deviceId)
+      let isPremium = false;
+      if (deviceId) {
+        const premiumCheck = await db
+          .select()
+          .from(premiumCodes)
+          .where(
+            and(
+              eq(premiumCodes.isUsed, true),
+              eq(premiumCodes.usedByDeviceId, deviceId)
+            )
+          )
+          .limit(1);
+
+        isPremium = premiumCheck.length > 0;
+      }
+
+      // Enforce trial limit (unless premium validated server-side)
+      if (!isPremium && currentPhotoCount >= TRIAL_PHOTO_LIMIT) {
+        console.warn(`[Photo Cap] BLOCKED: ${pairCode} at ${currentPhotoCount}/${TRIAL_PHOTO_LIMIT} (trial)`);
         return res.status(403).json({
           error: "Photo limit reached",
           message: `Trial limited to ${TRIAL_PHOTO_LIMIT} photos per shift. Upgrade to continue.`,
           currentCount: currentPhotoCount,
-          limit: TRIAL_PHOTO_LIMIT
+          limit: TRIAL_PHOTO_LIMIT,
+          isPremium: false
         });
       }
 
@@ -284,8 +355,9 @@ async function startServer() {
         address
       });
 
-      console.log(`[Photo Metadata] ✅ Saved ${pairCode}: ${currentPhotoCount + 1}/${TRIAL_PHOTO_LIMIT} photos`);
-      res.json({ success: true, photoId, url, currentCount: currentPhotoCount + 1 });
+      const tierLabel = isPremium ? 'premium' : 'trial';
+      console.log(`[Photo Metadata] ✅ Saved ${pairCode}: ${currentPhotoCount + 1}/${isPremium ? '∞' : TRIAL_PHOTO_LIMIT} (${tierLabel})`);
+      res.json({ success: true, photoId, url, currentCount: currentPhotoCount + 1, isPremium });
     } catch (error) {
       console.error("Photo metadata save error:", error);
       res.status(500).json({ error: "Failed to save photo metadata" });
