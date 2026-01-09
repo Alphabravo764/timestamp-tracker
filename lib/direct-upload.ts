@@ -3,7 +3,7 @@
  * No base64 conversion - uploads binary file directly to object storage
  */
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+import { getApiBaseUrl } from "@/constants/oauth";
 
 interface UploadUrlResponse {
     photoId: string;
@@ -52,7 +52,7 @@ export async function uploadPhotoDirect(
         console.log('[Direct Upload] isFileUri:', photoUri?.startsWith('file://'));
 
         // Step 1: Get presigned upload URL
-        const urlResponse = await fetch(`${API_BASE_URL}/api/upload-url`, {
+        const urlResponse = await fetch(`${getApiBaseUrl()}/api/upload-url`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -104,7 +104,7 @@ export async function uploadPhotoDirect(
             deviceId, // For server-side premium validation
         };
 
-        const metadataResponse = await fetch(`${API_BASE_URL}/api/sync/photo-metadata`, {
+        const metadataResponse = await fetch(`${getApiBaseUrl()}/api/sync/photo-metadata`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(metadataPayload),
