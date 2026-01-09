@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import crypto from "crypto";
 import { ENV } from "./_core/env";
+import { monitor } from "./monitoring.js";
 
 // Rate limiting map - in production, use Redis
 const uploadRequestCounts = new Map<string, { count: number; resetAt: number }>();
@@ -52,6 +53,9 @@ export async function createUploadUrl(req: Request, res: Response) {
                 error: "Rate limit exceeded. Please wait before uploading more photos."
             });
         }
+
+        // Track upload request
+        monitor.recordUpload();
 
         // Generate photo ID and key
         const photoId = crypto.randomUUID();

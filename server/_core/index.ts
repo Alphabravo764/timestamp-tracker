@@ -49,6 +49,13 @@ async function startServer() {
     next();
   });
 
+  // ---- Monitoring middleware ----
+  const { monitor, monitoringMiddleware } = await import("../monitoring.js");
+  app.use(monitoringMiddleware);
+
+  // Start periodic monitoring logs (every 5 minutes)
+  monitor.startPeriodicLogging();
+
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 

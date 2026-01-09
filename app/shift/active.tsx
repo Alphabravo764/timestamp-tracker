@@ -229,6 +229,22 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
   const capturePhoto = async () => {
     if (!cameraRef.current || processing) return;
 
+    // Photo cap for trial users (premium codes bypass this)
+    const settings = await getSettings();
+    const TRIAL_PHOTO_LIMIT = 30;
+
+    if (!settings?.isPremium && activeShift && activeShift.photos.length >= TRIAL_PHOTO_LIMIT) {
+      Alert.alert(
+        "Photo Limit Reached",
+        `Trial version limited to ${TRIAL_PHOTO_LIMIT} photos per shift. Please end this shift to continue, or upgrade with a premium code in Settings.`,
+        [
+          { text: "OK", style: "cancel" },
+          { text: "Go to Settings", onPress: () => router.push("/(tabs)/settings") }
+        ]
+      );
+      return;
+    }
+
     setProcessing(true);
     try {
       // 1. INSTANT photo capture
