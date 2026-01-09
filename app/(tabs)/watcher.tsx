@@ -101,132 +101,138 @@ export default function WatcherScreen() {
   const viewerUrl = selectedCode ? `${apiUrl}/viewer/${selectedCode}` : null;
 
   return (
-    <ScreenContainer className="flex-1">
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* Header */}
-        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-          <Text style={[styles.title, { color: colors.foreground }]}>Watch Shifts</Text>
-          <Text style={[styles.subtitle, { color: colors.muted }]}>
-            Enter a pair code to watch a live shift
-          </Text>
-        </View>
-
-        {/* Input Section */}
-        <View style={[styles.inputSection, { backgroundColor: colors.surface }]}>
-          <TextInput
-            style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
-            placeholder="Enter pair code (e.g., ABC123)"
-            placeholderTextColor={colors.muted}
-            value={pairCode}
-            onChangeText={(text) => {
-              // Sanitize input: uppercase, alphanumeric only, max 6 chars
-              const sanitized = text.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
-              setPairCode(sanitized);
-            }}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            maxLength={6}
-            keyboardType="default"
-          />
-          <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: colors.primary }]}
-            onPress={handleAddCode}
-          >
-            <Text style={[styles.addButtonText, { color: colors.background }]}>Add</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Watched Codes List */}
-        {watchedCodes.length > 0 && (
-          <View style={[styles.codesSection, { borderBottomColor: colors.border }]}>
-            <Text style={[styles.codesLabel, { color: colors.muted }]}>Watching:</Text>
-            <View style={styles.codesRow}>
-              {watchedCodes.map((code) => (
-                <TouchableOpacity
-                  key={code}
-                  style={[
-                    styles.codeChip,
-                    {
-                      backgroundColor: selectedCode === code ? colors.primary : colors.surface,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                  onPress={() => setSelectedCode(code)}
-                  onLongPress={() => handleRemoveCode(code)}
-                >
-                  <Text
-                    style={[
-                      styles.codeChipText,
-                      { color: selectedCode === code ? colors.background : colors.foreground },
-                    ]}
-                  >
-                    {code}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <Text style={[styles.hint, { color: colors.muted }]}>
-              Tap to view
+    <ScreenContainer style={styles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+          {/* Header */}
+          <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+            <Text style={[styles.title, { color: colors.foreground }]}>Watch Shifts</Text>
+            <Text style={[styles.subtitle, { color: colors.muted }]}>
+              Enter a pair code to watch a live shift
             </Text>
           </View>
-        )}
 
-        {/* Selected Code Actions */}
-        {selectedCode && (
-          <View style={[styles.selectedCodeActions, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-            <Text style={[styles.selectedLabel, { color: colors.muted }]}>Selected:</Text>
-            <Text style={[styles.selectedCodeText, { color: colors.primary }]}>{selectedCode}</Text>
-            <TouchableOpacity
-              style={[styles.deleteButton, { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }]}
-              onPress={() => handleRemoveCode(selectedCode)}
-            >
-              <Text style={[styles.deleteButtonText, { color: '#dc2626' }]}>Remove</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* WebView or Link */}
-        {viewerUrl ? (
-          Platform.OS === "web" ? (
-            <View style={[styles.webLinkContainer, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.webLinkTitle, { color: colors.foreground }]}>
-                🌐 Web Preview
-              </Text>
-              <Text style={[styles.webLinkSubtitle, { color: colors.muted }]}>
-                WebView is only available on iOS and Android devices.
-                Open the viewer in a new tab instead.
-              </Text>
-              <TouchableOpacity
-                style={[styles.openButton, { backgroundColor: colors.primary }]}
-                onPress={() => Linking.openURL(viewerUrl)}
-              >
-                <Text style={[styles.openButtonText, { color: colors.background }]}>
-                  Open Viewer in New Tab
-                </Text>
-              </TouchableOpacity>
-              <Text style={[styles.viewerUrl, { color: colors.muted }]}>
-                {viewerUrl}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.webviewContainer}>
-              <WebView
-                source={{ uri: viewerUrl }}
-                style={styles.webview}
-                startInLoadingState
-                javaScriptEnabled
-                domStorageEnabled
+          <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+            {/* Input Section */}
+            <View style={[styles.inputSection, { backgroundColor: colors.surface }]}>
+              <TextInput
+                style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+                placeholder="Enter pair code (e.g., ABC123)"
+                placeholderTextColor={colors.muted}
+                value={pairCode}
+                onChangeText={(text) => {
+                  // Sanitize input: uppercase, alphanumeric only, max 6 chars
+                  const sanitized = text.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+                  setPairCode(sanitized);
+                }}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={6}
+                keyboardType="default"
               />
+              <TouchableOpacity
+                style={[styles.addButton, { backgroundColor: colors.primary }]}
+                onPress={handleAddCode}
+              >
+                <Text style={[styles.addButtonText, { color: colors.background }]}>Add</Text>
+              </TouchableOpacity>
             </View>
-          )
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={[styles.emptyText, { color: colors.muted }]}>
-              👁️ Add a pair code to start watching
-            </Text>
-          </View>
-        )}
-      </View>
+
+            {/* Watched Codes List */}
+            {watchedCodes.length > 0 && (
+              <View style={[styles.codesSection, { borderBottomColor: colors.border }]}>
+                <Text style={[styles.codesLabel, { color: colors.muted }]}>Watching:</Text>
+                <View style={styles.codesRow}>
+                  {watchedCodes.map((code) => (
+                    <TouchableOpacity
+                      key={code}
+                      style={[
+                        styles.codeChip,
+                        {
+                          backgroundColor: selectedCode === code ? colors.primary : colors.surface,
+                          borderColor: colors.border,
+                        },
+                      ]}
+                      onPress={() => setSelectedCode(code)}
+                    >
+                      <Text
+                        style={[
+                          styles.codeChipText,
+                          { color: selectedCode === code ? colors.background : colors.foreground },
+                        ]}
+                      >
+                        {code}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={[styles.hint, { color: colors.muted }]}>
+                  Tap to view
+                </Text>
+              </View>
+            )}
+
+            {/* Selected Code Actions */}
+            {selectedCode && (
+              <View style={[styles.selectedCodeActions, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+                <Text style={[styles.selectedLabel, { color: colors.muted }]}>Selected:</Text>
+                <Text style={[styles.selectedCodeText, { color: colors.primary }]}>{selectedCode}</Text>
+                <TouchableOpacity
+                  style={[styles.deleteButton, { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }]}
+                  onPress={() => handleRemoveCode(selectedCode)}
+                >
+                  <Text style={[styles.deleteButtonText, { color: '#dc2626' }]}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* WebView or Link */}
+            {viewerUrl ? (
+              Platform.OS === "web" ? (
+                <View style={[styles.webLinkContainer, { backgroundColor: colors.surface }]}>
+                  <Text style={[styles.webLinkTitle, { color: colors.foreground }]}>
+                    🌐 Web Preview
+                  </Text>
+                  <Text style={[styles.webLinkSubtitle, { color: colors.muted }]}>
+                    WebView is only available on iOS and Android devices.
+                    Open the viewer in a new tab instead.
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.openButton, { backgroundColor: colors.primary }]}
+                    onPress={() => Linking.openURL(viewerUrl)}
+                  >
+                    <Text style={[styles.openButtonText, { color: colors.background }]}>
+                      Open Viewer in New Tab
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={[styles.viewerUrl, { color: colors.muted }]}>
+                    {viewerUrl}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.webviewContainer}>
+                  <WebView
+                    source={{ uri: viewerUrl }}
+                    style={styles.webview}
+                    startInLoadingState
+                    javaScriptEnabled
+                    domStorageEnabled
+                  />
+                </View>
+              )
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={[styles.emptyText, { color: colors.muted }]}>
+                  👁️ Add a pair code to start watching
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </ScreenContainer>
   );
 }

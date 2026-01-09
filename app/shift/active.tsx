@@ -245,7 +245,8 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
       const timestamp = new Date(now).toISOString();
 
       // Use getFreshLocation which enforces freshness rules
-      const freshLoc = await getFreshLocation();
+      // Timeout after 3s to keep UI snappy (will fallback to cache if needed)
+      const freshLoc = await getFreshLocation({ timeout: 3000 });
 
       let address = freshLoc?.address || "Location unavailable";
       let lat = freshLoc?.latitude || 0;
@@ -945,8 +946,8 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
               }}
               onPress={async () => {
                 if (noteText.trim()) {
-                  // Get fresh location for this note
-                  const freshLoc = await getFreshLocation();
+                  // Get fresh location for this note (fast timeout)
+                  const freshLoc = await getFreshLocation({ timeout: 2000 });
                   console.log('[Note] Fresh location captured:', freshLoc);
 
                   // Pass location to addNoteToShift

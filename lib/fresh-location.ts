@@ -21,58 +21,82 @@ export interface FreshLocation {
  * Get a fresh GPS location with reverse geocoding.
  * Enforces freshness rules: rejects stale or inaccurate locations.
  */
-export async function getFreshLocation(): Promise<FreshLocation | null> {
+export async function getFreshLocation(options: { timeout?: number } = {}): Promise<FreshLocation | null> {
     try {
-        // Always request a fresh fix, NOT cached
-        const location = await Location.getCurrentPositionAsync({
+        const { timeout = LOCATION_CONFIG.TIMEOUT_MS } = options;
+        const now = Date.now();
+
+        // 1. Try last known position first (FASTEST)
+        const lastKnown = await Location.getLastKnownPositionAsync({
+            maxAge: LOCATION_CONFIG.MAX_AGE_MS,
+            requiredAccuracy: LOCATION_CONFIG.MAX_ACCURACY_M
+        });
+
+        if (lastKnown) {
+            const age = now - lastKnown.timestamp;
+            if (age < LOCATION_CONFIG.MAX_AGE_MS && (lastKnown.coords.accuracy || 100) < LOCATION_CONFIG.MAX_ACCURACY_M) {
+                console.log(`[Location] Using fresh cache (${Math.round(age / 1000)}s old)`);
+                return processLocation(lastKnown);
+            }
+        }
+
+        // 2. Request fresh fix if cache is stale/missing
+        // Promise.race to enforce timeout
+        const locationPromise = Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.High,
             timeInterval: 0,
             distanceInterval: 0,
         });
 
-        // Validate freshness
-        const now = Date.now();
-        const locationAge = now - location.timestamp;
+        const location = await Promise.race([
+            locationPromise,
+            new Promise<null>((_, reject) =>
+                setTimeout(() => reject(new Error('Location timeout')), timeout)
+            )
+        ]) as Location.LocationObject;
 
-        if (locationAge > LOCATION_CONFIG.MAX_AGE_MS) {
-            console.warn(`[Location] Rejected: too old (${Math.round(locationAge / 1000)}s)`);
-            return createFallbackLocation(location);
-        }
+        return processLocation(location);
 
-        if (location.coords.accuracy && location.coords.accuracy > LOCATION_CONFIG.MAX_ACCURACY_M) {
-            console.warn(`[Location] Warning: low accuracy (${Math.round(location.coords.accuracy)}m)`);
-            // Don't reject, just log - we still use it but note the accuracy
-        }
-
-        // Reverse geocode from these exact coordinates
-        let address = `${location.coords.latitude.toFixed(5)}, ${location.coords.longitude.toFixed(5)}`;
-        let postcode = '';
-
-        try {
-            const geocodeResult = await reverseGeocodeMapbox(
-                location.coords.latitude,
-                location.coords.longitude
-            );
-            if (geocodeResult) {
-                address = geocodeResult.address || address;
-                postcode = geocodeResult.postcode || '';
-            }
-        } catch (geoError) {
-            console.warn('[Location] Geocode failed, using coordinates:', geoError);
-        }
-
-        return {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            accuracy: location.coords.accuracy || 0,
-            capturedAt: now,
-            address,
-            postcode,
-        };
     } catch (error) {
         console.error('[Location] Failed to get fresh location:', error);
+        // Fallback to whatever last known location we have, even if stale (better than nothing)
+        const fallback = await Location.getLastKnownPositionAsync({});
+        if (fallback) {
+            console.warn('[Location] Using stale fallback due to error');
+            return processLocation(fallback);
+        }
         return null;
     }
+}
+
+async function processLocation(location: Location.LocationObject): Promise<FreshLocation> {
+    const now = Date.now();
+
+    // Reverse geocode from these exact coordinates
+    let address = `${location.coords.latitude.toFixed(5)}, ${location.coords.longitude.toFixed(5)}`;
+    let postcode = '';
+
+    try {
+        const geocodeResult = await reverseGeocodeMapbox(
+            location.coords.latitude,
+            location.coords.longitude
+        );
+        if (geocodeResult) {
+            address = geocodeResult.address || address;
+            postcode = geocodeResult.postcode || '';
+        }
+    } catch (geoError) {
+        console.warn('[Location] Geocode failed, using coordinates:', geoError);
+    }
+
+    return {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        accuracy: location.coords.accuracy || 0,
+        capturedAt: now, // Use current time as capture time for the event
+        address,
+        postcode,
+    };
 }
 
 /**

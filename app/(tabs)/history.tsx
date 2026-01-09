@@ -818,10 +818,10 @@ export default function HistoryScreen() {
   };
 
   return (
-    <ScreenContainer className="flex-1">
-      <View className="p-6 pb-0">
-        <Text className="text-3xl font-bold text-foreground mb-2">Shift History</Text>
-        <Text className="text-muted mb-4">View past shifts and generate reports</Text>
+    <ScreenContainer style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Shift History</Text>
+        <Text style={styles.subtitle}>View past shifts and generate reports</Text>
       </View>
 
       {shifts.length === 0 ? (
@@ -1229,5 +1229,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  container: {
+    flex: 1,
+  },
+  header: {
+    padding: 24,
+    paddingBottom: 0,
+  },
+  title: {
+    fontSize: 28, // text-3xl
+    fontWeight: '700', // font-bold
+    color: '#0f172a', // text-foreground
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#64748b', // text-muted
+    marginBottom: 16,
   },
 });
