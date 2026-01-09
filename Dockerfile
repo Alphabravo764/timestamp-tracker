@@ -1,13 +1,9 @@
-FROM node:22-alpine
-
-# Install dependencies for sharp on Alpine
-RUN apk add --no-cache vips-dev build-base
+FROM node:22-slim
 
 WORKDIR /app
 
 COPY package.json package-lock.json ./
 
-# Install all dependencies including sharp for Linux/musl
 RUN npm ci
 
 COPY . .
