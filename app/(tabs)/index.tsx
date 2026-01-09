@@ -26,7 +26,7 @@ import {
 } from "@/lib/shift-storage";
 import { getTemplates, useTemplate, type ShiftTemplate } from "@/lib/shift-templates";
 import { syncShiftStart } from "@/lib/server-sync";
-import ActiveShiftScreen from "../shift/active";
+import { Redirect } from "expo-router";
 import { getSettings, canStartShift, incrementShiftCount, TRIAL_LIMITS, getPremiumStatus, PremiumStatus } from "@/lib/settings-storage";
 import { useColors } from "@/hooks/use-colors";
 import StampiaLogo from "@/components/stampia-logo";
@@ -267,7 +267,7 @@ export default function HomeScreen() {
 
     // 1. Active Shift View
     if (activeShift) {
-        return <ActiveShiftScreen onShiftEnd={() => setActiveShift(null)} />;
+        return <Redirect href="/shift/active" />;
     }
 
     // 2. Main Dashboard (OFF DUTY VIEW) with Modal Popup
