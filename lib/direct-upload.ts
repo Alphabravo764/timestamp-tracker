@@ -31,6 +31,9 @@ interface PhotoMetadata {
  * @param metadata - Photo metadata (location, timestamp, etc)
  * @returns Public URL of uploaded photo
  */
+import * as FileSystem from 'expo-file-system';
+// ... (other imports)
+
 export async function uploadPhotoDirect(
     photoUri: string,
     metadata: {
@@ -45,6 +48,8 @@ export async function uploadPhotoDirect(
 ): Promise<string> {
     try {
         console.log('[Direct Upload] Starting upload for:', metadata.pairCode);
+        console.log('[Direct Upload] photoPath:', photoUri);
+        console.log('[Direct Upload] isFileUri:', photoUri?.startsWith('file://'));
 
         // Step 1: Get presigned upload URL
         const urlResponse = await fetch(`${API_BASE_URL}/api/upload-url`, {
@@ -64,29 +69,22 @@ export async function uploadPhotoDirect(
 
         const uploadData: UploadUrlResponse = await urlResponse.json();
         console.log('[Direct Upload] Got upload URL, photoId:', uploadData.photoId);
+        console.log('[Direct Upload] Upload URL HTTPS:', uploadData.uploadUrl.startsWith('https://'));
 
-        // Step 2: Read photo as blob (no base64!)
-        const fileResponse = await fetch(photoUri);
-        if (!fileResponse.ok) {
-            throw new Error('Failed to read photo file');
-        }
-        const blob = await fileResponse.blob();
-        console.log('[Direct Upload] Photo blob size:', Math.round(blob.size / 1024), 'KB');
-
-        // Step 3: Upload directly to storage via presigned URL
-        const uploadResponse = await fetch(uploadData.uploadUrl, {
-            method: 'PUT',
+        // Step 2 & 3: Upload directly using FileSystem (more robust for RN)
+        const uploadResult = await FileSystem.uploadAsync(uploadData.uploadUrl, photoUri, {
+            httpMethod: 'PUT',
+            uploadType: 0 as any, // FileSystem.FileSystemUploadType.BINARY_CONTENT
             headers: {
                 'Content-Type': 'image/jpeg',
             },
-            body: blob,
         });
 
-        if (!uploadResponse.ok) {
-            throw new Error(`Upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
+        if (uploadResult.status < 200 || uploadResult.status >= 300) {
+            throw new Error(`Upload failed: ${uploadResult.status} ${uploadResult.body?.slice(0, 200)}`);
         }
 
-        console.log('[Direct Upload] Upload successful');
+        console.log('[Direct Upload] Upload successful (FileSystem.uploadAsync)');
 
         // Step 4: Get device ID for premium validation
         const { getDeviceId } = await import('@/lib/settings-storage');
@@ -120,8 +118,10 @@ export async function uploadPhotoDirect(
         console.log('[Direct Upload] Complete, URL:', uploadData.publicUrl);
         return uploadData.publicUrl;
 
-    } catch (error) {
-        console.error('[Direct Upload] Error:', error);
+    } catch (error: any) {
+        console.error('[Direct Upload] Error name:', error?.name);
+        console.error('[Direct Upload] Error message:', error?.message);
+        console.error('[Direct Upload] Raw error:', error);
         throw error;
     }
 }
