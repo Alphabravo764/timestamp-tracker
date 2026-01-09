@@ -2,7 +2,11 @@
  * Mapbox utilities for static maps and geocoding
  */
 
-const MAPBOX_TOKEN = 'pk.eyJ1IjoiYWJkdWxic2lhbDExMjIiLCJhIjoiY21qenJjZjN3NjhrejNlcXh0NTE2M3RhaCJ9.WKftvZP3RnQoncVDdDfBiw';
+const MAPBOX_TOKEN = process.env.MAPBOX_ACCESS_TOKEN;
+
+if (!MAPBOX_TOKEN) {
+    console.error('[Mapbox] MAPBOX_ACCESS_TOKEN environment variable not set');
+}
 
 export interface MapboxGeocodingResult {
     address: string;

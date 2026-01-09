@@ -4,8 +4,12 @@ import { storagePut } from "./storage";
 import crypto from "crypto";
 import https from "https";
 
-// Mapbox token (same as lib/mapbox.ts)
-const MAPBOX_TOKEN = 'pk.eyJ1IjoiYWJkdWxic2lhbDExMjIiLCJhIjoiY21qenJjZjN3NjhrejNlcXh0NTE2M3RhaCJ9.WKftvZP3RnQoncVDdDfBiw';
+// Mapbox token from environment (never hardcode!)
+const MAPBOX_TOKEN = process.env.MAPBOX_ACCESS_TOKEN || '';
+
+if (!MAPBOX_TOKEN) {
+  console.warn('[PDF Generator] MAPBOX_ACCESS_TOKEN not set - maps will not render');
+}
 
 interface ShiftReportData {
   shift: {
