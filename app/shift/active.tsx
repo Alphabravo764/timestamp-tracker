@@ -67,8 +67,11 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   // Load shift from LOCAL storage (source of truth)
-  const loadShift = useCallback(async () => {
-    setIsLoading(true);
+  // showLoading: false prevents the loading flash when just refreshing data (e.g. after photo)
+  const loadShift = useCallback(async (showLoading: boolean = true) => {
+    if (showLoading) {
+      setIsLoading(true);
+    }
     try {
       const shift = await getLocalActiveShift();
       if (shift && shift.isActive) {
@@ -80,7 +83,9 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
       console.error("Failed to load shift:", e);
       setActiveShift(null);
     } finally {
-      setIsLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
@@ -300,8 +305,8 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
         }
       }, 100);  // Small delay to let UI update first
 
-      // 5. Update UI immediately
-      await loadShift();
+      // 5. Update UI immediately (no loading flash)
+      await loadShift(false);
       setShowCamera(false);
 
     } catch (error) {
