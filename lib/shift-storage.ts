@@ -139,12 +139,28 @@ export const addPhotoToShift = async (photo: ShiftPhoto): Promise<Shift | null> 
     console.log("[addPhotoToShift] Adding photo:", photo.id, photo.uri);
 
     shift.photos.push(photo);
-    await AsyncStorage.setItem(ACTIVE_SHIFT_KEY, JSON.stringify(shift));
-    console.log("Photo added to shift:", photo.id);
-    return shift;
+
+    // Try to save, catch quota exceeded errors
+    try {
+      const shiftJson = JSON.stringify(shift);
+      console.log(`[addPhotoToShift] Shift size: ${Math.round(shiftJson.length / 1024)}KB`);
+
+      await AsyncStorage.setItem(ACTIVE_SHIFT_KEY, shiftJson);
+      console.log("Photo added to shift:", photo.id);
+      return shift;
+    } catch (storageError: any) {
+      // Handle quota exceeded error
+      if (storageError?.message?.includes('quota') || storageError?.message?.includes('storage')) {
+        console.error('[addPhotoToShift] Storage quota exceeded, photo count:', shift.photos.length);
+        // Remove the photo we just added since storage failed
+        shift.photos.pop();
+        throw new Error(`Storage limit reached. Please end shift and start a new one.`);
+      }
+      throw storageError;
+    }
   } catch (error) {
     console.error("Error adding photo:", error);
-    return null;
+    throw error; // Re-throw so caller can handle it
   }
 };
 

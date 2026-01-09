@@ -259,22 +259,37 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
 
       // 3. Save photo IMMEDIATELY with cached location
       const photoId = `photo_${now}`;
-      await addPhotoToShift({
-        id: photoId,
-        uri: photo.uri,
-        timestamp,
-        location: lat && lng ? {
-          latitude: lat,
-          longitude: lng,
-          timestamp: timestamp,
-          accuracy: accuracy
-        } : null,
-        address
-      });
+
+      try {
+        await addPhotoToShift({
+          id: photoId,
+          uri: photo.uri,
+          timestamp,
+          location: lat && lng ? {
+            latitude: lat,
+            longitude: lng,
+            timestamp: timestamp,
+            accuracy: accuracy
+          } : null,
+          address
+        });
+        console.log('[Photo] Photo saved successfully:', photoId);
+      } catch (saveError) {
+        console.error('[Photo] Failed to save photo:', saveError);
+        Alert.alert("Storage Error", "Failed to save photo. Please try again.");
+        setProcessing(false);
+        return;
+      }
 
       // 4. Close camera and update UI IMMEDIATELY
       setShowCamera(false);
-      await loadShift(false);
+
+      try {
+        await loadShift(false);
+      } catch (loadError) {
+        console.error('[Photo] Failed to reload shift:', loadError);
+        // Continue anyway - photo is saved
+      }
 
       // 5. Background: Sync to server (completely async, don't wait)
       const pairCode = activeShift?.pairCode;
@@ -300,7 +315,7 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
 
     } catch (error) {
       console.error("Photo capture error:", error);
-      Alert.alert("Error", "Failed to capture photo");
+      Alert.alert("Error", `Failed to capture photo: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setProcessing(false);
     }
