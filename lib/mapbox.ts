@@ -5,7 +5,8 @@
 const MAPBOX_TOKEN = process.env.MAPBOX_ACCESS_TOKEN;
 
 if (!MAPBOX_TOKEN) {
-    console.error('[Mapbox] MAPBOX_ACCESS_TOKEN environment variable not set');
+    // Mobile app doesn't need Mapbox token - maps are rendered server-side
+    console.warn('[Mapbox] Token not set (OK for mobile app, required for server)');
 }
 
 export interface MapboxGeocodingResult {
