@@ -529,8 +529,8 @@ export default function HistoryScreen() {
       });
     }
 
-    // Sort by actual timestamp (oldest first for chronological order)
-    timelineEvents.sort((a, b) => a.timestamp - b.timestamp);
+    // Sort by timestamp: NEWEST FIRST (reverse chronological)
+    timelineEvents.sort((a, b) => b.timestamp - a.timestamp);
 
     return (
       <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>

@@ -160,11 +160,11 @@ export const generatePdfHtml = async (shift: Shift, isInterim?: boolean): Promis
     });
   }
 
-  // Sort by time
+  // Sort by time: NEWEST FIRST (reverse chronological)
   timeline.sort((a, b) => {
     const tA = new Date(`2000-01-01 ${a.time}`).getTime();
     const tB = new Date(`2000-01-01 ${b.time}`).getTime();
-    return tA - tB;
+    return tB - tA; // Newest first
   });
 
   return `<!DOCTYPE html>
