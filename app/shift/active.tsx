@@ -564,11 +564,12 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
   // Generate static map URL using Google Maps with location trail
   let staticMapUrl: string | null = null;
   try {
-    if (activeShift.locations.length > 0) {
-      staticMapUrl = generateMapboxStaticUrl(activeShift.locations.map(l => ({
-        latitude: l.latitude,
-        longitude: l.longitude,
-        accuracy: l.accuracy
+    const locations = activeShift?.locations || [];
+    if (locations.length > 0) {
+      staticMapUrl = generateMapboxStaticUrl(locations.map(l => ({
+        latitude: l?.latitude || 0,
+        longitude: l?.longitude || 0,
+        accuracy: l?.accuracy || 0
       })), 600, 300);
     }
   } catch (mapError) {
