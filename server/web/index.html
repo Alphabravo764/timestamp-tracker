@@ -554,6 +554,123 @@
             object-fit: cover;
         }
 
+        /* How it Works Section */
+        .how-it-works-section {
+            padding: 100px 24px;
+            background: #fafafa;
+        }
+
+        .how-it-works-container {
+            max-width: 680px;
+            margin: 0 auto;
+        }
+
+        .how-it-works-title {
+            font-size: clamp(32px, 5vw, 48px);
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 12px;
+            color: #1d1d1f;
+        }
+
+        .how-it-works-subtitle {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 18px;
+            margin-bottom: 60px;
+        }
+
+        .steps-timeline {
+            position: relative;
+            padding-left: 60px;
+        }
+
+        /* Vertical line connecting steps */
+        .steps-timeline::before {
+            content: '';
+            position: absolute;
+            left: 24px;
+            top: 48px;
+            bottom: 48px;
+            width: 2px;
+            background: #e5e5e5;
+        }
+
+        .step-item {
+            position: relative;
+            margin-bottom: 48px;
+        }
+
+        .step-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .step-number {
+            position: absolute;
+            left: -60px;
+            top: 0;
+            width: 48px;
+            height: 48px;
+            background: white;
+            border: 2px solid #e5e5e5;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1d1d1f;
+            z-index: 1;
+        }
+
+        .step-content h3 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1d1d1f;
+            margin-bottom: 8px;
+            padding-top: 8px;
+        }
+
+        .step-content p {
+            color: var(--text-secondary);
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 640px) {
+            .how-it-works-section {
+                padding: 60px 20px;
+            }
+
+            .steps-timeline {
+                padding-left: 50px;
+            }
+
+            .steps-timeline::before {
+                left: 18px;
+            }
+
+            .step-number {
+                left: -50px;
+                width: 36px;
+                height: 36px;
+                font-size: 14px;
+            }
+
+            .step-content h3 {
+                font-size: 18px;
+                padding-top: 4px;
+            }
+
+            .step-content p {
+                font-size: 14px;
+            }
+
+            .step-item {
+                margin-bottom: 36px;
+            }
+        }
+
         /* App Gallery */
         .gallery-section {
             padding: 100px 24px;
@@ -972,6 +1089,70 @@
                     </div>
                     <h3>Live Sharing.</h3>
                     <p>Give clients peace of mind with a secure live tracking link.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How it Works Section -->
+    <section class="how-it-works-section">
+        <div class="how-it-works-container">
+            <h2 class="how-it-works-title">How it works.</h2>
+            <p class="how-it-works-subtitle">From arrival to approval in six simple steps.</p>
+
+            <div class="steps-timeline">
+                <div class="step-item">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>Check In</h3>
+                        <p>Start your site visit with a single tap. We securely log your precision GPS coordinates and
+                            device time instantly.</p>
+                    </div>
+                </div>
+
+                <div class="step-item">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>Add Notes</h3>
+                        <p>Append critical context. Add job codes, client references, or specific observations directly
+                            to the timestamp record.</p>
+                    </div>
+                </div>
+
+                <div class="step-item">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3>Timestamp Photos</h3>
+                        <p>Capture the moment. Take secure, watermarked photos that prove exactly what was done, when,
+                            and where.</p>
+                    </div>
+                </div>
+
+                <div class="step-item">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <h3>Share Live Views</h3>
+                        <p>Keep stakeholders in the loop. Share a secure, real-time link to your current status without
+                            giving up total privacy.</p>
+                    </div>
+                </div>
+
+                <div class="step-item">
+                    <div class="step-number">5</div>
+                    <div class="step-content">
+                        <h3>Generate PDFs</h3>
+                        <p>Need a receipt? Generate a professional, cryptographically signed PDF summary of your visit
+                            on the spot.</p>
+                    </div>
+                </div>
+
+                <div class="step-item">
+                    <div class="step-number">6</div>
+                    <div class="step-content">
+                        <h3>Generate Reports</h3>
+                        <p>Close the loop. Aggregate data into comprehensive compliance reports for payroll and billing
+                            at the end of the week.</p>
+                    </div>
                 </div>
             </div>
         </div>
