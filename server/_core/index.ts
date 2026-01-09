@@ -258,9 +258,16 @@ async function startServer() {
         return res.status(400).json({ error: "pairCode, photoId, and url required" });
       }
 
-      // Validate pairCode format (XXX-XXX)
-      if (!/^[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(pairCode)) {
-        return res.status(400).json({ error: "Invalid pairCode format" });
+      // Normalize pairCode: accept XXXXXX or XXX-XXX, convert to XXX-XXX
+      let normalizedPairCode = pairCode.toUpperCase().replace(/-/g, '');
+      if (!/^[A-Z0-9]{6}$/.test(normalizedPairCode)) {
+        return res.status(400).json({ error: "Invalid pairCode format (must be 6 characters)" });
+      }
+      // Add hyphen if missing
+      if (!pairCode.includes('-')) {
+        normalizedPairCode = `${normalizedPairCode.slice(0, 3)}-${normalizedPairCode.slice(3)}`;
+      } else {
+        normalizedPairCode = pairCode.toUpperCase();
       }
 
       // Validate photoId is UUID format
@@ -269,7 +276,7 @@ async function startServer() {
       }
 
       // ✅ Rate limiting (per pairCode)
-      const rateLimitKey = `photo-${pairCode}`;
+      const rateLimitKey = `photo-${normalizedPairCode}`;
       const uploadRequestCounts = (global as any)._photoMetadataRateLimits || new Map();
       (global as any)._photoMetadataRateLimits = uploadRequestCounts;
 
@@ -295,7 +302,7 @@ async function startServer() {
       const shiftResult = await db
         .select()
         .from(shifts)
-        .where(eq(shifts.pairCode, pairCode.toUpperCase()))
+        .where(eq(shifts.pairCode, normalizedPairCode))
         .limit(1);
 
       if (shiftResult.length === 0) {
@@ -334,7 +341,7 @@ async function startServer() {
 
       // Enforce trial limit (unless premium validated server-side)
       if (!isPremium && currentPhotoCount >= TRIAL_PHOTO_LIMIT) {
-        console.warn(`[Photo Cap] BLOCKED: ${pairCode} at ${currentPhotoCount}/${TRIAL_PHOTO_LIMIT} (trial)`);
+        console.warn(`[Photo Cap] BLOCKED: ${normalizedPairCode} at ${currentPhotoCount}/${TRIAL_PHOTO_LIMIT} (trial)`);
         return res.status(403).json({
           error: "Photo limit reached",
           message: `Trial limited to ${TRIAL_PHOTO_LIMIT} photos per shift. Upgrade to continue.`,
@@ -346,7 +353,7 @@ async function startServer() {
 
       // Save photo metadata to database
       await syncDb.addPhoto({
-        pairCode,
+        pairCode: normalizedPairCode,
         photoUri: url,
         latitude,
         longitude,
@@ -356,7 +363,7 @@ async function startServer() {
       });
 
       const tierLabel = isPremium ? 'premium' : 'trial';
-      console.log(`[Photo Metadata] ✅ Saved ${pairCode}: ${currentPhotoCount + 1}/${isPremium ? '∞' : TRIAL_PHOTO_LIMIT} (${tierLabel})`);
+      console.log(`[Photo Metadata] ✅ Saved ${normalizedPairCode}: ${currentPhotoCount + 1}/${isPremium ? '∞' : TRIAL_PHOTO_LIMIT} (${tierLabel})`);
       res.json({ success: true, photoId, url, currentCount: currentPhotoCount + 1, isPremium });
     } catch (error) {
       console.error("Photo metadata save error:", error);
