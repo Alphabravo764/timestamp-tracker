@@ -35,7 +35,7 @@ import type { Shift } from "@/lib/shift-types";
 import { getSettings, canGenerateReport, incrementReportCount, canShareLiveView, incrementLiveShareCount } from "@/lib/settings-storage";
 import { router, useFocusEffect } from "expo-router";
 import { syncLocation, syncShiftEnd, syncPhoto, syncNote } from "@/lib/server-sync";
-import { photoToBase64DataUri } from "@/lib/photo-to-base64";
+import { uploadPhotoDirect, photoToBase64DataUri } from "@/lib/direct-upload";
 import { mapboxReverseGeocode, generateMapboxStaticUrl } from "@/lib/mapbox";
 import { getFreshLocation } from "@/lib/fresh-location";
 import { LinearGradient } from "expo-linear-gradient";
@@ -291,27 +291,45 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
         // Continue anyway - photo is saved
       }
 
-      // 5. Background: Sync to server (completely async, don't wait)
+      // 5. Background: Direct upload to storage (no base64!)
       const pairCode = activeShift?.pairCode;
+      const shiftId = activeShift?.id;
       const photoPath = photo.uri;
-      setTimeout(() => {
-        if (pairCode) {
-          photoToBase64DataUri(photoPath, 600, 0.6)
-            .then(base64Uri => {
-              if (!base64Uri || base64Uri.startsWith('file:')) return;
-              return syncPhoto({
-                pairCode,
-                photoUri: base64Uri,
-                latitude: lat,
-                longitude: lng,
-                accuracy,
-                timestamp,
-                address
-              });
+
+      if (pairCode && shiftId) {
+        setTimeout(() => {
+          uploadPhotoDirect(photoPath, {
+            shiftId,
+            pairCode,
+            timestamp,
+            latitude: lat,
+            longitude: lng,
+            accuracy,
+            address
+          })
+            .then((publicUrl) => {
+              console.log('[Direct Upload] Photo uploaded successfully:', publicUrl);
             })
-            .catch(err => console.error('[SYNC] Photo upload failed:', err));
-        }
-      }, 50);
+            .catch(err => {
+              console.error('[Direct Upload] Failed, trying fallback:', err);
+              // Fallback to base64 if direct upload fails
+              photoToBase64DataUri(photoPath, 600, 0.6)
+                .then(base64Uri => {
+                  if (!base64Uri || base64Uri.startsWith('file:')) return;
+                  return syncPhoto({
+                    pairCode,
+                    photoUri: base64Uri,
+                    latitude: lat,
+                    longitude: lng,
+                    accuracy,
+                    timestamp,
+                    address
+                  });
+                })
+                .catch(fallbackErr => console.error('[Fallback] Also failed:', fallbackErr));
+            });
+        }, 50);
+      }
 
     } catch (error) {
       console.error("Photo capture error:", error);

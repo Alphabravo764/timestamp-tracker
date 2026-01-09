@@ -158,6 +158,10 @@ async function startServer() {
     }
   });
 
+  // Upload URL endpoint for direct-to-storage uploads
+  const { createUploadUrl } = await import("../upload-url.js");
+  app.post("/api/upload-url", createUploadUrl);
+
   app.post("/api/sync/shift", async (req, res) => {
     try {
       const { pairCode, shiftId, staffName, siteName, startTime } = req.body;
@@ -230,6 +234,34 @@ async function startServer() {
     } catch (error) {
       console.error("Sync photo error:", error);
       res.status(500).json({ error: "Failed to sync photo" });
+    }
+  });
+
+  // Photo metadata endpoint (for direct upload flow)
+  app.post("/api/sync/photo-metadata", async (req, res) => {
+    try {
+      const { pairCode, photoId, url, latitude, longitude, accuracy, timestamp, address } = req.body;
+
+      if (!pairCode || !photoId || !url) {
+        return res.status(400).json({ error: "pairCode, photoId, and url required" });
+      }
+
+      // Save photo metadata to database
+      await syncDb.addPhoto({
+        pairCode,
+        photoUri: url,
+        latitude,
+        longitude,
+        accuracy,
+        timestamp: timestamp || new Date().toISOString(),
+        address
+      });
+
+      console.log(`[Photo Metadata] Saved for ${pairCode}, photoId: ${photoId}`);
+      res.json({ success: true, photoId, url });
+    } catch (error) {
+      console.error("Photo metadata save error:", error);
+      res.status(500).json({ error: "Failed to save photo metadata" });
     }
   });
 
