@@ -2,351 +2,280 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terms of Service - STAMPIA</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms of Service - STAMPIA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      line-height: 1.7;
+      padding: 20px;
+    }
 
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            padding: 40px;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 48px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    }
 
-        h1 {
-            color: #667eea;
-            margin-bottom: 10px;
-            font-size: 2.5em;
-        }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #3b82f6;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 24px;
+    }
 
-        h2 {
-            color: #764ba2;
-            margin-top: 30px;
-            margin-bottom: 15px;
-            font-size: 1.5em;
-        }
+    .back-link:hover {
+      text-decoration: underline;
+    }
 
-        h3 {
-            color: #555;
-            margin-top: 20px;
-            margin-bottom: 10px;
-        }
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
 
-        p {
-            margin-bottom: 15px;
-            color: #666;
-        }
+    .subtitle {
+      font-size: 16px;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
 
-        ul {
-            margin-left: 20px;
-            margin-bottom: 15px;
-        }
+    .version {
+      color: #94a3b8;
+      font-size: 14px;
+      margin-bottom: 32px;
+    }
 
-        li {
-            margin-bottom: 8px;
-            color: #666;
-        }
+    h2 {
+      font-size: 22px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-top: 36px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #f1f5f9;
+    }
 
-        .last-updated {
-            color: #999;
-            font-size: 0.9em;
-            margin-bottom: 30px;
-        }
+    p {
+      margin-bottom: 16px;
+      color: #475569;
+    }
 
-        .warning-box {
-            background: #fff3cd;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #ffc107;
-            margin: 20px 0;
-        }
+    ul,
+    ol {
+      margin-left: 24px;
+      margin-bottom: 16px;
+      color: #475569;
+    }
 
-        .info-box {
-            background: #d1ecf1;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #0c5460;
-            margin: 20px 0;
-        }
+    li {
+      margin-bottom: 10px;
+    }
 
-        a {
-            color: #667eea;
-            text-decoration: none;
-        }
+    strong {
+      color: #1e293b;
+      font-weight: 600;
+    }
 
-        a:hover {
-            text-decoration: underline;
-        }
+    .highlight {
+      background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+      padding: 20px;
+      border-radius: 12px;
+      margin: 20px 0;
+      border-left: 4px solid #3b82f6;
+    }
 
-        .btn-back {
-            display: inline-block;
-            background: #667eea;
-            color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            text-decoration: none;
-            margin-top: 20px;
-            font-weight: 600;
-            transition: background 0.3s;
-        }
+    .warning {
+      background: #fef2f2;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 16px 0;
+      border-left: 4px solid #ef4444;
+    }
 
-        .btn-back:hover {
-            background: #764ba2;
-            text-decoration: none;
-        }
-    </style>
+    a {
+      color: #3b82f6;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .footer-note {
+      text-align: center;
+      color: #64748b;
+      font-size: 14px;
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 24px;
+      }
+
+      h1 {
+        font-size: 26px;
+      }
+
+      h2 {
+        font-size: 20px;
+      }
+    }
+  </style>
 </head>
 
 <body>
-    <div class="container">
-        <h1>Terms of Service</h1>
-        <p class="last-updated">Last Updated: January 3, 2026</p>
+  <div class="container">
+    <a href="/" class="back-link">← Back to App</a>
 
-        <div class="warning-box">
-            <strong>Important:</strong> By using STAMPIA, you agree to these Terms of Service. Please read
-            them carefully.
-        </div>
+    <h1>Terms of Service</h1>
+    <p class="subtitle">STAMPIA – Proof of Presence</p>
+    <p class="version">Last Updated: 8 January 2026</p>
 
-        <h2>1. Acceptance of Terms</h2>
-        <p>By accessing or using STAMPIA ("the Service"), you agree to be bound by these Terms of Service
-            ("Terms"). If you do not agree to these Terms, do not use the Service.</p>
+    <p>By using STAMPIA, you agree to these Terms of Service.</p>
 
-        <h2>2. Description of Service</h2>
-        <p>STAMPIA is a mobile application that allows users to:</p>
-        <ul>
-            <li>Track location during work shifts</li>
-            <li>Capture timestamped photos with location data</li>
-            <li>Generate shift reports with photos and location trails</li>
-            <li>Share live location with authorized viewers</li>
-            <li>Export shift data and reports</li>
-        </ul>
+    <h2>1. Acceptance of Terms</h2>
+    <p>If you do not agree with these Terms, do not use the app.</p>
 
-        <h2>3. User Accounts and Eligibility</h2>
+    <h2>2. Description of Service</h2>
+    <p>STAMPIA allows users to:</p>
+    <ul>
+      <li>Track location during shifts</li>
+      <li>Capture timestamped photo evidence</li>
+      <li>Add notes with time and location</li>
+      <li>Generate reports</li>
+      <li>Share live location voluntarily</li>
+    </ul>
 
-        <h3>3.1 Age Requirement</h3>
-        <p>You must be at least 18 years old to use this Service. By using the Service, you represent that you are 18 or
-            older.</p>
+    <h2>3. Eligibility</h2>
+    <p>You must be at least <strong>18 years old</strong> to use STAMPIA.</p>
 
-        <h3>3.2 Account Accuracy</h3>
-        <p>You agree to provide accurate information when using the Service, including your name and work site details.
-            Falsifying information may result in account suspension.</p>
+    <h2>4. Trial Access & Usage Limits</h2>
+    <p>STAMPIA currently operates as a <strong>trial service</strong> with usage limits.</p>
+    <p>Trial users may be subject to limits on:</p>
+    <ul>
+      <li>Number of shifts</li>
+      <li>Number of photos or notes</li>
+      <li>Number of live view shares</li>
+      <li>Number of PDF report generations</li>
+    </ul>
+    <p>These limits may change during the trial period.</p>
 
-        <h3>3.3 Account Security</h3>
-        <p>You are responsible for maintaining the security of your device and any data stored in the app.</p>
+    <h2>5. Access Codes</h2>
+    <p>We may provide one-time access codes that unlock additional usage limits or features.</p>
+    <p>Each code:</p>
+    <ul>
+      <li>Can be used only once</li>
+      <li>Is non-transferable</li>
+      <li>Cannot be reused once redeemed</li>
+    </ul>
+    <p>We reserve the right to revoke access codes if misuse or abuse is detected.</p>
 
-        <h2>4. Acceptable Use Policy</h2>
-
-        <h3>4.1 Permitted Uses</h3>
-        <p>You may use STAMPIA for:</p>
-        <ul>
-            <li>Legitimate work shift tracking and reporting</li>
-            <li>Professional security, facilities, or field service work</li>
-            <li>Personal time tracking and documentation</li>
-        </ul>
-
-        <h3>4.2 Prohibited Uses</h3>
-        <p>You may NOT use STAMPIA to:</p>
-        <ul>
-            <li>Track or surveil others without their knowledge and consent</li>
-            <li>Harass, stalk, or intimidate any person</li>
-            <li>Upload illegal, offensive, or inappropriate photos</li>
-            <li>Violate any local, state, national, or international laws</li>
-            <li>Interfere with the Service's operation or security</li>
-            <li>Attempt to reverse engineer or hack the application</li>
-            <li>Resell or redistribute the Service without authorization</li>
-        </ul>
-
-        <div class="warning-box">
-            <strong>Violation of these terms may result in immediate account termination and reporting to
-                authorities.</strong>
-        </div>
-
-        <h2>5. Subscription Tiers and Payments</h2>
-
-        <h3>5.1 Free Tier</h3>
-        <p>Limited to:</p>
-        <ul>
-            <li>5 shifts per month</li>
-            <li>10 photos per shift</li>
-            <li>7-day data retention</li>
-        </ul>
-
-        <h3>5.2 Pro Tier ($9.99/month or $99/year)</h3>
-        <ul>
-            <li>Unlimited shifts and photos</li>
-            <li>90-day data retention</li>
-            <li>Premium features and reports</li>
-        </ul>
-
-        <h3>5.3 Business Tier ($49/month)</h3>
-        <ul>
-            <li>All Pro features</li>
-            <li>Team management (up to 10 users)</li>
-            <li>1-year data retention</li>
-            <li>API access</li>
-        </ul>
-
-        <h3>5.4 Payment Terms</h3>
-        <ul>
-            <li>Subscriptions auto-renew unless canceled 24 hours before renewal</li>
-            <li>No refunds for partial months</li>
-            <li>Prices subject to change with 30 days notice</li>
-            <li>Payment processed securely via Stripe</li>
-        </ul>
-
-        <h2>6. Data and Privacy</h2>
-
-        <h3>6.1 Your Data</h3>
-        <p>You retain ownership of all photos, location data, and shift information you create using the Service.</p>
-
-        <h3>6.2 Our Rights</h3>
-        <p>By using the Service, you grant us a limited license to:</p>
-        <ul>
-            <li>Store and process your data to provide the Service</li>
-            <li>Display your data to authorized viewers you designate</li>
-            <li>Use anonymized, aggregated data for analytics and improvements</li>
-        </ul>
-
-        <h3>6.3 Privacy Policy</h3>
-        <p>Your use of the Service is also subject to our <a href="/privacy-policy">Privacy Policy</a>, which explains
-            how we collect and use your data.</p>
-
-        <h2>7. Content and Intellectual Property</h2>
-
-        <h3>7.1 User Content</h3>
-        <p>You are solely responsible for the photos and data you upload. Do not upload content that:</p>
-        <ul>
-            <li>Violates any copyright, trademark, or intellectual property rights</li>
-            <li>Contains sensitive personal information of others without consent</li>
-            <li>Is illegal, obscene, or harmful</li>
-        </ul>
-
-        <h3>7.2 Our Intellectual Property</h3>
-        <p>STAMPIA, including its design, features, and code, is our intellectual property. You may not copy,
-            modify, or create derivative works without permission.</p>
-
-        <h2>8. Service Availability and Limitations</h2>
-
-        <h3>8.1 Uptime</h3>
-        <p>We strive for 99% uptime but do not guarantee uninterrupted service. Maintenance windows may occur.</p>
-
-        <h3>8.2 Free Tier Limitations</h3>
-        <p>Free tier users may experience:</p>
-        <ul>
-            <li>Slower support response times</li>
-            <li>Feature limitations as outlined in tier descriptions</li>
-            <li>Watermarks on live viewer pages</li>
-        </ul>
-
-        <h3>8.3 Service Modifications</h3>
-        <p>We reserve the right to modify, suspend, or discontinue any part of the Service with reasonable notice.</p>
-
-        <h2>9. Termination</h2>
-
-        <h3>9.1 By You</h3>
-        <p>You may delete your account at any time from the app settings. Upon deletion:</p>
-        <ul>
-            <li>All your data will be permanently deleted within 30 days</li>
-            <li>Active subscriptions will be canceled (no refund for partial periods)</li>
-        </ul>
-
-        <h3>9.2 By Us</h3>
-        <p>We may suspend or terminate your account if you:</p>
-        <ul>
-            <li>Violate these Terms of Service</li>
-            <li>Engage in fraudulent activity</li>
-            <li>Fail to pay subscription fees</li>
-            <li>Use the Service in a harmful manner</li>
-        </ul>
-
-        <div class="warning-box">
-            Termination for violations results in immediate account deletion with no refund.
-        </div>
-
-        <h2>10. Disclaimers and Limitations of Liability</h2>
-
-        <h3>10.1 "As Is" Service</h3>
-        <p>The Service is provided "as is" without warranties of any kind, express or implied. We do not guarantee:</p>
-        <ul>
-            <li>100% accuracy of location data</li>
-            <li>Permanent photo storage (subject to retention policies)</li>
-            <li>Suitability for any particular purpose</li>
-        </ul>
-
-        <h3>10.2 Limitation of Liability</h3>
-        <p>To the maximum extent permitted by law, we are not liable for:</p>
-        <ul>
-            <li>Loss of data due to technical issues</li>
-            <li>Damages from service interruptions</li>
-            <li>Indirect, incidental, or consequential damages</li>
-            <li>Any damages exceeding the amount you paid in the last 12 months</li>
-        </ul>
-
-        <div class="info-box">
-            <strong>Location Accuracy:</strong> GPS accuracy depends on device hardware, signal strength, and
-            environmental factors. We are not responsible for inaccurate location data.
-        </div>
-
-        <h2>11. Indemnification</h2>
-        <p>You agree to indemnify and hold us harmless from any claims, damages, or expenses arising from:</p>
-        <ul>
-            <li>Your violation of these Terms</li>
-            <li>Your use of the Service</li>
-            <li>Your uploaded content</li>
-        </ul>
-
-        <h2>12. Governing Law and Disputes</h2>
-
-        <h3>12.1 Governing Law</h3>
-        <p>These Terms are governed by the laws of [Your Jurisdiction], without regard to conflict of law principles.
-        </p>
-
-        <h3>12.2 Dispute Resolution</h3>
-        <p>Any disputes will be resolved through:</p>
-        <ol>
-            <li>Good faith negotiation</li>
-            <li>Binding arbitration if negotiation fails</li>
-        </ol>
-
-        <h2>13. Changes to Terms</h2>
-        <p>We may update these Terms from time to time. When we do:</p>
-        <ul>
-            <li>We'll update the "Last Updated" date</li>
-            <li>For material changes, we'll notify you via the app or email</li>
-            <li>Continued use after changes constitutes acceptance</li>
-        </ul>
-
-        <h2>14. Contact Information</h2>
-        <p>Questions about these Terms?</p>
-        <p>Email: <a href="mailto:support@stampia.tech">support@stampia.tech</a></p>
-
-        <h2>15. Severability</h2>
-        <p>If any provision of these Terms is found invalid or unenforceable, the remaining provisions will remain in
-            full effect.</p>
-
-        <h2>16. Entire Agreement</h2>
-        <p>These Terms, together with our Privacy Policy, constitute the entire agreement between you and Timestamp
-            Tracker.</p>
-
-        <a href="/" class="btn-back">← Back to App</a>
+    <h2>6. Acceptable Use</h2>
+    <p>You agree <strong>not</strong> to:</p>
+    <ul>
+      <li>Track people without their consent</li>
+      <li>Use the app for illegal or harmful activities</li>
+      <li>Upload unlawful or offensive content</li>
+      <li>Attempt to bypass usage limits or security</li>
+    </ul>
+    <div class="warning">
+      <p><strong>Violation may result in termination of access.</strong></p>
     </div>
+
+    <h2>7. User Responsibility</h2>
+    <p>You are responsible for:</p>
+    <ul>
+      <li>The accuracy of data you enter</li>
+      <li>Securing your device</li>
+      <li>Content you capture or upload</li>
+    </ul>
+
+    <h2>8. Eligibility & Device Use</h2>
+    <p>STAMPIA currently operates without traditional user accounts.</p>
+    <p>Usage is associated with your device and optional access codes. You are responsible for securing your device and
+      any data stored on it.</p>
+
+    <h2>9. Data Ownership</h2>
+    <p>You retain ownership of your data.</p>
+    <p>You grant us permission to process it <strong>only</strong> to provide the service.</p>
+
+    <h2>10. Service Availability</h2>
+    <ul>
+      <li>The service is provided "as is"</li>
+      <li>We do not guarantee uninterrupted operation</li>
+      <li>Features may change during the trial phase</li>
+    </ul>
+
+    <h2>11. Disclaimer</h2>
+    <p>We do not guarantee:</p>
+    <ul>
+      <li>100% GPS accuracy</li>
+      <li>Continuous availability</li>
+      <li>Suitability for legal or forensic purposes</li>
+    </ul>
+    <p>Location accuracy depends on device and environmental factors. STAMPIA provides <strong>tamper-evident
+        verification features</strong>, not absolute guarantees.</p>
+
+    <h2>12. Limitation of Liability</h2>
+    <p>To the maximum extent permitted by law, we are not liable for:</p>
+    <ul>
+      <li>Data loss</li>
+      <li>Indirect or consequential damages</li>
+      <li>Errors caused by device or network issues</li>
+    </ul>
+
+    <h2>13. Termination</h2>
+    <p>We may suspend or terminate access if:</p>
+    <ul>
+      <li>These Terms are violated</li>
+      <li>The service is misused</li>
+      <li>Fraud or abuse is detected</li>
+    </ul>
+
+    <h2>14. Governing Law</h2>
+    <p>These Terms are governed by the laws of <strong>England and Wales</strong>.</p>
+    <p>Any disputes will be resolved in the courts of England and Wales.</p>
+
+    <h2>15. Changes to Terms</h2>
+    <p>We may update these Terms. Continued use constitutes acceptance.</p>
+
+    <h2>16. Entire Agreement</h2>
+    <p>These Terms, together with our Privacy Policy, constitute the entire agreement between you and STAMPIA – Proof of
+      Presence.</p>
+
+    <h2>17. Contact</h2>
+    <div class="highlight">
+      <p><strong>Email:</strong> <a href="mailto:contact@stampia.tech">contact@stampia.tech</a></p>
+    </div>
+
+    <p class="footer-note">
+      <strong>By using STAMPIA, you acknowledge that you have read and agreed to these Terms of
+        Service.</strong><br><br>
+      These Terms are available within the app settings at all times.
+    </p>
+  </div>
 </body>
 
 </html>

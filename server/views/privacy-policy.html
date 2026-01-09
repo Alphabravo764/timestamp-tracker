@@ -2,283 +2,293 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy - STAMPIA</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - STAMPIA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      line-height: 1.7;
+      padding: 20px;
+    }
 
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            padding: 40px;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 48px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    }
 
-        h1 {
-            color: #0055FF;
-            margin-bottom: 10px;
-            font-size: 2.5em;
-        }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #3b82f6;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 24px;
+    }
 
-        h2 {
-            color: #764ba2;
-            margin-top: 30px;
-            margin-bottom: 15px;
-            font-size: 1.5em;
-        }
+    .back-link:hover {
+      text-decoration: underline;
+    }
 
-        h3 {
-            color: #555;
-            margin-top: 20px;
-            margin-bottom: 10px;
-        }
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
 
-        p {
-            margin-bottom: 15px;
-            color: #666;
-        }
+    .subtitle {
+      font-size: 16px;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
 
-        ul {
-            margin-left: 20px;
-            margin-bottom: 15px;
-        }
+    .version {
+      color: #94a3b8;
+      font-size: 14px;
+      margin-bottom: 32px;
+    }
 
-        li {
-            margin-bottom: 8px;
-            color: #666;
-        }
+    h2 {
+      font-size: 22px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-top: 36px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #f1f5f9;
+    }
 
-        .last-updated {
-            color: #999;
-            font-size: 0.9em;
-            margin-bottom: 30px;
-        }
+    h3 {
+      font-size: 17px;
+      font-weight: 600;
+      color: #1e293b;
+      margin-top: 24px;
+      margin-bottom: 12px;
+    }
 
-        .contact-box {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin-top: 30px;
-            border-left: 4px solid #667eea;
-        }
+    p {
+      margin-bottom: 16px;
+      color: #475569;
+    }
 
-        .highlight {
-            background: #fff3cd;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #ffc107;
-            margin: 20px 0;
-        }
+    ul,
+    ol {
+      margin-left: 24px;
+      margin-bottom: 16px;
+      color: #475569;
+    }
 
-        a {
-            color: #667eea;
-            text-decoration: none;
-        }
+    li {
+      margin-bottom: 10px;
+    }
 
-        a:hover {
-            text-decoration: underline;
-        }
+    strong {
+      color: #1e293b;
+      font-weight: 600;
+    }
 
-        .btn-back {
-            display: inline-block;
-            background: #667eea;
-            color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            text-decoration: none;
-            margin-top: 20px;
-            font-weight: 600;
-            transition: background 0.3s;
-        }
+    .highlight {
+      background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+      padding: 20px;
+      border-radius: 12px;
+      margin: 20px 0;
+      border-left: 4px solid #3b82f6;
+    }
 
-        .btn-back:hover {
-            background: #764ba2;
-            text-decoration: none;
-        }
-    </style>
+    .note {
+      background: #fef3c7;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 16px 0;
+      border-left: 4px solid #f59e0b;
+      font-size: 14px;
+    }
+
+    a {
+      color: #3b82f6;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .footer-note {
+      text-align: center;
+      color: #64748b;
+      font-size: 14px;
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 24px;
+      }
+
+      h1 {
+        font-size: 26px;
+      }
+
+      h2 {
+        font-size: 20px;
+      }
+    }
+  </style>
 </head>
 
 <body>
-    <div class="container">
-        <h1>Privacy Policy</h1>
-        <p class="last-updated">Last Updated: January 3, 2026</p>
+  <div class="container">
+    <a href="/" class="back-link">← Back to App</a>
 
-        <div class="highlight">
-            <strong>Your privacy is important to us.</strong> This Privacy Policy explains how STAMPIA ("Proof of
-            Presence") collects, uses, and protects your personal information.
-        </div>
+    <h1>Privacy Policy</h1>
+    <p class="subtitle">STAMPIA – Proof of Presence</p>
+    <p class="version">Last Updated: 8 January 2026</p>
 
-        <h2>1. Information We Collect</h2>
+    <p>Your privacy matters to us. This Privacy Policy explains how STAMPIA ("we", "us", "our") collects, uses, stores,
+      and protects your information when you use our mobile application and related services.</p>
 
-        <h3>1.1 Location Data</h3>
-        <p>When you start a shift, we collect your GPS location data including:</p>
-        <ul>
-            <li>Latitude and longitude coordinates</li>
-            <li>Timestamp of each location point</li>
-            <li>Location accuracy information</li>
-            <li>Reverse-geocoded address (street name, city)</li>
-        </ul>
-        <p><strong>Why:</strong> To track your movement during shifts and generate location trails for verification and
-            reporting purposes.</p>
+    <h2>1. Information We Collect</h2>
 
-        <h3>1.2 Photos and Images</h3>
-        <p>When you capture photos during a shift, we collect:</p>
-        <ul>
-            <li>The photo image itself</li>
-            <li>Timestamp when photo was taken</li>
-            <li>Location where photo was captured (if available)</li>
-            <li>Watermarked metadata (date, time, location, staff name, site name)</li>
-        </ul>
-        <p><strong>Why:</strong> To provide timestamped evidence of your presence at specific locations during your
-            shift.</p>
+    <h3>1.1 Location Data</h3>
+    <p>When you start a shift, we collect:</p>
+    <ul>
+      <li>GPS coordinates (latitude & longitude)</li>
+      <li>Timestamps of location points</li>
+      <li>Location accuracy data</li>
+      <li>Reverse-geocoded address (street name, city, postcode where available)</li>
+    </ul>
+    <p><strong>Purpose:</strong> To verify presence, generate movement trails, display timelines, and create
+      professional reports.</p>
 
-        <h3>1.3 Shift Information</h3>
-        <p>We collect information about your shifts including:</p>
-        <ul>
-            <li>Staff name (as entered by you)</li>
-            <li>Site name/location</li>
-            <li>Shift start and end times</li>
-            <li>Shift duration</li>
-            <li>Notes added during shifts</li>
-            <li>Pair codes for live viewing</li>
-        </ul>
+    <h3>1.2 Photos & Evidence</h3>
+    <p>When you capture photos during a shift, we collect:</p>
+    <ul>
+      <li>The image itself</li>
+      <li>Time and date of capture</li>
+      <li>Location data at time of capture (when available)</li>
+      <li>Associated evidence metadata</li>
+    </ul>
+    <p><strong>Purpose:</strong> To provide verifiable photographic evidence of presence.</p>
 
-        <h3>1.4 Device Information</h3>
-        <p>We may collect basic device information:</p>
-        <ul>
-            <li>Device type and operating system</li>
-            <li>App version</li>
-            <li>IP address (for server requests)</li>
-        </ul>
+    <h3>1.3 Notes</h3>
+    <p>When you add notes, we collect:</p>
+    <ul>
+      <li>Note text</li>
+      <li>Timestamp</li>
+      <li>Location data at time of entry (when available)</li>
+    </ul>
+    <p><strong>Purpose:</strong> To log observations and contextual information during a shift.</p>
 
-        <h2>2. How We Use Your Information</h2>
+    <h3>1.4 Shift Information</h3>
+    <p>We collect:</p>
+    <ul>
+      <li>Shift start and end times</li>
+      <li>Shift duration</li>
+      <li>Site or location name (if entered)</li>
+      <li>Generated pair codes for live viewing</li>
+    </ul>
 
-        <p>We use the collected information to:</p>
-        <ul>
-            <li><strong>Provide shift tracking services</strong> - Record and display your location trail during shifts
-            </li>
-            <li><strong>Generate reports</strong> - Create PDF reports with photos, locations, and shift details</li>
-            <li><strong>Enable live viewing</strong> - Allow authorized viewers to see your live location during active
-                shifts</li>
-            <li><strong>Improve our service</strong> - Analyze usage patterns to enhance app performance and features
-            </li>
-            <li><strong>Communicate with you</strong> - Send important updates about the service (rare)</li>
-        </ul>
+    <h3>1.5 Device & Technical Data</h3>
+    <p>We may collect limited technical data:</p>
+    <ul>
+      <li>Device type and operating system</li>
+      <li>App version</li>
+      <li>IP address (for server communication)</li>
+    </ul>
 
-        <h2>3. Data Sharing and Disclosure</h2>
+    <h2>2. How We Use Your Data</h2>
+    <p>We use your data to:</p>
+    <ul>
+      <li>Track and display shift activity</li>
+      <li>Generate PDF reports</li>
+      <li>Enable live view sharing when you choose</li>
+      <li>Improve app performance and reliability</li>
+      <li>Provide customer support</li>
+      <li>Send important service-related messages such as security notices or significant feature changes</li>
+    </ul>
+    <p>We <strong>do not</strong> use your data for advertising.</p>
 
-        <h3>3.1 Who Can See Your Data</h3>
-        <ul>
-            <li><strong>You:</strong> Full access to all your shift data, photos, and reports</li>
-            <li><strong>Authorized viewers:</strong> People you share your live link or pair code with can view your
-                location and photos during active shifts</li>
-            <li><strong>Your employer/client:</strong> If you share shift reports, they can access the information in
-                those reports</li>
-            <li><strong>Service providers:</strong> We use Railway (hosting), MySQL (database) to securely store and
-                process your data</li>
-        </ul>
+    <h2>3. Data Sharing</h2>
 
-        <h3>3.2 We Do NOT Sell Your Data</h3>
-        <p>We do not sell, rent, or trade your personal information to third parties for marketing purposes.</p>
+    <h3>3.1 Who Can Access Your Data</h3>
+    <ul>
+      <li><strong>You:</strong> Full access to your own data</li>
+      <li><strong>People you share with:</strong> Only when you share a live link or report</li>
+      <li><strong>Service infrastructure providers:</strong> Used solely to operate the service securely</li>
+    </ul>
 
-        <h3>3.3 Legal Compliance</h3>
-        <p>We may disclose your information if required by law, court order, or government regulation.</p>
+    <h3>3.2 We Do Not Sell Your Data</h3>
+    <p>We do <strong>not</strong> sell, rent, or trade personal data.</p>
 
-        <h2>4. Data Storage and Security</h2>
+    <h3>3.3 Legal Obligations</h3>
+    <p>We may disclose data if required by law.</p>
 
-        <h3>4.1 Where Your Data Is Stored</h3>
-        <ul>
-            <li><strong>Location:</strong> United States (Railway cloud infrastructure)</li>
-            <li><strong>Database:</strong> MySQL with automated backups</li>
-            <li><strong>Photos:</strong> Stored as base64-encoded data in database or cloud storage</li>
-        </ul>
+    <h2>4. Data Storage & Security</h2>
+    <ul>
+      <li>Data is transmitted using HTTPS encryption</li>
+      <li>Stored securely in our database or cloud storage systems</li>
+      <li>Pair codes are temporary, randomly generated, and expire automatically when a shift ends</li>
+    </ul>
+    <p>No system is 100% secure, but we apply reasonable technical safeguards.</p>
 
-        <h3>4.2 Security Measures</h3>
-        <p>We protect your data using:</p>
-        <ul>
-            <li>HTTPS encryption for all data transmission</li>
-            <li>Secure database with authentication</li>
-            <li>Unique pair codes that expire when shifts end</li>
-            <li>Regular security updates and monitoring</li>
-        </ul>
+    <h3>4.1 Where Your Data Is Stored</h3>
+    <p>Your data may be stored on servers located in the United States. Where required by law, international data
+      transfers are protected using appropriate safeguards such as standard contractual clauses.</p>
 
-        <div class="highlight">
-            <strong>Note:</strong> No method of transmission over the internet is 100% secure. While we strive to
-            protect your data, we cannot guarantee absolute security.
-        </div>
+    <h2>5. Data Retention</h2>
+    <p>During the trial period, shift data is retained for a limited time to support reporting and verification
+      features.</p>
+    <p>Retention periods may change as paid plans are introduced. Any changes will be clearly communicated in the app
+      before taking effect.</p>
+    <p>You may delete your data at any time from the app settings or by contacting us.</p>
 
-        <h2>5. Data Retention</h2>
+    <h2>6. Your Rights (GDPR)</h2>
+    <p>If you are in the UK or EU, you have the right to:</p>
+    <ul>
+      <li>Access your data</li>
+      <li>Correct inaccurate data</li>
+      <li>Request deletion</li>
+      <li>Export your data</li>
+      <li>Withdraw consent</li>
+    </ul>
+    <p>Contact us to exercise these rights.</p>
 
-        <p><strong>Free Tier:</strong> Shift data retained for 7 days, then automatically deleted</p>
-        <p><strong>Pro Tier:</strong> Shift data retained for 90 days</p>
-        <p><strong>Business Tier:</strong> Shift data retained for 1 year</p>
+    <h2>7. Children's Privacy</h2>
+    <p>STAMPIA is intended for adults aged 18 and over. We do not knowingly collect personal data from children. If you
+      believe a child has provided us with personal data, please contact us and we will delete it.</p>
 
-        <p>You can delete your data at any time from the app settings.</p>
+    <h2>8. Changes to This Policy</h2>
+    <p>We may update this Privacy Policy. Continued use of the app means acceptance of changes.</p>
 
-        <h2>6. Your Rights (GDPR Compliance)</h2>
-
-        <p>If you are in the European Union or EEA, you have the right to:</p>
-        <ul>
-            <li><strong>Access:</strong> Request a copy of all data we have about you</li>
-            <li><strong>Correction:</strong> Request corrections to inaccurate data</li>
-            <li><strong>Deletion:</strong> Request permanent deletion of your data ("right to be forgotten")</li>
-            <li><strong>Export:</strong> Download your data in a portable format (JSON/CSV)</li>
-            <li><strong>Restrict Processing:</strong> Limit how we use your data</li>
-            <li><strong>Object:</strong> Object to data processing in certain situations</li>
-            <li><strong>Withdraw Consent:</strong> Withdraw consent at any time (though this may limit app
-                functionality)</li>
-        </ul>
-
-        <p>To exercise these rights, contact us at the email below.</p>
-
-        <h2>7. Children's Privacy</h2>
-        <p>STAMPIA is not intended for users under 18 years of age. We do not knowingly collect data from children.</p>
-
-        <h2>8. Changes to This Policy</h2>
-        <p>We may update this Privacy Policy from time to time. When we do:</p>
-        <ul>
-            <li>We'll update the "Last Updated" date at the top</li>
-            <li>For significant changes, we'll notify you via the app</li>
-            <li>Continued use of the app after changes constitutes acceptance</li>
-        </ul>
-
-        <h2>9. Third-Party Services</h2>
-        <p>We use the following third-party services:</p>
-        <ul>
-            <li><strong>Railway:</strong> Cloud hosting - <a href="https://railway.app/legal/privacy"
-                    target="_blank">Privacy Policy</a></li>
-            <li><strong>OpenStreetMap Nominatim:</strong> Reverse geocoding - <a
-                    href="https://osmfoundation.org/wiki/Privacy_Policy" target="_blank">Privacy Policy</a></li>
-            <li><strong>Google Maps API:</strong> Map display (viewer only) - <a
-                    href="https://policies.google.com/privacy" target="_blank">Privacy Policy</a></li>
-        </ul>
-
-        <h2>10. Contact Us</h2>
-
-        <div class="contact-box">
-            <p><strong>Questions about this Privacy Policy?</strong></p>
-            <p>Email: <a href="mailto:contact@stampia.tech">contact@stampia.tech</a></p>
-            <p>We'll respond within 48 hours.</p>
-        </div>
-
-        <a href="/" class="btn-back">← Back to App</a>
+    <h2>9. Contact</h2>
+    <p>For questions or to exercise your data rights:</p>
+    <div class="highlight">
+      <p><strong>Email:</strong> <a href="mailto:contact@stampia.tech">contact@stampia.tech</a></p>
     </div>
+
+    <p class="footer-note">
+      <strong>By using STAMPIA, you acknowledge that you have read and understood this Privacy Policy.</strong><br><br>
+      This Privacy Policy is available within the app settings at all times.
+    </p>
+  </div>
 </body>
 
 </html>
