@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Use Cases - STAMPIA</title>
+    <meta name="description"
+        content="Discover how professionals use STAMPIA to verify presence across different industries - security, cleaning, construction, field service, and more.">
+    <link rel="icon" href="/images/logo.png" type="image/png">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --blue: #0071e3;
+            --text-primary: #1d1d1f;
+            --text-secondary: #86868b;
+            --bg-grey: #f5f5f7;
+            --border: #d2d2d7;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: var(--text-primary);
+            background: white;
+            -webkit-font-smoothing: antialiased;
+            line-height: 1.6;
+        }
+
+        /* Navigation */
+        .navbar {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(210, 210, 215, 0.3);
+        }
+
+        .nav-container {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 0 24px;
+            height: 48px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .nav-logo img {
+            width: 24px;
+            height: 24px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 28px;
+        }
+
+        .nav-links a {
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--blue);
+        }
+
+        /* Hero */
+        .hero {
+            padding: 140px 24px 80px;
+            background: var(--bg-grey);
+            text-align: center;
+        }
+
+        .hero-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .hero h1 {
+            font-size: clamp(36px, 6vw, 56px);
+            font-weight: 700;
+            margin-bottom: 20px;
+            letter-spacing: -0.02em;
+        }
+
+        .hero p {
+            font-size: 18px;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Intro Statement */
+        .intro {
+            padding: 60px 24px;
+            text-align: center;
+            background: white;
+        }
+
+        .intro-text {
+            max-width: 700px;
+            margin: 0 auto;
+            font-size: 18px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        /* Applications Grid */
+        .applications {
+            padding: 60px 24px 100px;
+            background: white;
+        }
+
+        .applications-container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .application-card {
+            display: flex;
+            gap: 40px;
+            padding: 48px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .application-card:last-child {
+            border-bottom: none;
+        }
+
+        .application-icon {
+            flex-shrink: 0;
+            width: 64px;
+            height: 64px;
+            background: var(--bg-grey);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+        }
+
+        .application-content {
+            flex: 1;
+        }
+
+        .application-content h3 {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .application-content p {
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .application-uses {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .application-uses li {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            color: var(--text-primary);
+            font-size: 15px;
+        }
+
+        .application-uses li::before {
+            content: "•";
+            color: var(--blue);
+            font-weight: bold;
+        }
+
+        /* Early Access Section */
+        .early-access {
+            padding: 60px 24px;
+            background: white;
+            text-align: center;
+            border-top: 1px solid var(--border);
+        }
+
+        .early-access-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .early-access h2 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+
+        .early-access p {
+            color: var(--text-secondary);
+            font-size: 16px;
+            line-height: 1.7;
+            margin-bottom: 12px;
+        }
+
+        .early-access p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Disclaimer */
+        .disclaimer {
+            padding: 40px 24px 80px;
+            background: var(--bg-grey);
+            text-align: center;
+        }
+
+        .disclaimer p {
+            max-width: 700px;
+            margin: 0 auto;
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        /* Footer */
+        .footer {
+            padding: 40px 24px;
+            background: var(--text-primary);
+            color: white;
+            text-align: center;
+        }
+
+        .footer a {
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            margin: 0 16px;
+            font-size: 13px;
+        }
+
+        .footer a:hover {
+            color: white;
+        }
+
+        .footer-brand {
+            margin-top: 20px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .application-card {
+                flex-direction: column;
+                gap: 20px;
+                padding: 32px 0;
+            }
+
+            .application-icon {
+                width: 56px;
+                height: 56px;
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-logo">
+                <img src="/images/logo.png" alt="STAMPIA Logo">
+                <span>STAMPIA</span>
+            </a>
+            <div class="nav-links">
+                <a href="/#how-it-works">How it Works</a>
+                <a href="/#features">Features</a>
+                <a href="/use-cases">Use Cases</a>
+                <a href="/policies/privacy-policy.html">Privacy</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-container">
+            <h1>Use Cases</h1>
+            <p>How professionals use STAMPIA to verify presence across different industries.</p>
+        </div>
+    </section>
+
+    <!-- Intro -->
+    <section class="intro">
+        <p class="intro-text">
+            STAMPIA is a flexible proof-of-presence tool used across multiple industries where time, location, and
+            activity records matter.
+        </p>
+    </section>
+
+    <!-- Applications -->
+    <section class="applications">
+        <div class="applications-container">
+
+            <!-- Security & Patrol -->
+            <div class="application-card">
+                <div class="application-icon">🛡️</div>
+                <div class="application-content">
+                    <h3>Security & Patrol Services</h3>
+                    <p>Used by guards and patrol staff to maintain shift records.</p>
+                    <ul class="application-uses">
+                        <li>Record site visits</li>
+                        <li>Document patrol activity with photos and notes</li>
+                        <li>Share live location during active shifts</li>
+                        <li>Generate shift summaries for internal review</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Cleaning -->
+            <div class="application-card">
+                <div class="application-icon">🧹</div>
+                <div class="application-content">
+                    <h3>Cleaning & Facilities Management</h3>
+                    <p>Used by cleaners and facilities teams to confirm attendance.</p>
+                    <ul class="application-uses">
+                        <li>Confirm site attendance</li>
+                        <li>Document completed tasks</li>
+                        <li>Provide visit summaries to clients</li>
+                        <li>Support invoicing discussions</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Construction -->
+            <div class="application-card">
+                <div class="application-icon">🏗️</div>
+                <div class="application-content">
+                    <h3>Construction & Site Work</h3>
+                    <p>Used by site workers and contractors to log activity.</p>
+                    <ul class="application-uses">
+                        <li>Record site presence</li>
+                        <li>Log progress photos</li>
+                        <li>Add notes for daily activities</li>
+                        <li>Maintain a simple visit record</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Field Service -->
+            <div class="application-card">
+                <div class="application-icon">🔧</div>
+                <div class="application-content">
+                    <h3>Field Service & Maintenance</h3>
+                    <p>Used by technicians and engineers for visit documentation.</p>
+                    <ul class="application-uses">
+                        <li>Record arrival and departure times</li>
+                        <li>Document work performed</li>
+                        <li>Share visit summaries with clients or managers</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Agency Workers -->
+            <div class="application-card">
+                <div class="application-icon">👥</div>
+                <div class="application-content">
+                    <h3>Agency & Temporary Workers</h3>
+                    <p>Used by agency workers to track shifts across locations.</p>
+                    <ul class="application-uses">
+                        <li>Track shifts across multiple locations</li>
+                        <li>Maintain personal work records</li>
+                        <li>Share visit reports when requested</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Care & Support -->
+            <div class="application-card">
+                <div class="application-icon">🤝</div>
+                <div class="application-content">
+                    <h3>Care & Support Visits</h3>
+                    <p>Used by support staff to record visit times and observations.</p>
+                    <ul class="application-uses">
+                        <li>Record visit times</li>
+                        <li>Document observations</li>
+                        <li>Maintain visit history</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Event Staff -->
+            <div class="application-card">
+                <div class="application-icon">🎪</div>
+                <div class="application-content">
+                    <h3>Event & Venue Staff</h3>
+                    <p>Used by stewards and event staff for attendance records.</p>
+                    <ul class="application-uses">
+                        <li>Confirm attendance</li>
+                        <li>Document shifts</li>
+                        <li>Share location during events</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Freelancers -->
+            <div class="application-card">
+                <div class="application-icon">💼</div>
+                <div class="application-content">
+                    <h3>Freelancers & Sole Traders</h3>
+                    <p>Used by independent workers for personal work logs.</p>
+                    <ul class="application-uses">
+                        <li>Keep personal work logs</li>
+                        <li>Document client visits</li>
+                        <li>Generate simple reports for their own records</li>
+                    </ul>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Early Access Section -->
+    <section class="early-access">
+        <div class="early-access-container">
+            <h2>Early Access & Pilot Testing</h2>
+            <p>STAMPIA is currently being tested by professionals and small teams across security, facilities
+                management, and field services.</p>
+            <p>Feedback from early users is actively shaping the product as we prepare for a wider release.</p>
+        </div>
+    </section>
+
+    <!-- Disclaimer -->
+    <section class="disclaimer">
+        <p>STAMPIA supports activity documentation and operational reporting. It does not replace contractual, legal,
+            regulatory, or compliance systems.</p>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div>
+            <a href="/">Home</a>
+            <a href="/policies/privacy-policy.html">Privacy Policy</a>
+            <a href="/policies/terms-of-service.html">Terms of Service</a>
+        </div>
+        <p class="footer-brand">© 2026 STAMPIA. All rights reserved.</p>
+    </footer>
+</body>
+
+</html>
