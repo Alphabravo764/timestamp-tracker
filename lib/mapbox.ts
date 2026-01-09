@@ -21,6 +21,11 @@ export interface MapboxGeocodingResult {
  * Reverse geocode using Mapbox Geocoding API
  */
 export async function reverseGeocodeMapbox(lat: number, lng: number): Promise<MapboxGeocodingResult | null> {
+    // Return null if no token (mobile app - geocoding is optional)
+    if (!MAPBOX_TOKEN) {
+        return null;
+    }
+
     try {
         const response = await fetch(
             `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=address,poi,locality`
@@ -125,6 +130,11 @@ export function generateMapboxStaticUrl(
     width: number = 800,
     height: number = 400
 ): string {
+    // Return empty string if no token (mobile app - map tile is optional)
+    if (!MAPBOX_TOKEN) {
+        return "";
+    }
+
     if (locations.length === 0) {
         return "";
     }
@@ -193,7 +203,7 @@ export function generateMapboxStaticUrl(
 /**
  * Get Mapbox access token
  */
-export function getMapboxToken(): string {
+export function getMapboxToken(): string | undefined {
     return MAPBOX_TOKEN;
 }
 
