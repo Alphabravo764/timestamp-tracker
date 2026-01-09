@@ -124,10 +124,16 @@ export const generatePdfHtml = async (shift: Shift, isInterim?: boolean): Promis
     });
   });
 
-  // Notes with location
+  // Notes with location and address
   shift.notes?.forEach(note => {
     let noteLocStr = note.text;
-    if (note.location?.latitude && note.location?.longitude) {
+    // Prefer address over coordinates
+    if (note.address) {
+      noteLocStr += `\n📍 ${note.address}`;
+      if (note.postcode) {
+        noteLocStr += `, ${note.postcode}`;
+      }
+    } else if (note.location?.latitude && note.location?.longitude) {
       noteLocStr += `\n📍 (${note.location.latitude.toFixed(5)}, ${note.location.longitude.toFixed(5)})`;
     }
     timeline.push({
@@ -634,8 +640,8 @@ ${mapUrl ? `
     <div class="hash-label">Document Integrity Hash (SHA-256)</div>
     <div class="hash-value">${docHash}</div>
     <div class="footer-row">
-      <span class="footer-brand">STAMPIA - Timestamp Tracker</span>
-      <span>🔒 TRIAL VERSION | stampia.tech</span>
+      <span class="footer-brand">STAMPIA - Proof of Presence</span>
+      <span>📱 Generated via App | stampia.tech</span>
     </div>
   </div>
 </div>
@@ -645,8 +651,8 @@ ${mapUrl ? `
     <div class="hash-label">Document Integrity Hash (SHA-256)</div>
     <div class="hash-value">${docHash}</div>
     <div class="footer-row">
-      <span class="footer-brand">STAMPIA - Timestamp Tracker</span>
-      <span>🔒 TRIAL VERSION | stampia.tech</span>
+      <span class="footer-brand">STAMPIA - Proof of Presence</span>
+      <span>📱 Generated via App | stampia.tech</span>
     </div>
   </div>
 </div>
