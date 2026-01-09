@@ -72,15 +72,24 @@ export async function getFreshLocation(options: { timeout?: number } = {}): Prom
 async function processLocation(location: Location.LocationObject): Promise<FreshLocation> {
     const now = Date.now();
 
-    // Reverse geocode from these exact coordinates
+    // Start with coordinates as address (instant fallback)
     let address = `${location.coords.latitude.toFixed(5)}, ${location.coords.longitude.toFixed(5)}`;
     let postcode = '';
 
+    // Non-blocking geocoding with short timeout (2s max)
+    // This prevents the UI from freezing while we get the street address
     try {
-        const geocodeResult = await reverseGeocodeMapbox(
+        const geocodePromise = reverseGeocodeMapbox(
             location.coords.latitude,
             location.coords.longitude
         );
+
+        // Race with a 2 second timeout
+        const geocodeResult = await Promise.race([
+            geocodePromise,
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000))
+        ]);
+
         if (geocodeResult) {
             address = geocodeResult.address || address;
             postcode = geocodeResult.postcode || '';
@@ -93,7 +102,7 @@ async function processLocation(location: Location.LocationObject): Promise<Fresh
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
         accuracy: location.coords.accuracy || 0,
-        capturedAt: now, // Use current time as capture time for the event
+        capturedAt: now,
         address,
         postcode,
     };

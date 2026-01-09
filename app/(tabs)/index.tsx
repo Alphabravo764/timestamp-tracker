@@ -29,6 +29,7 @@ import { syncShiftStart } from "@/lib/server-sync";
 import ActiveShiftScreen from "../shift/active";
 import { getSettings, canStartShift, incrementShiftCount, TRIAL_LIMITS, getPremiumStatus, PremiumStatus } from "@/lib/settings-storage";
 import { useColors } from "@/hooks/use-colors";
+import StampiaLogo from "@/components/stampia-logo";
 
 export default function HomeScreen() {
     const colors = useColors();
@@ -304,11 +305,7 @@ export default function HomeScreen() {
                 {/* Welcome Header */}
                 <View style={styles.welcomeSection}>
                     <View style={[styles.userIconCircle, { backgroundColor: colors.primary + '10' }]}>
-                        <Image
-                            source={require('@/assets/images/icon.png')}
-                            style={{ width: 50, height: 50, borderRadius: 8 }}
-                            resizeMode="contain"
-                        />
+                        <StampiaLogo size={50} color={colors.primary} />
                     </View>
                     <Text style={[styles.welcomeTitle, { color: colors.text }]}>STAMPIA</Text>
                     <Text style={styles.welcomeSubtitle}>Proof of Presence</Text>
