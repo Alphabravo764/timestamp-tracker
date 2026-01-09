@@ -233,7 +233,7 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
     const premiumStatus = await getPremiumStatus();
     const TRIAL_PHOTO_LIMIT = 30;
 
-    if (!premiumStatus.isPremium && activeShift && activeShift.photos.length >= TRIAL_PHOTO_LIMIT) {
+    if (!premiumStatus.isPremium && activeShift && (activeShift.photos || []).length >= TRIAL_PHOTO_LIMIT) {
       Alert.alert(
         "Photo Limit Reached",
         `Trial version limited to ${TRIAL_PHOTO_LIMIT} photos per shift. Please end this shift to continue, or upgrade with a premium code in Settings.`,
@@ -756,7 +756,7 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
             <View style={[styles.statBadge, { backgroundColor: "#e0e7ff" }]}>
               <Ionicons name="images" size={20} color="#4f46e5" />
             </View>
-            <Text style={[styles.statNumber, { color: colors.text }]}>{activeShift.photos.length}</Text>
+            <Text style={[styles.statNumber, { color: colors.text }]}>{(activeShift?.photos || []).length}</Text>
             <Text style={[styles.statLabel, { color: colors.muted }]}>View Gallery</Text>
             <View style={[styles.statDecor, { backgroundColor: "#e0e7ff" }]} />
           </TouchableOpacity>
@@ -822,7 +822,7 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
                 id: string;
                 data: any;
               }> = [
-                  ...activeShift.photos.map((photo: any) => ({
+                  ...(activeShift?.photos || []).map((photo: any) => ({
                     type: 'photo' as const,
                     ts: photo.ts || new Date(photo.timestamp).getTime(),
                     id: photo.id,
