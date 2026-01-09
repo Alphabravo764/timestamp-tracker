@@ -818,7 +818,7 @@ export default function HistoryScreen() {
   };
 
   return (
-    <ScreenContainer style={styles.container}>
+    <ScreenContainer>
       <View style={styles.header}>
         <Text style={styles.title}>Shift History</Text>
         <Text style={styles.subtitle}>View past shifts and generate reports</Text>

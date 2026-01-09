@@ -101,7 +101,7 @@ export default function WatcherScreen() {
   const viewerUrl = selectedCode ? `${apiUrl}/viewer/${selectedCode}` : null;
 
   return (
-    <ScreenContainer style={styles.container}>
+    <ScreenContainer>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}

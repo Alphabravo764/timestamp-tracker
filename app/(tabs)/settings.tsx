@@ -387,7 +387,7 @@ export default function SettingsScreen() {
           {/* Report Issue / Feedback */}
           <TouchableOpacity
             style={[styles.row, { borderBottomWidth: 1, borderBottomColor: colors.border }]}
-            onPress={() => Linking.openURL("mailto:feedback@stampia.tech?subject=STAMPIA%20Feedback")}
+            onPress={() => Linking.openURL("mailto:contact@stampia.tech?subject=STAMPIA%20Feedback")}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={[styles.iconBox, { backgroundColor: '#fef3c7' }]}>
@@ -404,7 +404,7 @@ export default function SettingsScreen() {
           {/* Customisation Request */}
           <TouchableOpacity
             style={styles.row}
-            onPress={() => Linking.openURL("mailto:custom@stampia.tech?subject=STAMPIA%20Customisation%20Request")}
+            onPress={() => Linking.openURL("mailto:contact@stampia.tech?subject=STAMPIA%20Customisation%20Request")}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={[styles.iconBox, { backgroundColor: '#f0fdf4' }]}>
