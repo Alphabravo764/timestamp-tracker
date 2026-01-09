@@ -38,6 +38,7 @@ import { syncLocation, syncShiftEnd, syncPhoto, syncNote } from "@/lib/server-sy
 import { uploadPhotoDirect, photoToBase64DataUri } from "@/lib/direct-upload";
 import { mapboxReverseGeocode, MapboxGeocodingResult } from "@/lib/mapbox";
 import { LeafletMap } from "@/components/LeafletMap";
+import { ScreenErrorBoundary } from "@/components/ScreenErrorBoundary";
 import { getFreshLocation } from "@/lib/fresh-location";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Print from "expo-print";
@@ -46,7 +47,7 @@ import { generatePdfHtml } from "@/lib/pdf-generator";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => void }) {
+function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [activeShift, setActiveShift] = useState<Shift | null>(null);
@@ -305,51 +306,33 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
       // 4. Close camera and update UI IMMEDIATELY
       setShowCamera(false);
 
-      try {
-        await loadShift(false);
-      } catch (loadError) {
-        console.error('[Photo] Failed to reload shift:', loadError);
-        // Continue anyway - photo is saved
-      }
+      // Do NOT reload shift immediately to prevent race conditions
+      // await loadShift(false);
 
-      // 5. Background: Direct upload to storage (no base64!)
+      // 5. Background: Direct upload to storage (Fire-and-forget)
       const pairCode = activeShift?.pairCode;
       const shiftId = activeShift?.id;
       const photoPath = photo.uri;
 
-      if (pairCode && shiftId) {
-        setTimeout(() => {
-          uploadPhotoDirect(photoPath, {
-            shiftId,
-            pairCode,
-            timestamp,
-            latitude: lat,
-            longitude: lng,
-            accuracy,
-            address
+      if (pairCode && shiftId && photoPath) {
+        // Run in background - do NOT await
+        uploadPhotoDirect(photoPath, {
+          shiftId,
+          pairCode,
+          timestamp,
+          latitude: lat,
+          longitude: lng,
+          accuracy,
+          address
+        })
+          .then((publicUrl) => {
+            console.log('[Direct Upload] Photo uploaded successfully:', publicUrl);
           })
-            .then((publicUrl) => {
-              console.log('[Direct Upload] Photo uploaded successfully:', publicUrl);
-            })
-            .catch(err => {
-              console.error('[Direct Upload] Failed, trying fallback:', err);
-              // Fallback to base64 if direct upload fails
-              photoToBase64DataUri(photoPath, 600, 0.6)
-                .then(base64Uri => {
-                  if (!base64Uri || base64Uri.startsWith('file:')) return;
-                  return syncPhoto({
-                    pairCode,
-                    photoUri: base64Uri,
-                    latitude: lat,
-                    longitude: lng,
-                    accuracy,
-                    timestamp,
-                    address
-                  });
-                })
-                .catch(fallbackErr => console.error('[Fallback] Also failed:', fallbackErr));
-            });
-        }, 50);
+          .catch(err => {
+            console.error('[Direct Upload] Background upload failed:', err);
+            // No base64 fallback - prevents out-of-memory crashes
+            // TODO: Queue for retry logic
+          });
       }
 
     } catch (error) {
@@ -1555,3 +1538,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
 });
+
+export default function ActiveShiftScreen(props: { onShiftEnd?: () => void }) {
+  return (
+    <ScreenErrorBoundary>
+      <ActiveShiftScreenContent {...props} />
+    </ScreenErrorBoundary>
+  );
+}
