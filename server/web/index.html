@@ -327,6 +327,77 @@
             .bento-grid {
                 grid-template-columns: 1fr;
             }
+
+            /* Reset span classes on mobile - single column */
+            .bento-card.large {
+                grid-column: span 1;
+            }
+
+            .bento-card.tall {
+                grid-row: span 1;
+                min-height: auto;
+            }
+
+            /* Hide absolute positioned images on mobile to prevent overlap */
+            .bento-image,
+            .bento-image-tall,
+            .bento-image-dark {
+                display: none;
+            }
+
+            /* Adjust card sizing for mobile */
+            .bento-card {
+                padding: 24px;
+                min-height: auto;
+            }
+
+            .bento-card h3 {
+                font-size: 22px;
+            }
+
+            .bento-card p {
+                font-size: 15px;
+            }
+
+            /* Hero adjustments for mobile */
+            .hero {
+                padding: 120px 16px 60px;
+            }
+
+            .hero-buttons {
+                flex-direction: column;
+                align-items: center;
+                gap: 12px;
+            }
+
+            .btn-primary {
+                width: 100%;
+                max-width: 280px;
+                justify-content: center;
+            }
+
+            /* Device frame smaller on mobile */
+            .device-frame {
+                max-width: 240px;
+            }
+
+            /* Features section spacing */
+            .features {
+                padding: 60px 16px;
+            }
+
+            .features-header {
+                margin-bottom: 40px;
+            }
+
+            /* Value section mobile */
+            .value-section {
+                padding: 60px 16px;
+            }
+
+            .value-title {
+                margin-bottom: 40px;
+            }
         }
 
         .bento-card {
@@ -654,6 +725,10 @@
 
             <h1>Proof of Presence.</h1>
             <h2>Pure and simple.</h2>
+            <p
+                style="color: var(--text-secondary); font-size: 20px; max-width: 600px; margin: 0 auto 40px; line-height: 1.6;">
+                Track, capture and verify your work shifts with tamper‑evident reports. Start a free trial today.
+            </p>
 
             <div class="hero-buttons">
                 <a href="https://apps.apple.com/app/stampia" class="btn-primary" target="_blank">
