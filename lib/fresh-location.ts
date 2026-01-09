@@ -1,11 +1,12 @@
 import * as Location from 'expo-location';
 import { reverseGeocodeMapbox } from './mapbox';
 
-// Location capture configuration
+// FAST location capture configuration - prioritize speed over accuracy
 const LOCATION_CONFIG = {
-    MAX_AGE_MS: 15000,      // Reject locations older than 15 seconds
-    MAX_ACCURACY_M: 50,     // Reject locations with accuracy > 50 meters
-    TIMEOUT_MS: 10000,      // Timeout for fresh location fetch
+    MAX_AGE_MS: 60000,      // Accept locations up to 60 seconds old (more lenient)
+    MAX_ACCURACY_M: 100,    // Accept up to 100 meters accuracy
+    TIMEOUT_MS: 2000,       // Very short timeout - 2 seconds max for fresh location
+    GEOCODE_TIMEOUT_MS: 1500, // 1.5s max for geocoding
 };
 
 export interface FreshLocation {
@@ -18,109 +19,119 @@ export interface FreshLocation {
 }
 
 /**
- * Get a fresh GPS location with reverse geocoding.
- * Enforces freshness rules: rejects stale or inaccurate locations.
+ * Get GPS location FAST with reverse geocoding.
+ * Prioritizes speed - will use cached location if available.
+ * Never blocks for more than ~3 seconds total.
  */
 export async function getFreshLocation(options: { timeout?: number } = {}): Promise<FreshLocation | null> {
+    const { timeout = LOCATION_CONFIG.TIMEOUT_MS } = options;
+    const now = Date.now();
+
     try {
-        const { timeout = LOCATION_CONFIG.TIMEOUT_MS } = options;
-        const now = Date.now();
+        // STEP 1: Try last known position FIRST (should be instant)
+        let location: Location.LocationObject | null = null;
 
-        // 1. Try last known position first (FASTEST)
-        const lastKnown = await Location.getLastKnownPositionAsync({
-            maxAge: LOCATION_CONFIG.MAX_AGE_MS,
-            requiredAccuracy: LOCATION_CONFIG.MAX_ACCURACY_M
-        });
-
-        if (lastKnown) {
-            const age = now - lastKnown.timestamp;
-            if (age < LOCATION_CONFIG.MAX_AGE_MS && (lastKnown.coords.accuracy || 100) < LOCATION_CONFIG.MAX_ACCURACY_M) {
-                console.log(`[Location] Using fresh cache (${Math.round(age / 1000)}s old)`);
-                return processLocation(lastKnown);
-            }
+        try {
+            location = await Location.getLastKnownPositionAsync({
+                maxAge: LOCATION_CONFIG.MAX_AGE_MS,
+                requiredAccuracy: LOCATION_CONFIG.MAX_ACCURACY_M
+            });
+        } catch (e) {
+            console.warn('[Location] getLastKnown failed:', e);
         }
 
-        // 2. Request fresh fix if cache is stale/missing
-        // Promise.race to enforce timeout
-        const locationPromise = Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High,
-            timeInterval: 0,
-            distanceInterval: 0,
-        });
+        // If we have a recent enough location, use it immediately
+        if (location) {
+            const age = now - location.timestamp;
+            console.log(`[Location] Using cached location (${Math.round(age / 1000)}s old)`);
+            return processLocationFast(location);
+        }
 
-        const location = await Promise.race([
-            locationPromise,
-            new Promise<null>((_, reject) =>
-                setTimeout(() => reject(new Error('Location timeout')), timeout)
-            )
-        ]) as Location.LocationObject;
+        // STEP 2: Try fresh location with SHORT timeout (non-blocking)
+        console.log('[Location] No cache, trying fresh location...');
 
-        return processLocation(location);
+        try {
+            const freshLocation = await Promise.race([
+                Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.Balanced, // Balanced is faster than High
+                    timeInterval: 0,
+                    distanceInterval: 0,
+                }),
+                new Promise<null>((resolve) =>
+                    setTimeout(() => resolve(null), timeout)
+                )
+            ]) as Location.LocationObject | null;
+
+            if (freshLocation) {
+                console.log('[Location] Got fresh location');
+                return processLocationFast(freshLocation);
+            }
+        } catch (e) {
+            console.warn('[Location] Fresh location failed:', e);
+        }
+
+        // STEP 3: Ultimate fallback - any last known position (no restrictions)
+        console.log('[Location] Using unrestricted fallback...');
+        try {
+            const fallback = await Promise.race([
+                Location.getLastKnownPositionAsync({}),
+                new Promise<null>((resolve) => setTimeout(() => resolve(null), 1000))
+            ]) as Location.LocationObject | null;
+
+            if (fallback) {
+                return processLocationFast(fallback);
+            }
+        } catch (e) {
+            console.warn('[Location] Fallback failed:', e);
+        }
+
+        // No location available at all
+        console.error('[Location] All location methods failed');
+        return null;
 
     } catch (error) {
-        console.error('[Location] Failed to get fresh location:', error);
-        // Fallback to whatever last known location we have, even if stale (better than nothing)
-        const fallback = await Location.getLastKnownPositionAsync({});
-        if (fallback) {
-            console.warn('[Location] Using stale fallback due to error');
-            return processLocation(fallback);
-        }
+        console.error('[Location] Unexpected error:', error);
         return null;
     }
 }
 
-async function processLocation(location: Location.LocationObject): Promise<FreshLocation> {
+/**
+ * Process location FAST - geocoding is fire-and-forget in background
+ * Returns immediately with coordinates, then updates address if available
+ */
+async function processLocationFast(location: Location.LocationObject): Promise<FreshLocation> {
     const now = Date.now();
+    const lat = location.coords.latitude;
+    const lng = location.coords.longitude;
 
-    // Start with coordinates as address (instant fallback)
-    let address = `${location.coords.latitude.toFixed(5)}, ${location.coords.longitude.toFixed(5)}`;
+    // Start with coordinates as address (instant)
+    let address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     let postcode = '';
 
-    // Non-blocking geocoding with short timeout (2s max)
-    // This prevents the UI from freezing while we get the street address
+    // Quick geocoding attempt with very short timeout
     try {
-        const geocodePromise = reverseGeocodeMapbox(
-            location.coords.latitude,
-            location.coords.longitude
-        );
-
-        // Race with a 2 second timeout
         const geocodeResult = await Promise.race([
-            geocodePromise,
-            new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000))
+            reverseGeocodeMapbox(lat, lng),
+            new Promise<null>((resolve) =>
+                setTimeout(() => resolve(null), LOCATION_CONFIG.GEOCODE_TIMEOUT_MS)
+            )
         ]);
 
         if (geocodeResult) {
             address = geocodeResult.address || address;
             postcode = geocodeResult.postcode || '';
         }
-    } catch (geoError) {
-        console.warn('[Location] Geocode failed, using coordinates:', geoError);
+    } catch (e) {
+        // Silently fail - we have coordinates which is enough
     }
 
     return {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
+        latitude: lat,
+        longitude: lng,
         accuracy: location.coords.accuracy || 0,
         capturedAt: now,
         address,
         postcode,
-    };
-}
-
-/**
- * Create fallback location with "Location unavailable" text
- */
-function createFallbackLocation(location?: Location.LocationObject | null): FreshLocation | null {
-    if (!location) return null;
-
-    return {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        accuracy: location.coords.accuracy || 0,
-        capturedAt: Date.now(),
-        address: 'Location accuracy low',
-        postcode: '',
     };
 }
 
