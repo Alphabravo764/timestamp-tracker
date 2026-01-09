@@ -67,14 +67,14 @@ export async function upsertShift(data: {
       pairCode: data.pairCode,
       pairCodeExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
     });
-    
+
     // Get the created shift
     const created = await db
       .select()
       .from(shifts)
       .where(eq(shifts.pairCode, data.pairCode))
       .limit(1);
-    
+
     return created[0];
   }
 }
@@ -209,7 +209,7 @@ export async function endShift(data: {
   if (!db) throw new Error("Database not available");
 
   const endTimeUtc = new Date(data.endTime);
-  
+
   // Get shift to calculate duration
   const shift = await db
     .select()
@@ -245,11 +245,19 @@ export async function getShiftByPairCode(pairCode: string) {
   const db = await getDb();
   if (!db) return null;
 
+  // Normalize pairCode: accept XXXXXX or XXX-XXX, convert to XXX-XXX
+  let normalizedCode = pairCode.toUpperCase().replace(/-/g, '');
+  if (normalizedCode.length === 6) {
+    normalizedCode = `${normalizedCode.slice(0, 3)}-${normalizedCode.slice(3)}`;
+  } else {
+    normalizedCode = pairCode.toUpperCase();
+  }
+
   // Get shift
   const shiftData = await db
     .select()
     .from(shifts)
-    .where(eq(shifts.pairCode, pairCode.toUpperCase()))
+    .where(eq(shifts.pairCode, normalizedCode))
     .limit(1);
 
   if (shiftData.length === 0) {
