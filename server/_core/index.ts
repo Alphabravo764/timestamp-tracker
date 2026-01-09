@@ -1012,32 +1012,10 @@ async function startServer() {
     }
   });
 
-  // ---- Watermark API ----
-  const watermarkApi = await import("../watermark-api.js");
-
+  // ---- Watermark API (DISABLED - sharp module issue on Linux) ----
+  // TODO: Re-enable when sharp is properly configured for Linux deployment
   app.post("/api/watermark", async (req, res) => {
-    try {
-      const { imageBase64, timestamp, address, latitude, longitude, staffName, siteName } = req.body;
-
-      if (!imageBase64) {
-        return res.status(400).json({ success: false, error: "imageBase64 required" });
-      }
-
-      const result = await watermarkApi.addWatermarkServer({
-        imageBase64,
-        timestamp: timestamp || new Date().toLocaleString(),
-        address: address || "Location unavailable",
-        latitude: latitude || 0,
-        longitude: longitude || 0,
-        staffName,
-        siteName,
-      });
-
-      res.json(result);
-    } catch (error) {
-      console.error("Watermark API error:", error);
-      res.status(500).json({ success: false, error: "Failed to add watermark" });
-    }
+    res.status(503).json({ success: false, error: "Watermark API temporarily unavailable" });
   });
 
   // ---- tRPC ----
