@@ -123,18 +123,13 @@ function encodeNumber(num: number): string {
 
 /**
  * Generate Mapbox Static Images API URL with trail polyline
- * Uses the Mapbox Static Images API: https://docs.mapbox.com/api/maps/static-images/
+ * Falls back to OpenStreetMap static tiles if no Mapbox token
  */
 export function generateMapboxStaticUrl(
     locations: { latitude: number; longitude: number; accuracy?: number }[],
     width: number = 800,
     height: number = 400
 ): string {
-    // Return empty string if no token (mobile app - map tile is optional)
-    if (!MAPBOX_TOKEN) {
-        return "";
-    }
-
     if (locations.length === 0) {
         return "";
     }
@@ -152,6 +147,16 @@ export function generateMapboxStaticUrl(
 
     if (filteredLocations.length === 0) {
         return "";
+    }
+
+    const center = filteredLocations[Math.floor(filteredLocations.length / 2)];
+
+    // If no Mapbox token, use OpenStreetMap static map
+    if (!MAPBOX_TOKEN) {
+        // Use OpenStreetMap static map (no API key needed)
+        const zoom = 14;
+        const osmUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${center.latitude},${center.longitude}&zoom=${zoom}&size=${width}x${height}&maptype=osmarenderer`;
+        return osmUrl;
     }
 
     const start = filteredLocations[0];
