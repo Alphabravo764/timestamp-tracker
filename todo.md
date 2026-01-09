@@ -938,3 +938,22 @@ Based on user's detailed specifications and sample code:
 - [x] Move watermark burning to export/PDF generation only
 - [x] Background photo sync (non-blocking)
 - [x] Created burn-watermark.ts for PDF/export watermarking
+
+
+## TERMS OF SERVICE & PRIVACY POLICY UPDATE - Jan 4, 2026
+- [x] Review current Terms of Service in app
+- [x] Update product name from "Timestamp Tracker" to "STAMPIA – Proof of Presence"
+- [x] No subscription/pricing sections found (already clean)
+- [x] Add Trial Access & Usage Limits section
+- [x] Add Access Codes (Luxury Codes) section
+- [x] Fix "User Accounts" → "Eligibility & Device Use"
+- [x] Governing Law already correct ("England and Wales")
+- [x] No arbitration clause found (already clean)
+- [x] Review current Privacy Policy in app
+- [x] Fix data retention section (removed non-existent tiers)
+- [x] No "tamper-proof" language found (already clean)
+- [x] Add GDPR transfer basis disclosure
+- [x] Improve children's privacy wording
+- [x] Soften communication language
+- [x] Simplify photo storage description
+- [x] Add pair code expiration clarification

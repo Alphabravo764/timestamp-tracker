@@ -1,27 +1,28 @@
-# Privacy Policy
+# STAMPIA – Proof of Presence
+## Privacy Policy
 
-**Last Updated: January 3, 2026**
+**Last Updated: January 4, 2026**
 
 ## Introduction
 
-This Privacy Policy explains how Timestamp Tracker ("we", "our", or "the App") collects, uses, and protects your personal information when you use our mobile application. We are committed to protecting your privacy and complying with the UK General Data Protection Regulation (UK GDPR) and the Data Protection Act 2018.
+This Privacy Policy explains how STAMPIA ("we", "our", or "the App") collects, uses, and protects your personal information when you use our mobile application. We are committed to protecting your privacy and complying with the UK General Data Protection Regulation (UK GDPR) and the Data Protection Act 2018.
 
 ## Data Controller
 
-For the purposes of data protection law, the data controller is the organization or individual who has deployed this instance of Timestamp Tracker.
+For the purposes of data protection law, the data controller is the organization or individual who has deployed this instance of STAMPIA.
 
 ## Information We Collect
 
 ### Location Data
 - **GPS Coordinates**: We collect your precise location every 30 seconds during an active shift
 - **Purpose**: To create a tracking record of your patrol route
-- **Storage**: Location data is stored on our servers and associated with your shift
-- **Retention**: Location data is retained for the duration specified by your organization's data retention policy
+- **Storage**: Location data is stored securely in our database or cloud storage systems
+- **Retention**: Location data is retained for a limited time to support reporting and verification features
 
 ### Photos
 - **Camera Access**: We request permission to access your device camera
 - **Photo Data**: Photos you capture include GPS coordinates and timestamps
-- **Storage**: Photos are uploaded to secure cloud storage (Amazon S3)
+- **Storage**: Photos are stored securely in our database or cloud storage systems
 - **Retention**: Photos are retained for the duration of the shift record
 
 ### Shift Information
@@ -39,9 +40,10 @@ For the purposes of data protection law, the data controller is the organization
 We use the collected information solely for the following purposes:
 
 1. **Shift Tracking**: To record and display your patrol route and activities
-2. **Reporting**: To generate shift reports for your employer or client
+2. **Reporting**: To generate shift reports with verification features for your employer or client
 3. **Live Monitoring**: To allow authorized viewers to monitor your shift in real-time via pair code
 4. **Service Improvement**: To improve app functionality and fix bugs
+5. **Communicate with you**: Send important service-related messages such as security notices or significant feature changes
 
 ## Legal Basis for Processing
 
@@ -61,16 +63,19 @@ We process your personal data under the following legal bases:
 
 ### Pair Code System
 
+Pair codes are temporary, randomly generated, and expire automatically when a shift ends.
+
 - **Temporary Access**: Pair codes expire after 24 hours
 - **Voluntary Sharing**: You control who receives your pair code
 - **Revocation**: Shifts become inactive when ended, preventing further live viewing
 
 ## Data Retention
 
-- **Active Shifts**: Data is retained while your shift is active
-- **Completed Shifts**: Shift records are retained according to your organization's policy
-- **Pair Code Expiry**: Pair codes automatically expire 24 hours after creation
-- **Deletion Requests**: You can request deletion of your data (see Your Rights below)
+During the trial period, shift data is retained for a limited time to support reporting and verification features.
+
+Retention periods may change as paid plans are introduced. Any changes will be clearly communicated in the app before taking effect.
+
+You may delete your data at any time from the app settings or by contacting us.
 
 ## Data Security
 
@@ -80,6 +85,15 @@ We implement appropriate technical and organizational measures to protect your d
 - **Secure Storage**: Photos and data are stored on secure cloud infrastructure
 - **Access Controls**: Only authorized users can access shift data
 - **Regular Updates**: We maintain security updates for the app and servers
+
+## Where Your Data Is Stored
+
+Your data may be stored on servers located outside the UK (including the United States). When data is transferred internationally, we ensure appropriate safeguards are in place, such as:
+
+- Standard Contractual Clauses approved by the UK Information Commissioner's Office
+- Adequacy decisions for countries with equivalent data protection standards
+
+Where required by law, international data transfers are protected using appropriate safeguards such as standard contractual clauses.
 
 ## Your Rights Under UK GDPR
 
@@ -97,14 +111,7 @@ To exercise these rights, contact your organization's data controller or the app
 
 ## Children's Privacy
 
-Timestamp Tracker is not intended for use by individuals under 18 years of age. We do not knowingly collect personal information from children.
-
-## International Data Transfers
-
-Your data may be stored on servers located outside the UK. When data is transferred internationally, we ensure appropriate safeguards are in place, such as:
-
-- Standard Contractual Clauses approved by the UK Information Commissioner's Office
-- Adequacy decisions for countries with equivalent data protection standards
+STAMPIA is intended for adults aged 18 and over. We do not knowingly collect personal data from children. If you believe a child has provided us with personal data, please contact us and we will delete it.
 
 ## Cookies and Tracking
 
@@ -117,6 +124,8 @@ We may update this Privacy Policy from time to time. We will notify you of signi
 - Displaying a notification in the app
 - Requiring re-acceptance of updated terms
 - Posting the updated policy with a new "Last Updated" date
+
+This Privacy Policy is available within the app settings at all times.
 
 ## Contact Information
 
@@ -139,4 +148,4 @@ If your organization has appointed a Data Protection Officer (DPO), their contac
 
 ---
 
-**By using Timestamp Tracker, you acknowledge that you have read and understood this Privacy Policy.**
+**By using STAMPIA, you acknowledge that you have read and understood this Privacy Policy.**

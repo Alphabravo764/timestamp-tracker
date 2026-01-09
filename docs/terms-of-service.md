@@ -1,27 +1,30 @@
-# Terms of Service
+# STAMPIA – Proof of Presence
+## Terms of Service
 
-**Last Updated: January 3, 2026**
+**Last Updated: January 4, 2026**
 
 ## 1. Acceptance of Terms
 
-By downloading, installing, or using Timestamp Tracker ("the App"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, do not use the App.
+By downloading, installing, or using STAMPIA ("the App"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, do not use the App.
 
 ## 2. Description of Service
 
-Timestamp Tracker is a mobile application that provides:
+STAMPIA is a mobile application that provides:
 
 - GPS location tracking during work shifts
 - Photo capture with timestamp and location metadata
 - Live shift monitoring via temporary pair codes
 - Shift reporting and history
 
-## 3. Eligibility
+## 3. Eligibility & Device Use
 
 You must be:
 
 - At least 18 years of age
 - Authorized by your employer or client to use the App
 - Capable of forming a binding contract under applicable law
+
+STAMPIA currently operates without traditional user accounts. Usage is associated with your device and optional access codes. You are responsible for securing your device and any data stored on it.
 
 ## 4. User Responsibilities
 
@@ -37,7 +40,7 @@ You agree to:
 
 You agree to:
 
-- Use the App only for legitimate work-related purposes
+- Use the App only for legitimate work-related purposes as authorized by your employer
 - Not use the App to track others without authorization
 - Comply with your employer's policies regarding app usage
 
@@ -49,24 +52,47 @@ You are responsible for:
 - Internet connectivity and associated data charges
 - Keeping your device secure and updated
 
-## 5. Pair Code System
+## 5. Trial Access & Usage Limits
 
-### 5.1 Sharing Pair Codes
+STAMPIA is currently offered as a trial version with usage limits.
+
+Trial users may be subject to limits on:
+- Number of shifts
+- Number of photos or notes
+- Number of live view shares
+- Number of PDF report generations
+
+These limits may change during the trial period.
+
+## 6. Access Codes (Luxury Codes)
+
+We may provide one-time access codes that unlock additional usage limits or features.
+
+Each code:
+- Can be used only once
+- Is non-transferable
+- Cannot be reused once redeemed
+
+We reserve the right to revoke access codes if misuse or abuse is detected.
+
+## 7. Pair Code System
+
+### 7.1 Sharing Pair Codes
 
 - Pair codes provide temporary access to your live shift data
 - You are responsible for controlling who receives your pair code
 - Share pair codes only with authorized individuals
 - Pair codes expire automatically after 24 hours
 
-### 5.2 Security
+### 7.2 Security
 
 - Do not share pair codes publicly or on social media
 - Report unauthorized access immediately to your supervisor
 - Understand that anyone with your pair code can view your location and photos
 
-## 6. Data Collection and Privacy
+## 8. Data Collection and Privacy
 
-### 6.1 Location Tracking
+### 8.1 Location Tracking
 
 By using the App, you consent to:
 
@@ -74,7 +100,7 @@ By using the App, you consent to:
 - Storage of your location history on our servers
 - Sharing of location data with authorized viewers
 
-### 6.2 Photo and Media
+### 8.2 Photo and Media
 
 You acknowledge that:
 
@@ -82,105 +108,57 @@ You acknowledge that:
 - Photos include GPS coordinates and timestamps
 - Your employer or client may access and use these photos
 
-### 6.3 Privacy Policy
+### 8.3 Privacy Policy
 
 Your use of the App is also governed by our Privacy Policy, which is incorporated into these Terms by reference.
 
-## 7. Intellectual Property
+## 9. Intellectual Property
 
-### 7.1 App Ownership
+### 9.1 App Ownership
 
 The App, including all content, features, and functionality, is owned by the developers and is protected by copyright, trademark, and other intellectual property laws.
 
-### 7.2 Limited License
+### 9.2 Limited License
 
 We grant you a limited, non-exclusive, non-transferable license to use the App for its intended purpose. You may not:
 
 - Modify, reverse engineer, or decompile the App
 - Remove copyright or proprietary notices
 - Use the App for any unlawful purpose
-- Create derivative works based on the App
 
-## 8. Prohibited Conduct
+## 10. Disclaimer of Warranties
 
-You agree not to:
+THE APP IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO:
 
-- Interfere with or disrupt the App's functionality
-- Attempt to gain unauthorized access to our systems
-- Use the App to harass, abuse, or harm others
-- Transmit viruses, malware, or harmful code
-- Violate any applicable laws or regulations
+- **GPS Accuracy**: Location data may be affected by device limitations, signal interference, or environmental factors
+- **Availability**: We do not guarantee uninterrupted or error-free service
+- **Fitness for Purpose**: We do not warrant that the App will meet all your specific requirements
 
-## 9. Service Availability
+## 11. Limitation of Liability
 
-### 9.1 No Guarantee of Uptime
+TO THE MAXIMUM EXTENT PERMITTED BY LAW:
 
-We strive to provide reliable service but do not guarantee:
+- We are not liable for indirect, incidental, or consequential damages
+- Our total liability shall not exceed the amount paid by you (if any) to use the App
+- We are not responsible for data loss due to device failure or network issues
 
-- Uninterrupted access to the App
-- Error-free operation
-- Availability in all geographic locations
+## 12. Indemnification
 
-### 9.2 Maintenance and Updates
+You agree to indemnify and hold us harmless from any claims, damages, or expenses arising from:
 
-We reserve the right to:
-
-- Perform scheduled maintenance
-- Update the App without prior notice
-- Modify or discontinue features
-
-## 10. Limitation of Liability
-
-### 10.1 Disclaimer of Warranties
-
-THE APP IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT.
-
-### 10.2 Limitation of Damages
-
-TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE SHALL NOT BE LIABLE FOR:
-
-- Indirect, incidental, or consequential damages
-- Loss of profits, data, or business opportunities
-- Damages arising from GPS inaccuracies or service interruptions
-- Unauthorized access to your data due to pair code sharing
-
-### 10.3 Maximum Liability
-
-Our total liability for any claims arising from your use of the App shall not exceed the amount paid by your organization for the service (if any) in the 12 months preceding the claim.
-
-## 11. Indemnification
-
-You agree to indemnify and hold harmless the App developers, operators, and affiliates from any claims, damages, or expenses arising from:
-
-- Your violation of these Terms
 - Your misuse of the App
+- Your violation of these Terms
 - Your violation of any third-party rights
-- Inaccurate information you provide
-
-## 12. Data Retention and Deletion
-
-### 12.1 Retention Period
-
-- Active shift data is retained during the shift
-- Completed shifts are retained according to your organization's policy
-- Pair codes expire after 24 hours
-
-### 12.2 Deletion Requests
-
-You may request deletion of your data by contacting your organization's administrator. We will comply with deletion requests within 30 days, except where retention is required by law.
 
 ## 13. Termination
 
-### 13.1 Your Right to Terminate
+### 13.1 By You
 
-You may stop using the App at any time by:
+You may stop using the App at any time by uninstalling it from your device.
 
-- Uninstalling the App from your device
-- Requesting account deletion from your administrator
+### 13.2 By Us
 
-### 13.2 Our Right to Terminate
-
-We may suspend or terminate your access if:
+We may terminate or suspend your access if:
 
 - You violate these Terms
 - Your employer terminates your authorization
@@ -196,7 +174,7 @@ Upon termination:
 
 ## 14. Governing Law and Jurisdiction
 
-These Terms are governed by the laws of England and Wales. Any disputes shall be resolved in the courts of England and Wales.
+These Terms are governed by the laws of England and Wales. Any disputes will be resolved in the courts of England and Wales.
 
 ## 15. Changes to Terms
 
@@ -238,4 +216,4 @@ By clicking "Accept" or using the App, you acknowledge that:
 
 ---
 
-**If you do not agree to these Terms, you must not use Timestamp Tracker.**
+**If you do not agree to these Terms, you must not use STAMPIA.**
