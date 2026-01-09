@@ -128,6 +128,11 @@ async function startServer() {
     res.sendFile(path.join(simpleWebDir, "about.html"));
   });
 
+  // Use Cases page
+  app.get("/use-cases", (_req, res) => {
+    res.sendFile(path.join(simpleWebDir, "use-cases.html"));
+  });
+
   // ---- OAuth + health ----
   registerOAuthRoutes(app);
 
