@@ -1,6 +1,6 @@
 import { eq, and, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import * as mysql from "mysql2/promise";
+import mysql from "mysql2/promise";
 import {
   InsertUser,
   users,
@@ -34,8 +34,8 @@ export async function getDb() {
         keepAliveInitialDelay: 0,
       });
 
-      _db = drizzle(_pool);
-      console.log('[Database] Connection pool created (max 10 connections)');
+      _db = drizzle(_pool as any); // Type cast to resolve mysql2/promise vs mysql2 type conflict
+      console.log('[Database] ✅ Connection pool created (limit: 10, reuse: true)');
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;

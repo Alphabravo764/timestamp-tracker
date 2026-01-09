@@ -32,7 +32,7 @@ import {
   addNoteToShift,
 } from "@/lib/shift-storage";
 import type { Shift } from "@/lib/shift-types";
-import { getSettings, canGenerateReport, incrementReportCount, canShareLiveView, incrementLiveShareCount } from "@/lib/settings-storage";
+import { getSettings, canGenerateReport, incrementReportCount, canShareLiveView, incrementLiveShareCount, getPremiumStatus } from "@/lib/settings-storage";
 import { router, useFocusEffect } from "expo-router";
 import { syncLocation, syncShiftEnd, syncPhoto, syncNote } from "@/lib/server-sync";
 import { uploadPhotoDirect, photoToBase64DataUri } from "@/lib/direct-upload";
@@ -230,10 +230,10 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
     if (!cameraRef.current || processing) return;
 
     // Photo cap for trial users (premium codes bypass this)
-    const settings = await getSettings();
+    const premiumStatus = await getPremiumStatus();
     const TRIAL_PHOTO_LIMIT = 30;
 
-    if (!settings?.isPremium && activeShift && activeShift.photos.length >= TRIAL_PHOTO_LIMIT) {
+    if (!premiumStatus.isPremium && activeShift && activeShift.photos.length >= TRIAL_PHOTO_LIMIT) {
       Alert.alert(
         "Photo Limit Reached",
         `Trial version limited to ${TRIAL_PHOTO_LIMIT} photos per shift. Please end this shift to continue, or upgrade with a premium code in Settings.`,

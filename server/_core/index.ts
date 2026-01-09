@@ -253,6 +253,26 @@ async function startServer() {
         return res.status(400).json({ error: "pairCode, photoId, and url required" });
       }
 
+      // ✅ SERVER-SIDE PHOTO CAP ENFORCEMENT
+      const shift = await syncDb.getShiftByPairCode(pairCode);
+      if (!shift) {
+        return res.status(404).json({ error: "Shift not found" });
+      }
+
+      const TRIAL_PHOTO_LIMIT = 30;
+      const currentPhotoCount = shift.photos?.length || 0;
+
+      // Enforce trial limit (premium validation to be added with auth)
+      if (currentPhotoCount >= TRIAL_PHOTO_LIMIT) {
+        console.warn(`[Photo Cap] BLOCKED: ${pairCode} at ${currentPhotoCount}/${TRIAL_PHOTO_LIMIT} photos`);
+        return res.status(403).json({
+          error: "Photo limit reached",
+          message: `Trial limited to ${TRIAL_PHOTO_LIMIT} photos per shift. Upgrade to continue.`,
+          currentCount: currentPhotoCount,
+          limit: TRIAL_PHOTO_LIMIT
+        });
+      }
+
       // Save photo metadata to database
       await syncDb.addPhoto({
         pairCode,
@@ -264,8 +284,8 @@ async function startServer() {
         address
       });
 
-      console.log(`[Photo Metadata] Saved for ${pairCode}, photoId: ${photoId}`);
-      res.json({ success: true, photoId, url });
+      console.log(`[Photo Metadata] ✅ Saved ${pairCode}: ${currentPhotoCount + 1}/${TRIAL_PHOTO_LIMIT} photos`);
+      res.json({ success: true, photoId, url, currentCount: currentPhotoCount + 1 });
     } catch (error) {
       console.error("Photo metadata save error:", error);
       res.status(500).json({ error: "Failed to save photo metadata" });
