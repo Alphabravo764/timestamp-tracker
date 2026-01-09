@@ -331,38 +331,50 @@
 
             /* Reset span classes on mobile - single column */
             .bento-card.large {
-                grid-column: span 1;
+                grid-column: span 1 !important;
             }
 
             .bento-card.tall {
-                grid-row: span 1;
-                min-height: auto;
+                grid-row: span 1 !important;
+                min-height: auto !important;
             }
 
             /* Hide absolute positioned images on mobile to prevent overlap */
             .bento-image,
             .bento-image-tall,
             .bento-image-dark {
-                display: none;
+                display: none !important;
+                visibility: hidden !important;
             }
 
             /* Adjust card sizing for mobile */
             .bento-card {
-                padding: 24px;
-                min-height: auto;
+                padding: 24px !important;
+                min-height: auto !important;
+                overflow: hidden !important;
             }
 
             .bento-card h3 {
-                font-size: 22px;
+                font-size: 20px !important;
+                margin-bottom: 8px !important;
             }
 
             .bento-card p {
-                font-size: 15px;
+                font-size: 14px !important;
+                line-height: 1.5 !important;
             }
 
             /* Hero adjustments for mobile */
             .hero {
-                padding: 120px 16px 60px;
+                padding: 100px 16px 40px;
+            }
+
+            .hero h1 {
+                font-size: 32px !important;
+            }
+
+            .hero h2 {
+                font-size: 28px !important;
             }
 
             .hero-buttons {
@@ -379,25 +391,34 @@
 
             /* Device frame smaller on mobile */
             .device-frame {
-                max-width: 240px;
+                max-width: 200px;
             }
 
             /* Features section spacing */
             .features {
-                padding: 60px 16px;
+                padding: 40px 16px;
             }
 
             .features-header {
-                margin-bottom: 40px;
+                margin-bottom: 30px;
+            }
+
+            .features-header h2 {
+                font-size: 28px !important;
             }
 
             /* Value section mobile */
             .value-section {
-                padding: 60px 16px;
+                padding: 40px 16px;
             }
 
             .value-title {
-                margin-bottom: 40px;
+                margin-bottom: 30px;
+                font-size: 26px !important;
+            }
+
+            .value-grid {
+                gap: 24px !important;
             }
         }
 
