@@ -625,6 +625,31 @@
             font-size: 14px;
         }
 
+        .gallery-item.wide {
+            grid-column: span 2;
+        }
+
+        .gallery-item.wide img {
+            height: 350px;
+            object-fit: cover;
+            object-position: top center;
+        }
+
+        @media (max-width: 640px) {
+            .gallery-item.wide {
+                grid-column: span 1;
+            }
+
+            .gallery-item.wide img {
+                height: 300px;
+            }
+        }
+
+        .gallery-item a {
+            display: block;
+            cursor: zoom-in;
+        }
+
         /* Value Props */
         .value-section {
             padding: 120px 24px;
@@ -940,31 +965,39 @@
 
             <div class="gallery-grid">
                 <div class="gallery-item">
-                    <img src="/images/app-watch-shifts.png" alt="Watch Shifts Feature">
+                    <a href="/images/app-watch-shifts.png" target="_blank">
+                        <img src="/images/app-watch-shifts.png" alt="Watch Shifts Feature">
+                    </a>
                     <div class="gallery-caption">
                         <h4>Watch Shifts</h4>
                         <p>Monitor live shifts with pair codes</p>
                     </div>
                 </div>
                 <div class="gallery-item">
-                    <img src="/images/app-watch-activity.png" alt="Activity Log">
+                    <a href="/images/app-watch-activity.png" target="_blank">
+                        <img src="/images/app-watch-activity.png" alt="Activity Log">
+                    </a>
                     <div class="gallery-caption">
                         <h4>Activity Log</h4>
                         <p>Verified timeline with all evidence</p>
                     </div>
                 </div>
                 <div class="gallery-item">
-                    <img src="/images/activity-log.png" alt="Web Viewer">
+                    <a href="/images/app-active-shift.png" target="_blank">
+                        <img src="/images/app-active-shift.png" alt="Start Shift">
+                    </a>
                     <div class="gallery-caption">
-                        <h4>Web Viewer</h4>
-                        <p>Share shift details with clients</p>
+                        <h4>Start Shift</h4>
+                        <p>Begin tracking with one tap</p>
                     </div>
                 </div>
-                <div class="gallery-item">
-                    <img src="/images/app-onboarding.png" alt="Privacy First">
+                <div class="gallery-item wide">
+                    <a href="/images/viewer-screenshot.png" target="_blank">
+                        <img src="/images/viewer-screenshot.png" alt="Web Viewer - Tablet View">
+                    </a>
                     <div class="gallery-caption">
-                        <h4>Privacy First</h4>
-                        <p>Clear consent and data transparency</p>
+                        <h4>Web Viewer</h4>
+                        <p>Share shift details with clients on any device</p>
                     </div>
                 </div>
             </div>
