@@ -19,10 +19,29 @@ export interface MapboxGeocodingResult {
 
 /**
  * Reverse geocode using Mapbox Geocoding API
+ * Falls back to OpenStreetMap Nominatim if no Mapbox token
  */
 export async function reverseGeocodeMapbox(lat: number, lng: number): Promise<MapboxGeocodingResult | null> {
-    // Return null if no token (mobile app - geocoding is optional)
+    // If no Mapbox token, use free OpenStreetMap Nominatim
     if (!MAPBOX_TOKEN) {
+        try {
+            const response = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+                { headers: { 'User-Agent': 'STAMPIA/1.0' } }
+            );
+            const data = await response.json();
+            if (data?.address) {
+                return {
+                    address: data.display_name || '',
+                    street: data.address.road || data.address.street || '',
+                    postcode: data.address.postcode || '',
+                    city: data.address.city || data.address.town || data.address.village || '',
+                    country: data.address.country || '',
+                };
+            }
+        } catch (e) {
+            console.warn('[Geocoding] OSM Nominatim failed:', e);
+        }
         return null;
     }
 

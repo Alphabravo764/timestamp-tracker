@@ -36,7 +36,8 @@ import { getSettings, canGenerateReport, incrementReportCount, canShareLiveView,
 import { router, useFocusEffect } from "expo-router";
 import { syncLocation, syncShiftEnd, syncPhoto, syncNote } from "@/lib/server-sync";
 import { uploadPhotoDirect, photoToBase64DataUri } from "@/lib/direct-upload";
-import { mapboxReverseGeocode, generateMapboxStaticUrl } from "@/lib/mapbox";
+import { mapboxReverseGeocode, MapboxGeocodingResult } from "@/lib/mapbox";
+import { LeafletMap } from "@/components/LeafletMap";
 import { getFreshLocation } from "@/lib/fresh-location";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Print from "expo-print";
@@ -135,7 +136,9 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
           mapboxReverseGeocode(
             lastKnown.coords.latitude,
             lastKnown.coords.longitude
-          ).then(addr => setCurrentAddress(addr)).catch(() => { });
+          ).then((res: MapboxGeocodingResult | null) => {
+            if (res?.address) setCurrentAddress(res.address);
+          }).catch(() => { });
         }
 
         // Background: Try fresh location with short timeout (non-blocking update)
@@ -148,7 +151,9 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
             mapboxReverseGeocode(
               freshLoc.coords.latitude,
               freshLoc.coords.longitude
-            ).then(addr => setCurrentAddress(addr)).catch(() => { });
+            ).then((res: MapboxGeocodingResult | null) => {
+              if (res?.address) setCurrentAddress(res.address);
+            }).catch(() => { });
           }
         }).catch(() => { });
 
@@ -562,20 +567,17 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
   }
 
   // Generate static map URL using Google Maps with location trail
-  let staticMapUrl: string | null = null;
-  try {
-    const locations = activeShift?.locations || [];
-    if (locations.length > 0) {
-      staticMapUrl = generateMapboxStaticUrl(locations.map(l => ({
-        latitude: l?.latitude || 0,
-        longitude: l?.longitude || 0,
-        accuracy: l?.accuracy || 0
-      })), 600, 300);
-    }
-  } catch (mapError) {
-    console.warn('[Map] Failed to generate static map URL:', mapError);
-    staticMapUrl = null;
-  }
+  // Determine display location for the map (GPS > Last Shift Location > Default)
+  const locations = activeShift?.locations || [];
+  const lastLocation = locations.length > 0 ? locations[locations.length - 1] : null;
+
+  const displayLocation = currentLocation?.coords ? {
+    latitude: currentLocation.coords.latitude,
+    longitude: currentLocation.coords.longitude
+  } : (lastLocation ? {
+    latitude: lastLocation.latitude,
+    longitude: lastLocation.longitude
+  } : null);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -705,30 +707,26 @@ export default function ActiveShiftScreen({ onShiftEnd }: { onShiftEnd?: () => v
           }}
         >
           <View style={styles.mapContainer}>
-            {staticMapUrl ? (
-              <Image
-                source={{ uri: staticMapUrl }}
-                style={StyleSheet.absoluteFill}
-                resizeMode="cover"
-                onError={(e) => console.warn('[Map Image] Load error:', e.nativeEvent?.error)}
+            {displayLocation ? (
+              <LeafletMap
+                latitude={displayLocation.latitude}
+                longitude={displayLocation.longitude}
+                height={160}
               />
             ) : (
+              // Placeholder when absolutely no location data
               <View style={[styles.mapPlaceholder, { backgroundColor: colors.background }]}>
                 <View style={styles.mapPattern} />
-              </View>
-            )}
-
-            {/* You are here pin */}
-            {!staticMapUrl && (
-              <View style={styles.pinContainer}>
-                <View style={styles.pinPulseWrapper}>
-                  <View style={styles.pinPulse} />
-                  <View style={styles.pin}>
-                    <Ionicons name="location" size={20} color="#fff" />
+                <View style={styles.pinContainer}>
+                  <View style={styles.pinPulseWrapper}>
+                    <View style={styles.pinPulse} />
+                    <View style={styles.pin}>
+                      <Ionicons name="location" size={20} color="#fff" />
+                    </View>
                   </View>
-                </View>
-                <View style={styles.pinLabel}>
-                  <Text style={styles.pinLabelText}>You are here</Text>
+                  <View style={styles.pinLabel}>
+                    <Text style={styles.pinLabelText}>Locating...</Text>
+                  </View>
                 </View>
               </View>
             )}
