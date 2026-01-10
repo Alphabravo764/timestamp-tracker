@@ -122,7 +122,8 @@ export async function uploadPhotoDirect(
         console.error('[Direct Upload] Error name:', error?.name);
         console.error('[Direct Upload] Error message:', error?.message);
         console.error('[Direct Upload] Raw error:', error);
-        throw error;
+        // Don't throw - return empty string so UI doesn't crash
+        return '';
     }
 }
 
