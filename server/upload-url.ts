@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import crypto from "crypto";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ENV } from "./_core/env";
 import { monitor } from "./monitoring.js";
 
@@ -25,9 +27,32 @@ function checkRateLimit(identifier: string): boolean {
     return true;
 }
 
+// Create S3 client (lazy initialization)
+let s3Client: S3Client | null = null;
+
+function getS3Client(): S3Client | null {
+    if (s3Client) return s3Client;
+
+    if (!ENV.s3Endpoint || !ENV.s3AccessKeyId || !ENV.s3SecretAccessKey || !ENV.s3BucketName) {
+        return null;
+    }
+
+    s3Client = new S3Client({
+        endpoint: ENV.s3Endpoint,
+        region: ENV.s3Region || "auto",
+        credentials: {
+            accessKeyId: ENV.s3AccessKeyId,
+            secretAccessKey: ENV.s3SecretAccessKey,
+        },
+        forcePathStyle: true, // Required for Railway/R2 S3-compatible storage
+    });
+
+    return s3Client;
+}
+
 /**
  * POST /api/upload-url
- * Returns presigned URL for direct photo upload to object storage
+ * Returns presigned URL for direct photo upload to S3-compatible storage
  */
 export async function createUploadUrl(req: Request, res: Response) {
     try {
@@ -57,50 +82,38 @@ export async function createUploadUrl(req: Request, res: Response) {
         // Track upload request
         monitor.recordUpload();
 
+        // Check S3 configuration
+        const client = getS3Client();
+        if (!client) {
+            console.error('[Upload URL] S3 storage not configured');
+            return res.status(500).json({ error: "Storage not configured" });
+        }
+
         // Generate photo ID and key
         const photoId = crypto.randomUUID();
         const fileExt = contentType.split('/')[1] === 'jpeg' ? 'jpg' : contentType.split('/')[1];
         const objectKey = `shifts/${pairCode}/photos/${photoId}.${fileExt}`;
 
-        // Get presigned upload URL from Forge storage
-        const forgeApiUrl = ENV.forgeApiUrl;
-        const forgeApiKey = ENV.forgeApiKey;
-
-        if (!forgeApiUrl || !forgeApiKey) {
-            console.error('[Upload URL] Storage credentials not configured');
-            return res.status(500).json({ error: "Storage not configured" });
-        }
-
-        // Build upload URL (Forge storage API)
-        const uploadApiUrl = new URL('v1/storage/upload', forgeApiUrl.replace(/\/+$/, '') + '/');
-        uploadApiUrl.searchParams.set('path', objectKey);
-
-        // Get presigned URL by calling storage API
-        const presignResponse = await fetch(uploadApiUrl, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${forgeApiKey}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                contentType,
-                expiresIn: 120, // 2 minutes
-            }),
+        // Generate presigned PUT URL
+        const command = new PutObjectCommand({
+            Bucket: ENV.s3BucketName,
+            Key: objectKey,
+            ContentType: contentType,
         });
 
-        if (!presignResponse.ok) {
-            console.error('[Upload URL] Failed to get presigned URL:', await presignResponse.text());
-            return res.status(500).json({ error: "Failed to generate upload URL" });
-        }
+        const uploadUrl = await getSignedUrl(client, command, { expiresIn: 120 });
 
-        const presignData = await presignResponse.json();
+        // Construct public URL
+        const publicUrl = `${ENV.s3Endpoint}/${ENV.s3BucketName}/${objectKey}`;
+
+        console.log('[Upload URL] Generated presigned URL for:', objectKey);
 
         // Return upload details to client
         return res.json({
             photoId,
-            uploadUrl: presignData.uploadUrl || uploadApiUrl.toString(),
+            uploadUrl,
             objectKey,
-            publicUrl: presignData.publicUrl || `${forgeApiUrl}/storage/${objectKey}`,
+            publicUrl,
             expiresIn: 120,
         });
 
