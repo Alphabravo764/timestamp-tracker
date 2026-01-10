@@ -287,6 +287,7 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
           id: photoId,
           uri: photo.uri,
           timestamp,
+          ts: now,  // Unix timestamp for consistent sorting
           location: lat && lng ? {
             latitude: lat,
             longitude: lng,

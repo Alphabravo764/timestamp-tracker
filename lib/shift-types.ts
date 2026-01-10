@@ -10,6 +10,7 @@ export interface ShiftPhoto {
   id: string;
   uri: string;
   timestamp: string;
+  ts?: number;           // Unix timestamp in ms for consistent sorting
   location: LocationPoint | null;
   address?: string;
   note?: string;
