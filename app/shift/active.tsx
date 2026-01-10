@@ -40,6 +40,7 @@ import { mapboxReverseGeocode } from "@/lib/mapbox";
 import { LeafletMap } from "@/components/LeafletMap";
 import { ScreenErrorBoundary } from "@/components/ScreenErrorBoundary";
 import { getFreshLocation } from "@/lib/fresh-location";
+import { hasValidCoords, safeToFixed } from "@/lib/safe-coords";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
@@ -865,9 +866,9 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
                             <Text style={[styles.timelineBody, { color: colors.text }]} numberOfLines={1}>
                               {photo.address || "Photo captured"}
                             </Text>
-                            {photo.location && typeof photo.location.latitude === 'number' && typeof photo.location.longitude === 'number' && (
+                            {photo.location && hasValidCoords(photo.location.latitude, photo.location.longitude) && (
                               <Text style={{ color: colors.muted, fontSize: 10, marginTop: 2 }}>
-                                ({photo.location.latitude.toFixed(5)}, {photo.location.longitude.toFixed(5)})
+                                ({safeToFixed(photo.location.latitude, 5)}, {safeToFixed(photo.location.longitude, 5)})
                               </Text>
                             )}
                           </View>
