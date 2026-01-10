@@ -34,6 +34,12 @@ function getS3Client(): S3Client | null {
     if (s3Client) return s3Client;
 
     if (!ENV.s3Endpoint || !ENV.s3AccessKeyId || !ENV.s3SecretAccessKey || !ENV.s3BucketName) {
+        console.error('[S3 Client] Missing S3 config:', {
+            hasEndpoint: !!ENV.s3Endpoint,
+            hasAccessKeyId: !!ENV.s3AccessKeyId,
+            hasSecretAccessKey: !!ENV.s3SecretAccessKey,
+            hasBucketName: !!ENV.s3BucketName,
+        });
         return null;
     }
 
