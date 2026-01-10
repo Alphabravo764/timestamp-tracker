@@ -31,7 +31,7 @@ interface PhotoMetadata {
  * @param metadata - Photo metadata (location, timestamp, etc)
  * @returns Public URL of uploaded photo
  */
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 // ... (other imports)
 
 export async function uploadPhotoDirect(
