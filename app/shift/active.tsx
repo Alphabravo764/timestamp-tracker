@@ -816,7 +816,7 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
                     id: photo.id,
                     data: photo,
                   })),
-                  ...(activeShift.notes || []).map((note: any) => ({
+                  ...(activeShift?.notes || []).map((note: any) => ({
                     type: 'note' as const,
                     ts: note.ts || new Date(note.timestamp).getTime(),
                     id: note.id,
