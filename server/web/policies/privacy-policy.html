@@ -243,8 +243,10 @@
 
     <h2>4. Data Storage & Security</h2>
     <ul>
-      <li>Data is transmitted using HTTPS encryption</li>
-      <li>Stored securely in our database or cloud storage systems</li>
+      <li>All data transmitted between the app and our servers is encrypted using industry-standard HTTPS (TLS)</li>
+      <li>Stored data, including photos and location records, is protected using secure cloud infrastructure with
+        encryption at rest</li>
+      <li>Access to live data is controlled via time-limited links and unique pairing codes</li>
       <li>Pair codes are temporary, randomly generated, and expire automatically when a shift ends</li>
     </ul>
     <p>No system is 100% secure, but we apply reasonable technical safeguards.</p>
@@ -252,6 +254,16 @@
     <h3>4.1 Where Your Data Is Stored</h3>
     <p>Your data may be stored on servers located in the United States. Where required by law, international data
       transfers are protected using appropriate safeguards such as standard contractual clauses.</p>
+
+    <h3>4.2 Third-Party Services</h3>
+    <p>STAMPIA uses the following third-party services to provide functionality:</p>
+    <ul>
+      <li><strong>OpenStreetMap (Nominatim):</strong> For reverse geocoding (converting GPS coordinates to street
+        addresses). Your coordinates are sent to OpenStreetMap servers to retrieve address information. <a
+          href="https://osmfoundation.org/wiki/Privacy_Policy" target="_blank">OpenStreetMap Privacy Policy</a></li>
+      <li><strong>Railway:</strong> For secure cloud hosting and object storage of photos and data</li>
+    </ul>
+    <p>These services receive only the minimum data necessary to provide their function.</p>
 
     <h2>5. Data Retention</h2>
     <p>During the trial period, shift data is retained for a limited time to support reporting and verification
