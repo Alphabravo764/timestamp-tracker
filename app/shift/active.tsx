@@ -865,7 +865,7 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
                             <Text style={[styles.timelineBody, { color: colors.text }]} numberOfLines={1}>
                               {photo.address || "Photo captured"}
                             </Text>
-                            {photo.location && (
+                            {photo.location && typeof photo.location.latitude === 'number' && typeof photo.location.longitude === 'number' && (
                               <Text style={{ color: colors.muted, fontSize: 10, marginTop: 2 }}>
                                 ({photo.location.latitude.toFixed(5)}, {photo.location.longitude.toFixed(5)})
                               </Text>
