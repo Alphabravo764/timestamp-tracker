@@ -26,14 +26,19 @@ export async function reverseGeocodeMapbox(lat: number, lng: number): Promise<Ma
     if (!MAPBOX_TOKEN) {
         try {
             const response = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
                 { headers: { 'User-Agent': 'STAMPIA/1.0' } }
             );
             const data = await response.json();
             if (data?.address) {
+                // Build full street address with house number
+                const houseNumber = data.address.house_number || '';
+                const road = data.address.road || data.address.street || '';
+                const fullStreet = houseNumber ? `${houseNumber} ${road}` : road;
+
                 return {
                     address: data.display_name || '',
-                    street: data.address.road || data.address.street || '',
+                    street: fullStreet,
                     postcode: data.address.postcode || '',
                     city: data.address.city || data.address.town || data.address.village || '',
                     country: data.address.country || '',
@@ -97,11 +102,14 @@ export function formatMapboxAddress(geo: MapboxGeocodingResult | null): string {
     if (!geo) return "";
 
     const parts: string[] = [];
-    if (geo.street) parts.push(geo.street);
-    if (geo.city) parts.push(geo.city);
-    if (geo.postcode) parts.push(geo.postcode);
 
-    return parts.join(", ");
+    // Format: "46 Mill Road, LN1 3JJ" or "46 Mill Road, Lincoln, LN1 3JJ"
+    if (geo.street) parts.push(geo.street);
+    if (geo.postcode) parts.push(geo.postcode);
+    // Only add city if we don't have both street and postcode
+    if (!geo.street && geo.city) parts.push(geo.city);
+
+    return parts.join(', ');
 }
 
 /**
