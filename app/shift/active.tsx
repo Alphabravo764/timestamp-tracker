@@ -803,6 +803,9 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
 
             {/* Unified Timeline - Photos and Notes merged and sorted by time */}
             {(() => {
+              // Guard against null activeShift during refresh
+              if (!activeShift) return null;
+
               // Create unified event list
               const events: Array<{
                 type: 'photo' | 'note';
@@ -810,13 +813,13 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
                 id: string;
                 data: any;
               }> = [
-                  ...(activeShift?.photos || []).map((photo: any) => ({
+                  ...(activeShift.photos || []).map((photo: any) => ({
                     type: 'photo' as const,
                     ts: photo.ts || new Date(photo.timestamp).getTime(),
                     id: photo.id,
                     data: photo,
                   })),
-                  ...(activeShift?.notes || []).map((note: any) => ({
+                  ...(activeShift.notes || []).map((note: any) => ({
                     type: 'note' as const,
                     ts: note.ts || new Date(note.timestamp).getTime(),
                     id: note.id,
