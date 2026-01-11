@@ -779,7 +779,7 @@
     function calculateDistance(locations) { if (!locations || locations.length < 2) return '0.00'; let total = 0; for (let i = 1; i < locations.length; i++) { const lat1 = locations[i - 1].latitude * Math.PI / 180; const lat2 = locations[i].latitude * Math.PI / 180; const dLat = lat2 - lat1; const dLon = (locations[i].longitude - locations[i - 1].longitude) * Math.PI / 180; const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2; total += 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); } return total.toFixed(2); }
     function generateHash(shift) { const str = shift.pairCode + shift.startTime + (shift.locations?.length || 0); let hash = 0; for (let i = 0; i < str.length; i++) { hash = ((hash << 5) - hash) + str.charCodeAt(i); hash |= 0; } return Math.abs(hash).toString(16).padStart(8, '0') + 'c071948449aa7432ce...b575'; }
     const MAPBOX_TOKEN = window.MAPBOX_TOKEN || '';
-    
+
     if (!MAPBOX_TOKEN) {
       console.error('[Viewer] Mapbox token not provided by server');
     }
@@ -908,7 +908,7 @@
       const hash = generateHash(shift);
       const latestLoc = shift.locations?.[shift.locations.length - 1];
       const events = [];
-      
+
       // Get start location address with coordinates
       const startLoc = shift.locations?.[0];
       let startAddress = shift.siteName;
@@ -939,12 +939,30 @@
         });
       }
 
-      // Add notes
+      // Add notes with reverse geocoding for addresses
       for (const n of (shift.notes || [])) {
-        events.push({ time: n.timestamp, type: 'note', title: 'Note Added', desc: `"${n.text}"` });
+        let noteAddr = '';
+        if (n.location?.latitude && n.location?.longitude) {
+          noteAddr = await reverseGeocode(n.location.latitude, n.location.longitude);
+        }
+        events.push({
+          time: n.timestamp,
+          type: 'note',
+          title: 'Note Added',
+          desc: noteAddr ? `"${n.text}" 📍 ${noteAddr}` : `"${n.text}"`,
+          hasGps: !!(n.location?.latitude && n.location?.longitude)
+        });
       }
 
-      if (shift.endTime) { events.push({ time: shift.endTime, type: 'end', title: 'Shift Ended', desc: `Duration: ${duration}` }); }
+      if (shift.endTime) {
+        // Get location for shift end (use last location point)
+        const endLoc = shift.locations?.[shift.locations.length - 1];
+        let endAddress = '';
+        if (endLoc?.latitude && endLoc?.longitude) {
+          endAddress = await reverseGeocode(endLoc.latitude, endLoc.longitude);
+        }
+        events.push({ time: shift.endTime, type: 'end', title: 'Shift Ended', desc: `Duration: ${duration}${endAddress ? ` 📍 ${endAddress}` : ''}` });
+      }
       events.sort((a, b) => new Date(a.time) - new Date(b.time));
       const statusClass = shift.isActive ? '' : 'ended';
       const statusText = shift.isActive ? 'In Progress' : 'Completed';

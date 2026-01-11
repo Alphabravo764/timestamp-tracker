@@ -581,7 +581,19 @@ async function startServer() {
 
         // Build events timeline with reverse geocoded addresses
         const events: any[] = [];
-        events.push({ time: shift.startTime, type: 'start', title: 'Shift Started', desc: `${shift.staffName} clocked in at ${shift.siteName}` });
+
+        // Shift Started with geocoded location
+        const startLoc = shift.locations?.[0];
+        let startAddress = shift.siteName;
+        if (startLoc?.latitude && startLoc?.longitude) {
+          const geoAddr = await reverseGeocode(startLoc.latitude, startLoc.longitude);
+          if (geoAddr && !geoAddr.includes(',')) {
+            startAddress = `${shift.siteName} 📍 ${geoAddr}`;
+          } else if (geoAddr) {
+            startAddress = geoAddr;
+          }
+        }
+        events.push({ time: shift.startTime, type: 'start', title: 'Shift Started', desc: `${shift.staffName} clocked in at ${startAddress}` });
 
         // Process photos with geocoding
         for (let i = 0; i < (shift.photos || []).length; i++) {
@@ -604,8 +616,16 @@ async function startServer() {
           }
           events.push({ time: n.timestamp, type: 'note', title: 'Note Added', desc: noteDesc });
         }
+
+        // Shift Ended with geocoded location
         if (shift.endTime) {
-          events.push({ time: shift.endTime, type: 'end', title: 'Shift Ended', desc: `Duration: ${duration}` });
+          const endLoc = shift.locations?.[shift.locations.length - 1];
+          let endDesc = `Duration: ${duration}`;
+          if (endLoc?.latitude && endLoc?.longitude) {
+            const endAddress = await reverseGeocode(endLoc.latitude, endLoc.longitude);
+            endDesc += ` 📍 ${endAddress}`;
+          }
+          events.push({ time: shift.endTime, type: 'end', title: 'Shift Ended', desc: endDesc });
         }
         events.sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
 
