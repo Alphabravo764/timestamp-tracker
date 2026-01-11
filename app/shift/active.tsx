@@ -37,7 +37,6 @@ import { router, useFocusEffect } from "expo-router";
 import { syncLocation, syncShiftEnd, syncPhoto, syncNote } from "@/lib/server-sync";
 import { uploadPhotoDirect, photoToBase64DataUri } from "@/lib/direct-upload";
 import { mapboxReverseGeocode } from "@/lib/mapbox";
-import { LeafletMap } from "@/components/LeafletMap";
 import { ScreenErrorBoundary } from "@/components/ScreenErrorBoundary";
 import { getFreshLocation } from "@/lib/fresh-location";
 import { hasValidCoords, safeToFixed } from "@/lib/safe-coords";
