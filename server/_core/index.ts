@@ -176,13 +176,17 @@ async function startServer() {
   app.post("/api/sync/shift", async (req, res) => {
     try {
       const { pairCode, shiftId, staffName, siteName, startTime } = req.body;
+      console.log('[sync/shift] Request body:', { pairCode, shiftId, staffName, siteName, startTime });
+
       if (!pairCode) return res.status(400).json({ error: "pairCode required" });
 
-      await syncDb.upsertShift({ pairCode, shiftId, staffName, siteName, startTime });
+      const result = await syncDb.upsertShift({ pairCode, shiftId, staffName, siteName, startTime });
+      console.log('[sync/shift] Success:', result?.pairCode);
       res.json({ success: true });
-    } catch (error) {
-      console.error("Sync shift error:", error);
-      res.status(500).json({ error: "Failed to sync shift" });
+    } catch (error: any) {
+      console.error("Sync shift error:", error?.message || error);
+      console.error("Sync shift stack:", error?.stack);
+      res.status(500).json({ error: "Failed to sync shift", details: error?.message });
     }
   });
 
