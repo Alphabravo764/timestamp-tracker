@@ -104,6 +104,13 @@ export async function uploadPhotoDirect(
             deviceId, // For server-side premium validation
         };
 
+        // 🔍 Log metadata payload for debugging
+        console.log('[Direct Upload] 🟡 SENDING METADATA:', JSON.stringify({
+            pairCode: metadataPayload.pairCode,
+            photoId: metadataPayload.photoId,
+            url: metadataPayload.url?.substring(0, 60) + '...',
+        }));
+
         const metadataResponse = await fetch(`${getApiBaseUrl()}/api/sync/photo-metadata`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
