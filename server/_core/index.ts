@@ -558,19 +558,20 @@ async function startServer() {
         const formatTime = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         const formatDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 
-        // Reverse geocode helper using Mapbox
+        // Reverse geocode helper using OpenStreetMap Nominatim (free, no token required)
         const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
           try {
-            const mapboxToken = process.env.MAPBOX_ACCESS_TOKEN || "";
-            console.log('[PDF] Geocoding with token:', mapboxToken ? 'present' : 'MISSING');
-            if (!mapboxToken) return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-
             const response = await fetch(
-              `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxToken}&types=address,poi`
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+              {
+                headers: {
+                  'User-Agent': 'STAMPIA/1.0 (shift-tracking-app)'
+                }
+              }
             );
             const data = await response.json();
-            if (data?.features?.[0]?.place_name) {
-              return data.features[0].place_name;
+            if (data?.display_name) {
+              return data.display_name;
             }
           } catch (e) {
             console.log('[PDF] Geocoding failed:', e);
