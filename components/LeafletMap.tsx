@@ -1,18 +1,22 @@
-import React from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, ActivityIndicator, StyleSheet, Text, TouchableOpacity, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { Ionicons } from '@expo/vector-icons';
 
 interface LeafletMapProps {
-    latitude: number;
-    longitude: number;
-    zoom?: number;
-    height?: number;
+  latitude: number;
+  longitude: number;
+  zoom?: number;
+  height?: number;
 }
 
 export function LeafletMap({ latitude, longitude, zoom = 15, height = 200 }: LeafletMapProps) {
-    // Simple HTML template loading Leaflet from CDN
-    // Uses OpenStreetMap tiles (free, no key required)
-    const html = `
+  const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Simple HTML template loading Leaflet from CDN
+  // Uses OpenStreetMap tiles (free, no key required)
+  const html = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -28,44 +32,103 @@ export function LeafletMap({ latitude, longitude, zoom = 15, height = 200 }: Lea
     <body>
       <div id="map"></div>
       <script>
-        // Initialize map
-        var map = L.map('map', { zoomControl: false, attributionControl: true }).setView([${latitude}, ${longitude}], ${zoom});
-        
-        // Add OSM tile layer
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap'
-        }).addTo(map);
+        try {
+          // Initialize map
+          var map = L.map('map', { zoomControl: false, attributionControl: true }).setView([${latitude}, ${longitude}], ${zoom});
+          
+          // Add OSM tile layer
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              maxZoom: 19,
+              attribution: '© OpenStreetMap'
+          }).addTo(map);
 
-        // Add marker
-        L.marker([${latitude}, ${longitude}]).addTo(map);
-
-        // Function to update map from React Native
-        function updateLocation(lat, lng) {
-          map.setView([lat, lng], ${zoom});
-          L.marker([lat, lng]).addTo(map);
+          // Add marker
+          L.marker([${latitude}, ${longitude}]).addTo(map);
+        } catch (e) {
+          console.error('Map init error:', e);
         }
       </script>
     </body>
     </html>
   `;
 
+  // Show error state with retry option
+  if (hasError) {
     return (
-        <View style={{ height, width: '100%', borderRadius: 12, overflow: 'hidden', backgroundColor: '#e5e7eb' }}>
-            <WebView
-                originWhitelist={['*']}
-                source={{ html }}
-                style={{ flex: 1 }}
-                scrollEnabled={false}
-                javaScriptEnabled={true}
-                domStorageEnabled={true}
-                startInLoadingState={true}
-                renderLoading={() => (
-                    <View style={StyleSheet.absoluteFill}>
-                        <ActivityIndicator size="small" color="#666" style={{ marginTop: 20 }} />
-                    </View>
-                )}
-            />
-        </View>
+      <View style={[styles.container, { height, backgroundColor: '#f3f4f6' }]}>
+        <Ionicons name="map-outline" size={32} color="#9ca3af" />
+        <Text style={styles.errorText}>Map unavailable</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => setHasError(false)}
+        >
+          <Text style={styles.retryText}>Tap to retry</Text>
+        </TouchableOpacity>
+      </View>
     );
+  }
+
+  return (
+    <View style={{ height, width: '100%', borderRadius: 12, overflow: 'hidden', backgroundColor: '#e5e7eb' }}>
+      <WebView
+        originWhitelist={['*']}
+        source={{ html }}
+        style={{ flex: 1 }}
+        scrollEnabled={false}
+        javaScriptEnabled={true}
+        domStorageEnabled={true}
+        startInLoadingState={true}
+        // Android-specific: Use software layer to prevent WebView freeze
+        androidLayerType="software"
+        // Handle WebView render process death (prevents blank screen)
+        onRenderProcessGone={(e) => {
+          console.log('[WebView] Render process gone:', e?.nativeEvent);
+          setHasError(true);
+        }}
+        onError={(e) => {
+          console.log('[WebView] Error:', e?.nativeEvent?.description);
+          setHasError(true);
+        }}
+        onHttpError={(e) => {
+          console.log('[WebView] HTTP Error:', e?.nativeEvent?.statusCode);
+        }}
+        onLoad={() => {
+          setIsLoading(false);
+        }}
+        renderLoading={() => (
+          <View style={StyleSheet.absoluteFill}>
+            <ActivityIndicator size="small" color="#666" style={{ marginTop: 20 }} />
+          </View>
+        )}
+      />
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    width: '100%',
+    borderRadius: 12,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  errorText: {
+    color: '#6b7280',
+    fontSize: 14,
+    marginTop: 8,
+  },
+  retryButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  retryText: {
+    color: '#4b5563',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+});
