@@ -41,6 +41,7 @@ import { LeafletMap } from "@/components/LeafletMap";
 import { ScreenErrorBoundary } from "@/components/ScreenErrorBoundary";
 import { getFreshLocation } from "@/lib/fresh-location";
 import { hasValidCoords, safeToFixed } from "@/lib/safe-coords";
+import { getPhotoUri, getPhotoKey, getNoteKey, getSafePhotos, getSafeNotes } from "@/lib/safe-render";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
@@ -806,23 +807,27 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
               // Guard against null activeShift during refresh
               if (!activeShift) return null;
 
-              // Create unified event list
+              // Use safe helpers to ensure arrays are valid
+              const photos = getSafePhotos(activeShift);
+              const notes = getSafeNotes(activeShift);
+
+              // Create unified event list with safe keys
               const events: Array<{
                 type: 'photo' | 'note';
                 ts: number;
-                id: string;
+                key: string;
                 data: any;
               }> = [
-                  ...(activeShift.photos || []).map((photo: any) => ({
+                  ...photos.map((photo: any, idx: number) => ({
                     type: 'photo' as const,
-                    ts: photo.ts || new Date(photo.timestamp).getTime(),
-                    id: photo.id,
+                    ts: photo.ts || (photo.timestamp ? new Date(photo.timestamp).getTime() : Date.now()),
+                    key: getPhotoKey(photo, idx),
                     data: photo,
                   })),
-                  ...(activeShift.notes || []).map((note: any) => ({
+                  ...notes.map((note: any, idx: number) => ({
                     type: 'note' as const,
-                    ts: note.ts || new Date(note.timestamp).getTime(),
-                    id: note.id,
+                    ts: note.ts || (note.timestamp ? new Date(note.timestamp).getTime() : Date.now()),
+                    key: getNoteKey(note, idx),
                     data: note,
                   })),
                 ];
@@ -836,10 +841,13 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
               return recentEvents.map((event, idx) => {
                 if (event.type === 'photo') {
                   const photo = event.data;
+                  const photoUri = getPhotoUri(photo);
+                  const timestamp = photo.timestamp ? new Date(photo.timestamp) : new Date();
+
                   return (
                     <TouchableOpacity
                       style={styles.timelineItem}
-                      key={photo.id}
+                      key={event.key}
                       onPress={() => router.push("/shift/gallery" as any)}
                       activeOpacity={0.8}
                     >
@@ -855,16 +863,22 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
                           <View style={styles.timeTag}>
                             <Ionicons name="time-outline" size={10} color={colors.muted} />
                             <Text style={[styles.timeText, { color: colors.muted }]}>
-                              {new Date(photo.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </Text>
                           </View>
                         </View>
                         <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center' }}>
-                          <Image
-                            source={{ uri: photo.uri }}
-                            style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12 }}
-                            resizeMode="cover"
-                          />
+                          {photoUri ? (
+                            <Image
+                              source={{ uri: photoUri }}
+                              style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12 }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12, backgroundColor: colors.border, justifyContent: 'center', alignItems: 'center' }}>
+                              <Ionicons name="image-outline" size={24} color={colors.muted} />
+                            </View>
+                          )}
                           <View style={{ flex: 1 }}>
                             <Text style={[styles.timelineBody, { color: colors.text }]} numberOfLines={1}>
                               {photo.address || "Photo captured"}
@@ -882,7 +896,7 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
                 } else {
                   const note = event.data;
                   return (
-                    <View style={styles.timelineItem} key={note.id || idx}>
+                    <View style={styles.timelineItem} key={event.key}>
                       <View style={styles.timelineLeft}>
                         <View style={[styles.timelineDot, { backgroundColor: "#f59e0b" }]} />
                         {idx !== recentEvents.length - 1 && <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />}
@@ -902,10 +916,10 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
                         <Text style={[styles.timelineBody, { color: colors.text }]} numberOfLines={2}>
                           {note.text || note}
                         </Text>
-                        {(note.address || note.location) && (
+                        {(note.address || (note.location && hasValidCoords(note.location.latitude, note.location.longitude))) && (
                           <Text style={{ color: colors.muted, fontSize: 10, marginTop: 4 }}>
-                            📍 {note.address || ''}{note.address && note.location ? '\n' : ''}
-                            {note.location && `(${note.location.latitude.toFixed(5)}, ${note.location.longitude.toFixed(5)})`}
+                            📍 {note.address || ''}{note.address && note.location && hasValidCoords(note.location.latitude, note.location.longitude) ? '\n' : ''}
+                            {note.location && hasValidCoords(note.location.latitude, note.location.longitude) && `(${safeToFixed(note.location.latitude, 5)}, ${safeToFixed(note.location.longitude, 5)})`}
                           </Text>
                         )}
                       </View>
