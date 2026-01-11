@@ -561,10 +561,22 @@ async function startServer() {
         const events: any[] = [];
         events.push({ time: shift.startTime, type: 'start', title: 'Shift Started', desc: `${shift.staffName} clocked in at ${shift.siteName}` });
         (shift.photos || []).forEach((p: any, i: number) => {
-          events.push({ time: p.timestamp, type: 'photo', title: `Photo Evidence #${i + 1}`, desc: p.address || 'Location captured', photoUri: p.photoUri });
+          // Show address if available, otherwise show coordinates
+          let locationDesc = 'Location captured';
+          if (p.address) {
+            locationDesc = p.address;
+          } else if (p.latitude && p.longitude) {
+            locationDesc = `📍 ${p.latitude.toFixed(6)}, ${p.longitude.toFixed(6)}`;
+          }
+          events.push({ time: p.timestamp, type: 'photo', title: `Photo Evidence #${i + 1}`, desc: locationDesc, photoUri: p.photoUri });
         });
         (shift.notes || []).forEach((n: any) => {
-          events.push({ time: n.timestamp, type: 'note', title: 'Note Added', desc: `"${n.text}"` });
+          // Show note text with location if available
+          let noteDesc = `"${n.text}"`;
+          if (n.location?.latitude && n.location?.longitude) {
+            noteDesc += ` 📍 ${n.location.latitude.toFixed(6)}, ${n.location.longitude.toFixed(6)}`;
+          }
+          events.push({ time: n.timestamp, type: 'note', title: 'Note Added', desc: noteDesc });
         });
         if (shift.endTime) {
           events.push({ time: shift.endTime, type: 'end', title: 'Shift Ended', desc: `Duration: ${duration}` });
