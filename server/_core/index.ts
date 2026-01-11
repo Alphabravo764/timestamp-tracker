@@ -561,7 +561,8 @@ async function startServer() {
         // Reverse geocode helper using Mapbox
         const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
           try {
-            const mapboxToken = ENV.mapboxPublicToken;
+            const mapboxToken = process.env.MAPBOX_ACCESS_TOKEN || "";
+            console.log('[PDF] Geocoding with token:', mapboxToken ? 'present' : 'MISSING');
             if (!mapboxToken) return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 
             const response = await fetch(
