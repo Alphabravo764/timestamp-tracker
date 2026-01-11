@@ -218,8 +218,8 @@ export default function HomeScreen() {
                         const result = await syncShiftStart(shift);
                         console.log('[SYNC] Shift synced successfully:', result);
                         return true;
-                    } catch (err) {
-                        console.error(`[SYNC] Sync attempt ${i + 1} failed:`, err);
+                    } catch (err: any) {
+                        console.error(`[SYNC] Sync attempt ${i + 1} failed:`, err?.message || err);
                         if (i < retries - 1) {
                             // Wait before retrying (1s, 2s, 4s)
                             await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
@@ -229,10 +229,17 @@ export default function HomeScreen() {
                 return false;
             };
 
-            // Non-blocking sync with retry
+            // Wait for sync and show result to user
             syncWithRetry().then(success => {
-                if (!success) {
-                    console.warn('[SYNC] Failed to sync shift after 3 attempts. Live tracking may not work.');
+                if (success) {
+                    console.log('[SYNC] ✅ Shift synced - live tracking is active');
+                } else {
+                    console.warn('[SYNC] ❌ Failed to sync shift after 3 attempts');
+                    Alert.alert(
+                        "Sync Failed",
+                        "Could not sync to server. Live tracking won't work, but photos are saved locally.",
+                        [{ text: "OK" }]
+                    );
                 }
             });
 
