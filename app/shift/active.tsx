@@ -1017,8 +1017,11 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
                   const freshLoc = await getFreshLocation({ timeout: 2000 });
                   console.log('[Note] Fresh location captured:', freshLoc);
 
-                  // Pass location to addNoteToShift
-                  await addNoteToShift(noteText.trim(), freshLoc || undefined);
+                  // Pass location to addNoteToShift and update state directly
+                  const updatedShift = await addNoteToShift(noteText.trim(), freshLoc || undefined);
+                  if (updatedShift) {
+                    setActiveShift(updatedShift); // Update state like we do for photos
+                  }
 
                   // Sync note to server
                   if (activeShift?.pairCode) {
