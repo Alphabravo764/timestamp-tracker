@@ -173,7 +173,7 @@ async function startServer() {
   const { createUploadUrl } = await import("../upload-url.js");
   app.post("/api/upload-url", createUploadUrl);
 
-  // Photo proxy - generates signed download URL for S3-stored photos
+  // Photo proxy - streams photos from S3 storage
   app.get("/api/photo-proxy/*", async (req, res) => {
     try {
       // Extract the storage path from the URL (after /api/photo-proxy/)
@@ -182,11 +182,10 @@ async function startServer() {
         return res.status(400).json({ error: "Storage path required" });
       }
 
-      console.log('[photo-proxy] Getting signed URL for:', storagePath);
+      console.log('[photo-proxy] Streaming photo:', storagePath);
 
-      // Import S3 client and generate signed GET URL
+      // Import S3 client
       const { S3Client, GetObjectCommand } = await import("@aws-sdk/client-s3");
-      const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
       const { ENV } = await import("./env.js");
 
       if (!ENV.s3Endpoint || !ENV.s3AccessKeyId || !ENV.s3SecretAccessKey || !ENV.s3BucketName) {
@@ -204,18 +203,30 @@ async function startServer() {
         forcePathStyle: true,
       });
 
-      // Generate signed GET URL
+      // Get object from S3
       const command = new GetObjectCommand({
         Bucket: ENV.s3BucketName,
         Key: storagePath,
       });
 
-      const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+      const response = await s3Client.send(command);
 
-      // Redirect to the signed URL
-      res.redirect(302, signedUrl);
+      if (!response.Body) {
+        return res.status(404).json({ error: "Photo not found" });
+      }
+
+      // Set content type and cache headers
+      res.setHeader('Content-Type', response.ContentType || 'image/jpeg');
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+
+      // Stream the response body
+      const stream = response.Body as NodeJS.ReadableStream;
+      stream.pipe(res);
     } catch (error: any) {
       console.error('[photo-proxy] Error:', error?.message || error);
+      if (error?.name === 'NoSuchKey') {
+        return res.status(404).json({ error: "Photo not found" });
+      }
       res.status(500).json({ error: "Failed to get photo" });
     }
   });
