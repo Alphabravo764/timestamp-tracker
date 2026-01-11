@@ -311,8 +311,11 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
         return;
       }
 
-      // 4. Close camera and update UI IMMEDIATELY
-      setShowCamera(false);
+      // 4. Close camera AFTER a small delay to prevent render race
+      // This gives React Native time to process the state update before re-rendering
+      requestAnimationFrame(() => {
+        setShowCamera(false);
+      });
 
       // 5. Background: Direct upload to storage (Fire-and-forget)
       const pairCode = activeShift?.pairCode;
