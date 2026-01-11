@@ -285,7 +285,7 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
       const photoId = `photo_${now}`;
 
       try {
-        await addPhotoToShift({
+        const updatedShift = await addPhotoToShift({
           id: photoId,
           uri: photo.uri,
           timestamp,
@@ -299,6 +299,11 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
           address
         });
         console.log('[Photo] Photo saved successfully:', photoId);
+
+        // Update state directly with the returned shift - avoids race condition from loadShift
+        if (updatedShift) {
+          setActiveShift(updatedShift);
+        }
       } catch (saveError) {
         console.error('[Photo] Failed to save photo:', saveError);
         Alert.alert("Storage Error", "Failed to save photo. Please try again.");
@@ -308,14 +313,6 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
 
       // 4. Close camera and update UI IMMEDIATELY
       setShowCamera(false);
-
-      // Reload shift to show the new photo in UI
-      try {
-        await loadShift(false);
-      } catch (loadError) {
-        console.error('[Photo] Failed to reload shift:', loadError);
-        // Continue anyway - photo is saved locally
-      }
 
       // 5. Background: Direct upload to storage (Fire-and-forget)
       const pairCode = activeShift?.pairCode;
