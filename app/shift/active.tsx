@@ -573,6 +573,7 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
     longitude: lastLocation.longitude
   } : null);
 
+  console.log('[RENDER] Returning MAIN UI');
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
