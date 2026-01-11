@@ -308,7 +308,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   webviewContainer: {
-    flex: 1,
+    height: 500,
+    minHeight: 500,
   },
   webview: {
     flex: 1,
