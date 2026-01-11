@@ -172,9 +172,8 @@ const styles = StyleSheet.create({
   // Use opacity:0 so component is rendered but invisible
   hiddenContainer: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: -20,
+    left: -9999,
+    top: -9999,
     opacity: 0,
     width: CAPTURE_WIDTH,
     height: CAPTURE_HEIGHT,
