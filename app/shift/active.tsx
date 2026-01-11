@@ -735,10 +735,18 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
         >
           <View style={styles.mapContainer}>
             {displayLocation ? (
-              // Simple placeholder instead of Image for debugging
-              <View style={{ height: 160, width: '100%', borderRadius: 12, backgroundColor: '#d1d5db', justifyContent: 'center', alignItems: 'center' }}>
-                <Text style={{ color: '#374151', fontSize: 14 }}>📍 Map Preview</Text>
-                <Text style={{ color: '#6b7280', fontSize: 11 }}>{displayLocation.latitude.toFixed(4)}, {displayLocation.longitude.toFixed(4)}</Text>
+              // Static map image - beautiful and no WebView issues
+              <View style={{ height: 160, width: '100%', borderRadius: 12, overflow: 'hidden', backgroundColor: '#e5e7eb' }}>
+                <Image
+                  source={{
+                    uri: `https://staticmap.openstreetmap.de/staticmap.php?center=${displayLocation.latitude},${displayLocation.longitude}&zoom=16&size=600x200&maptype=osmarenderer&markers=${displayLocation.latitude},${displayLocation.longitude},red-pushpin`
+                  }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
+                <View style={{ position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 }}>
+                  <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>📍 Tap to navigate</Text>
+                </View>
               </View>
             ) : (
               // Placeholder when absolutely no location data
