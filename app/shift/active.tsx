@@ -52,29 +52,30 @@ function ActiveShiftScreenContent() {
     setShowCamera(true);
   };
 
-  // Photo capture - MINIMAL version
+  // Photo capture - MINIMAL version with TIMING LOGS
   const capturePhoto = async () => {
     if (!cameraRef.current || processing) return;
     setProcessing(true);
 
+    const t0 = performance.now();
+
     try {
       console.log("[PHOTO] Starting capture...");
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
+
+      // 1. CAMERA CAPTURE
+      const t1 = performance.now();
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.7, skipProcessing: true });
+      console.log("[T] takePicture:", (performance.now() - t1).toFixed(0), "ms");
+
       if (!photo?.uri) throw new Error("No photo captured");
 
-      console.log("[PHOTO] Photo taken, saving locally...");
+      // 2. SKIP LOCATION - use 0,0 (INSTANT)
+      const t2 = performance.now();
+      const lat = 0, lng = 0;
+      console.log("[T] location (skipped):", (performance.now() - t2).toFixed(0), "ms");
 
-      // Get location
-      let lat = 0, lng = 0;
-      try {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        lat = loc.coords.latitude;
-        lng = loc.coords.longitude;
-      } catch (e) {
-        console.log("[PHOTO] Location failed, using 0,0");
-      }
-
-      // Save to shift
+      // 3. SAVE TO SHIFT (potentially slow - writes to AsyncStorage)
+      const t3 = performance.now();
       const timestamp = new Date().toISOString();
       const updatedShift = await addPhotoToShift({
         id: `photo_${Date.now()}`,
@@ -85,19 +86,21 @@ function ActiveShiftScreenContent() {
         location: { latitude: lat, longitude: lng, timestamp, accuracy: 0 },
         address: "Test address",
       });
+      console.log("[T] addPhotoToShift:", (performance.now() - t3).toFixed(0), "ms");
 
-      console.log("[PHOTO] Saved, photoCount:", updatedShift?.photos?.length);
-
-      // Update state DIRECTLY
+      // 4. UPDATE STATE
+      const t4 = performance.now();
       if (updatedShift) {
         setActiveShift(updatedShift);
       }
+      console.log("[T] setState:", (performance.now() - t4).toFixed(0), "ms");
 
-      // Close camera with delay
-      setTimeout(() => {
-        console.log("[PHOTO] Closing camera");
-        setShowCamera(false);
-      }, 100);
+      // 5. CLOSE CAMERA IMMEDIATELY (no delay)
+      const t5 = performance.now();
+      setShowCamera(false);
+      console.log("[T] setShowCamera:", (performance.now() - t5).toFixed(0), "ms");
+
+      console.log("[T] TOTAL:", (performance.now() - t0).toFixed(0), "ms, photoCount:", updatedShift?.photos?.length);
 
     } catch (error) {
       console.error("[PHOTO] Error:", error);
