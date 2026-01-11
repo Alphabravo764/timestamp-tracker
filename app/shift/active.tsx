@@ -735,14 +735,15 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
         >
           <View style={styles.mapContainer}>
             {displayLocation ? (
-              // Static map image - beautiful and no WebView issues
+              // Static map tile using OpenStreetMap
               <View style={{ height: 160, width: '100%', borderRadius: 12, overflow: 'hidden', backgroundColor: '#e5e7eb' }}>
                 <Image
                   source={{
-                    uri: `https://staticmap.openstreetmap.de/staticmap.php?center=${displayLocation.latitude},${displayLocation.longitude}&zoom=16&size=600x200&maptype=osmarenderer&markers=${displayLocation.latitude},${displayLocation.longitude},red-pushpin`
+                    uri: `https://maps.geoapify.com/v1/staticmap?style=osm-bright&width=600&height=200&center=lonlat:${displayLocation.longitude},${displayLocation.latitude}&zoom=16&marker=lonlat:${displayLocation.longitude},${displayLocation.latitude};color:%23ff0000;size:medium&apiKey=6dc7fb95a3b246cfa0f3bcef5ce9ed9a`
                   }}
                   style={{ width: '100%', height: '100%' }}
                   resizeMode="cover"
+                  onError={(e) => console.log('[Map] Image load error:', e.nativeEvent.error)}
                 />
                 <View style={{ position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 }}>
                   <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>📍 Tap to navigate</Text>
