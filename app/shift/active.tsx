@@ -134,7 +134,7 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
         const consentData = await getConsentData();
         if (!consentData.bgLocationConsent) {
           console.log('[Location] Background location consent DISABLED - skipping tracking');
-          setCurrentAddress("Location tracking disabled in settings");
+          setCurrentAddress("Live tracking paused (disabled in Settings)");
           return;
         }
 
@@ -198,15 +198,6 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
                 accuracy: location.coords.accuracy || undefined,
                 timestamp: new Date().toISOString()
               };
-              console.log('[SYNC] Sending location update:', syncPayload.pairCode, syncPayload.latitude.toFixed(4), syncPayload.longitude.toFixed(4));
-
-              // PRIVACY CHECK: Only sync to server if user consented (allows live viewing)
-              const syncConsent = await getConsentData();
-              if (!syncConsent.bgLocationConsent) {
-                console.log('[SYNC] Location sync SKIPPED - consent disabled');
-                return;
-              }
-
               syncLocation(syncPayload)
                 .then(() => console.log('[SYNC] Location synced successfully'))
                 .catch(err => console.error('[SYNC] Location sync failed:', err));
@@ -288,26 +279,39 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
       const now = Date.now();
       const timestamp = new Date(now).toISOString();
 
-      // 2. GET FRESH LOCATION - Uses cached or fresh GPS with geocoding (max 2s)
+      // 2. GET LOCATION - Uses cached only when consent OFF, fresh fetch when ON
       let lat = 0, lng = 0, accuracy = 0;
       let address = currentAddress || "Location pending";
 
-      // Try getFreshLocation utility (has short timeout, won't block)
-      try {
-        const freshLoc = await getFreshLocation({ timeout: 2000 });
-        if (freshLoc) {
-          lat = freshLoc.latitude;
-          lng = freshLoc.longitude;
-          accuracy = freshLoc.accuracy;
-          address = freshLoc.address || address;
-          console.log('[Photo] Fresh location:', lat, lng, 'Address:', address);
-        }
-      } catch (e) {
-        console.log('[Photo] getFreshLocation failed, using cached');
-        // Fall back to cached location
+      // Check consent - if OFF, only use cached location (no fresh GPS fetch)
+      const photoConsentData = await getConsentData();
+
+      if (!photoConsentData.bgLocationConsent) {
+        // CONSENT OFF: Use cached location only (no fresh fetch)
+        console.log('[Photo] Location consent OFF - using cached only');
         lat = currentLocation?.coords?.latitude || 0;
         lng = currentLocation?.coords?.longitude || 0;
         accuracy = currentLocation?.coords?.accuracy || 0;
+        if (lat === 0 && lng === 0) {
+          address = "Location unavailable (tracking disabled)";
+        }
+      } else {
+        // CONSENT ON: Try fresh location
+        try {
+          const freshLoc = await getFreshLocation({ timeout: 2000 });
+          if (freshLoc) {
+            lat = freshLoc.latitude;
+            lng = freshLoc.longitude;
+            accuracy = freshLoc.accuracy;
+            address = freshLoc.address || address;
+            console.log('[Photo] Fresh location:', lat, lng, 'Address:', address);
+          }
+        } catch (e) {
+          console.log('[Photo] getFreshLocation failed, using cached');
+          lat = currentLocation?.coords?.latitude || 0;
+          lng = currentLocation?.coords?.longitude || 0;
+          accuracy = currentLocation?.coords?.accuracy || 0;
+        }
       }
 
       console.log('[Photo] Using location:', { lat, lng, accuracy, address });
