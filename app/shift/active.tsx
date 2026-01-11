@@ -271,35 +271,26 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
       const now = Date.now();
       const timestamp = new Date(now).toISOString();
 
-      // 2. GET LOCATION - Use cache or quick fallback
-      let lat = currentLocation?.coords?.latitude || 0;
-      let lng = currentLocation?.coords?.longitude || 0;
-      let accuracy = currentLocation?.coords?.accuracy || 0;
+      // 2. GET FRESH LOCATION - Uses cached or fresh GPS with geocoding (max 2s)
+      let lat = 0, lng = 0, accuracy = 0;
       let address = currentAddress || "Location pending";
 
-      // If cache is empty, try quick fallback
-      if (lat === 0 && lng === 0) {
-        try {
-          // Try getLastKnownPositionAsync first (instant)
-          const lastKnown = await Location.getLastKnownPositionAsync({});
-          if (lastKnown?.coords) {
-            lat = lastKnown.coords.latitude;
-            lng = lastKnown.coords.longitude;
-            accuracy = lastKnown.coords.accuracy || 0;
-            console.log('[Photo] Got last known location:', lat, lng);
-          }
-        } catch (e) {
-          console.log('[Photo] Last known failed, using 0,0');
+      // Try getFreshLocation utility (has short timeout, won't block)
+      try {
+        const freshLoc = await getFreshLocation({ timeout: 2000 });
+        if (freshLoc) {
+          lat = freshLoc.latitude;
+          lng = freshLoc.longitude;
+          accuracy = freshLoc.accuracy;
+          address = freshLoc.address || address;
+          console.log('[Photo] Fresh location:', lat, lng, 'Address:', address);
         }
-      }
-
-      // Quick geocode in background (non-blocking)
-      if (lat !== 0 && lng !== 0 && (address === "Location pending" || address === "Test address")) {
-        mapboxReverseGeocode(lat, lng)
-          .then((addr: string) => {
-            if (addr) console.log('[Photo] Geocoded address:', addr);
-          })
-          .catch(() => { });
+      } catch (e) {
+        console.log('[Photo] getFreshLocation failed, using cached');
+        // Fall back to cached location
+        lat = currentLocation?.coords?.latitude || 0;
+        lng = currentLocation?.coords?.longitude || 0;
+        accuracy = currentLocation?.coords?.accuracy || 0;
       }
 
       console.log('[Photo] Using location:', { lat, lng, accuracy, address });
