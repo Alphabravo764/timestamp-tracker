@@ -284,7 +284,7 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
       // 3. Persist photo to permanent storage (survives app restart)
       const photoId = `photo_${now}`;
       let persistedUri = photo.uri;
-      
+
       try {
         const { persistPhoto } = await import('@/lib/shift-storage');
         const savedUri = await persistPhoto(photo.uri);
@@ -721,12 +721,19 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
         >
           <View style={styles.mapContainer}>
             {displayLocation ? (
-              <LeafletMap
-                key={`map-${activeShift?.id}`}  // Only remount when shift changes, NOT on every photo
-                latitude={displayLocation.latitude}
-                longitude={displayLocation.longitude}
-                height={160}
-              />
+              // Use static map image instead of WebView to prevent thrashing
+              <View style={{ height: 160, width: '100%', borderRadius: 12, overflow: 'hidden', backgroundColor: '#e5e7eb' }}>
+                <Image
+                  source={{
+                    uri: `https://staticmap.openstreetmap.de/staticmap.php?center=${displayLocation.latitude},${displayLocation.longitude}&zoom=15&size=400x160&maptype=osmarenderer&markers=${displayLocation.latitude},${displayLocation.longitude},red-pushpin`
+                  }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
+                <View style={{ position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
+                  <Text style={{ color: '#fff', fontSize: 10 }}>Tap to open in Maps</Text>
+                </View>
+              </View>
             ) : (
               // Placeholder when absolutely no location data
               <View style={[styles.mapPlaceholder, { backgroundColor: colors.background }]}>
