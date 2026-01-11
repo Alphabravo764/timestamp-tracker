@@ -169,7 +169,8 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
 });
 
 const styles = StyleSheet.create({
-  // Use opacity:0 so component is rendered but invisible
+  // CRITICAL: Move completely off-screen AND use opacity:0
+  // The pointerEvents="none" on the View ensures no touch interception
   hiddenContainer: {
     position: "absolute",
     left: -9999,

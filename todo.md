@@ -957,3 +957,15 @@ Based on user's detailed specifications and sample code:
 - [x] Soften communication language
 - [x] Simplify photo storage description
 - [x] Add pair code expiration clarification
+
+
+## MOBILE VIEW - Missing Tiles (Jan 4, 2026)
+- [ ] Check mobile view to identify which tiles are missing
+- [ ] Fix the missing tiles issue
+- [ ] Test on mobile viewport
+
+
+## BLANK SCREEN FIX - Jan 11, 2026
+- [x] Fix blank screen after second photo: move PhotoWatermark off-screen (left: -9999, top: -9999)
+- [x] Verify pointerEvents="none" is on the outermost container View
+- [x] Robust fix: both off-screen positioning AND pointerEvents="none" for safety
