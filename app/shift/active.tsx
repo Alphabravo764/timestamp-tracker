@@ -496,8 +496,12 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
     }
   };
 
+  // 🔍 DEBUG: Log render state
+  console.log('[RENDER] isLoading:', isLoading, 'showCamera:', showCamera, 'activeShift:', !!activeShift, 'photoCount:', activeShift?.photos?.length);
+
   // Loading state
   if (isLoading) {
+    console.log('[RENDER] Returning LOADING view');
     // Return empty view or light loader
     return (
       <View style={[styles.centerContainer, { paddingTop: insets.top, backgroundColor: colors.background }]}>
@@ -508,6 +512,7 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
 
   // No active shift
   if (!activeShift) {
+    console.log('[RENDER] Returning NO ACTIVE SHIFT view');
     return (
       <View style={[styles.centerContainer, { paddingTop: insets.top, backgroundColor: colors.background }]}>
         <Ionicons name="alert-circle-outline" size={64} color={colors.error || "#ef4444"} style={{ marginBottom: 16 }} />
@@ -526,6 +531,7 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
 
   // Camera view
   if (showCamera) {
+    console.log('[RENDER] Returning CAMERA view');
     return (
       <View style={styles.cameraContainer}>
         <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
