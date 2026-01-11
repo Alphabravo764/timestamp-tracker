@@ -173,7 +173,7 @@ async function startServer() {
   const { createUploadUrl } = await import("../upload-url.js");
   app.post("/api/upload-url", createUploadUrl);
 
-  // Photo proxy - generates signed download URL for private storage
+  // Photo proxy - generates signed download URL for S3-stored photos
   app.get("/api/photo-proxy/*", async (req, res) => {
     try {
       // Extract the storage path from the URL (after /api/photo-proxy/)
@@ -183,10 +183,37 @@ async function startServer() {
       }
 
       console.log('[photo-proxy] Getting signed URL for:', storagePath);
-      const { url } = await storageGet(storagePath);
+
+      // Import S3 client and generate signed GET URL
+      const { S3Client, GetObjectCommand } = await import("@aws-sdk/client-s3");
+      const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
+      const { ENV } = await import("./env.js");
+
+      if (!ENV.s3Endpoint || !ENV.s3AccessKeyId || !ENV.s3SecretAccessKey || !ENV.s3BucketName) {
+        console.error('[photo-proxy] S3 not configured');
+        return res.status(500).json({ error: "Storage not configured" });
+      }
+
+      const s3Client = new S3Client({
+        endpoint: ENV.s3Endpoint,
+        region: ENV.s3Region || "auto",
+        credentials: {
+          accessKeyId: ENV.s3AccessKeyId,
+          secretAccessKey: ENV.s3SecretAccessKey,
+        },
+        forcePathStyle: true,
+      });
+
+      // Generate signed GET URL
+      const command = new GetObjectCommand({
+        Bucket: ENV.s3BucketName,
+        Key: storagePath,
+      });
+
+      const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
 
       // Redirect to the signed URL
-      res.redirect(302, url);
+      res.redirect(302, signedUrl);
     } catch (error: any) {
       console.error('[photo-proxy] Error:', error?.message || error);
       res.status(500).json({ error: "Failed to get photo" });
