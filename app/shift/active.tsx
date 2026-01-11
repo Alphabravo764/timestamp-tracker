@@ -43,6 +43,7 @@ import { hasValidCoords, safeToFixed } from "@/lib/safe-coords";
 import { getPhotoUri, getPhotoKey, getNoteKey, getSafePhotos, getSafeNotes } from "@/lib/safe-render";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Print from "expo-print";
+import { getConsentData } from "@/lib/consent-storage";
 import * as Sharing from "expo-sharing";
 import { generatePdfHtml } from "@/lib/pdf-generator";
 
@@ -129,6 +130,14 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
         const settings = await getSettings();
         const interval = (settings.locationInterval || 30) * 1000;
 
+        // PRIVACY CHECK: Only track if user consented to background location
+        const consentData = await getConsentData();
+        if (!consentData.bgLocationConsent) {
+          console.log('[Location] Background location consent DISABLED - skipping tracking');
+          setCurrentAddress("Location tracking disabled in settings");
+          return;
+        }
+
         // INSTANT: Get last known position first (no network delay)
         const lastKnown = await Location.getLastKnownPositionAsync({});
         if (lastKnown) {
@@ -190,6 +199,14 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
                 timestamp: new Date().toISOString()
               };
               console.log('[SYNC] Sending location update:', syncPayload.pairCode, syncPayload.latitude.toFixed(4), syncPayload.longitude.toFixed(4));
+
+              // PRIVACY CHECK: Only sync to server if user consented (allows live viewing)
+              const syncConsent = await getConsentData();
+              if (!syncConsent.bgLocationConsent) {
+                console.log('[SYNC] Location sync SKIPPED - consent disabled');
+                return;
+              }
+
               syncLocation(syncPayload)
                 .then(() => console.log('[SYNC] Location synced successfully'))
                 .catch(err => console.error('[SYNC] Location sync failed:', err));
