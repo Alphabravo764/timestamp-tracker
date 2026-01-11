@@ -842,8 +842,8 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
               // Sort by timestamp ascending (oldest first)
               events.sort((a, b) => a.ts - b.ts);
 
-              // Take last 5 events (reversed to show newest first)
-              const recentEvents = events.slice(-5).reverse();
+              // Take last 10 events (reversed to show newest first)
+              const recentEvents = events.slice(-10).reverse();
 
               return recentEvents.map((event, idx) => {
                 if (event.type === 'photo') {
