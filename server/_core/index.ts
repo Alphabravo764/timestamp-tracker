@@ -682,12 +682,20 @@ async function startServer() {
     .timeline-desc { font-size: 12px; font-weight: 500; color: #64748b; background: #f8fafc; padding: 10px 12px; border-radius: 10px; margin-top: 8px; }
     .timeline-photo { margin-top: 8px; width: 200px; height: 130px; background: #f1f5f9; border-radius: 10px; overflow: hidden; }
     .timeline-photo img { width: 100%; height: 100%; object-fit: cover; }
-    .verification-box { background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border: 2px solid #3b82f6; border-radius: 16px; padding: 20px 24px; margin: 32px 0; text-align: center; }
-    .verification-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.15em; color: #1e40af; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; }
-    .verification-title svg { width: 16px; height: 16px; }
-    .verification-text { font-size: 12px; color: #334155; margin-bottom: 12px; line-height: 1.6; }
-    .verification-link { display: inline-block; background: #3b82f6; color: white; padding: 10px 24px; border-radius: 999px; font-size: 11px; font-weight: 700; text-decoration: none; letter-spacing: 0.05em; }
-    .verification-url { font-size: 10px; font-family: monospace; color: #64748b; margin-top: 8px; word-break: break-all; }
+    .verification-box { margin: 24px 0; padding: 0; }
+    .verification-divider { border-top: 2px solid #000000; margin-bottom: 20px; }
+    .verification-divider-light { border-top: 2px solid #f1f5f9; margin-top: 20px; }
+    .verification-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; }
+    .verification-brand { display: flex; align-items: center; gap: 8px; }
+    .verification-brand-name { font-size: 14px; font-weight: 800; letter-spacing: -0.02em; color: #000000; }
+    .verification-brand-badge { font-size: 11px; font-weight: 700; color: #2563eb; }
+    .verification-brand-sub { font-size: 9px; color: #6b7280; font-weight: 500; text-transform: uppercase; letter-spacing: 0.15em; margin-top: 2px; }
+    .verification-link-section { text-align: right; }
+    .verification-link-label { font-size: 9px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+    .verification-link-url { font-size: 13px; font-family: 'Courier New', monospace; font-weight: 500; color: #1f2937; }
+    .verification-link-code { font-weight: 700; color: #2563eb; }
+    .verification-instruction { font-size: 10px; color: #9ca3af; font-style: italic; line-height: 1.6; border-left: 2px solid #f1f5f9; padding-left: 12px; margin-top: 16px; }
+    .verification-instruction strong { color: #4b5563; font-style: normal; }
     .integrity-footer { text-align: center; padding: 24px 16px; opacity: 0.8; }
     .integrity-label { font-size: 9px; font-family: monospace; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
     .integrity-hash { font-size: 9px; font-family: monospace; color: #64748b; background: white; padding: 8px 16px; border-radius: 10px; border: 1px solid #e2e8f0; display: inline-block; }
@@ -730,15 +738,28 @@ async function startServer() {
       </div>
     </div>
     <div class="verification-box">
-      <div class="verification-title">
-        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-        Verify This STAMPIA Report
+      <div class="verification-divider"></div>
+      <div class="verification-row">
+        <div class="verification-brand">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="verification-brand-name">S STAMPIA</span>
+              <span class="verification-brand-badge">✓ PROOF OF PRESENCE</span>
+            </div>
+            <div class="verification-brand-sub">Independent Evidence Verification</div>
+          </div>
+        </div>
+        <div class="verification-link-section">
+          <div class="verification-link-label">Authenticity Server</div>
+          <a href="https://stampia.tech/viewer/${shift.pairCode}" style="text-decoration:none;">
+            <span class="verification-link-url">stampia.tech/viewer/<span class="verification-link-code">${shift.pairCode}</span></span>
+          </a>
+        </div>
       </div>
-      <div class="verification-text">
-        To verify the authenticity of this evidence report, please access our official verification server:
+      <div class="verification-instruction">
+        To verify the integrity of this report, access the secure link above. Tamper-evident data is hosted on Stampia official servers. <strong>Don't trust screenshots. Trust the source.</strong>
       </div>
-      <a href="https://stampia.tech/viewer/${shift.pairCode}" class="verification-link">VERIFY ON STAMPIA.TECH</a>
-      <div class="verification-url">https://stampia.tech/viewer/${shift.pairCode}</div>
+      <div class="verification-divider-light"></div>
     </div>
     <div class="timeline-card">
       <div class="timeline-header">
