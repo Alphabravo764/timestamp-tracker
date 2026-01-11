@@ -111,8 +111,15 @@ export async function uploadPhotoDirect(
         });
 
         if (!metadataResponse.ok) {
-            console.error('[Direct Upload] Failed to save metadata, but photo uploaded');
-            // Photo is uploaded, metadata save failure is non-critical
+            const errorBody = await metadataResponse.text().catch(() => '');
+            console.error('[Direct Upload] Metadata save failed:', {
+                status: metadataResponse.status,
+                statusText: metadataResponse.statusText,
+                body: errorBody,
+                endpoint: `${getApiBaseUrl()}/api/sync/photo-metadata`,
+            });
+            // Photo is uploaded, metadata save failure is non-critical for display
+            // Return the URL anyway - photo was saved to storage
         }
 
         console.log('[Direct Upload] Complete, URL:', uploadData.publicUrl);
