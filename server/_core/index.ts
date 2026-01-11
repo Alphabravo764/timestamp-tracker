@@ -13,6 +13,7 @@ import * as syncDb from "../sync-db.js";
 import { getDb } from "../db.js";
 import { sql, eq, and } from "drizzle-orm";
 import { photoEvents, premiumCodes, shifts } from "../../drizzle/schema.js";
+import { ENV } from "./env";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
