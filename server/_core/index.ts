@@ -580,50 +580,78 @@ async function startServer() {
         };
 
         // Build events timeline with reverse geocoded addresses
+        // Run all geocoding in PARALLEL for speed
+        const geocodePromises: Promise<{ key: string, address: string }>[] = [];
+
+        // Start location
+        const startLoc = shift.locations?.[0];
+        if (startLoc?.latitude && startLoc?.longitude) {
+          geocodePromises.push(
+            reverseGeocode(startLoc.latitude, startLoc.longitude).then(addr => ({ key: 'start', address: addr }))
+          );
+        }
+
+        // Photo locations
+        (shift.photos || []).forEach((p: any, i: number) => {
+          if (!p.address && p.latitude && p.longitude) {
+            geocodePromises.push(
+              reverseGeocode(p.latitude, p.longitude).then(addr => ({ key: `photo_${i}`, address: addr }))
+            );
+          }
+        });
+
+        // Note locations
+        (shift.notes || []).forEach((n: any, i: number) => {
+          if (n.location?.latitude && n.location?.longitude) {
+            geocodePromises.push(
+              reverseGeocode(n.location.latitude, n.location.longitude).then(addr => ({ key: `note_${i}`, address: addr }))
+            );
+          }
+        });
+
+        // End location
+        const endLoc = shift.locations?.[shift.locations.length - 1];
+        if (shift.endTime && endLoc?.latitude && endLoc?.longitude) {
+          geocodePromises.push(
+            reverseGeocode(endLoc.latitude, endLoc.longitude).then(addr => ({ key: 'end', address: addr }))
+          );
+        }
+
+        // Wait for ALL geocoding to complete in parallel
+        const geocodeResults = await Promise.all(geocodePromises);
+        const addressMap: Record<string, string> = {};
+        geocodeResults.forEach(r => { addressMap[r.key] = r.address; });
+
+        // Now build events with cached addresses
         const events: any[] = [];
 
-        // Shift Started with geocoded location
-        const startLoc = shift.locations?.[0];
+        // Shift Started
         let startAddress = shift.siteName;
-        if (startLoc?.latitude && startLoc?.longitude) {
-          const geoAddr = await reverseGeocode(startLoc.latitude, startLoc.longitude);
-          if (geoAddr && !geoAddr.includes(',')) {
-            startAddress = `${shift.siteName} 📍 ${geoAddr}`;
-          } else if (geoAddr) {
-            startAddress = geoAddr;
-          }
+        if (addressMap['start']) {
+          startAddress = addressMap['start'];
         }
         events.push({ time: shift.startTime, type: 'start', title: 'Shift Started', desc: `${shift.staffName} clocked in at ${startAddress}` });
 
-        // Process photos with geocoding
-        for (let i = 0; i < (shift.photos || []).length; i++) {
-          const p = shift.photos[i];
-          let locationDesc = 'Location captured';
-          if (p.address) {
-            locationDesc = p.address;
-          } else if (p.latitude && p.longitude) {
-            locationDesc = await reverseGeocode(p.latitude, p.longitude);
-          }
+        // Photos
+        (shift.photos || []).forEach((p: any, i: number) => {
+          let locationDesc = p.address || addressMap[`photo_${i}`] || 'Location captured';
           events.push({ time: p.timestamp, type: 'photo', title: `Photo Evidence #${i + 1}`, desc: locationDesc, photoUri: p.photoUri });
-        }
+        });
 
-        // Process notes with geocoding
-        for (const n of (shift.notes || [])) {
+        // Notes
+        (shift.notes || []).forEach((n: any, i: number) => {
           let noteDesc = `"${n.text}"`;
-          if (n.location?.latitude && n.location?.longitude) {
-            const address = await reverseGeocode(n.location.latitude, n.location.longitude);
-            noteDesc += ` 📍 ${address}`;
+          if (addressMap[`note_${i}`]) {
+            noteDesc += ` 📍 ${addressMap[`note_${i}`]}`;
           }
           events.push({ time: n.timestamp, type: 'note', title: 'Note Added', desc: noteDesc });
-        }
+        });
 
-        // Shift Ended with geocoded location
+        // Shift Ended
         if (shift.endTime) {
-          const endLoc = shift.locations?.[shift.locations.length - 1];
           let endDesc = `Duration: ${duration}`;
-          if (endLoc?.latitude && endLoc?.longitude) {
-            const endAddress = await reverseGeocode(endLoc.latitude, endLoc.longitude);
-            endDesc += ` 📍 ${endAddress}`;
+          if (addressMap['end']) {
+            endDesc += ` 📍 ${addressMap['end']}`;
           }
           events.push({ time: shift.endTime, type: 'end', title: 'Shift Ended', desc: endDesc });
         }
