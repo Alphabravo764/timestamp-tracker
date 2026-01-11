@@ -95,10 +95,12 @@ function ActiveShiftScreenContent() {
       }
       console.log("[T] setState:", (performance.now() - t4).toFixed(0), "ms");
 
-      // 5. CLOSE CAMERA IMMEDIATELY (no delay)
+      // 5. CLOSE CAMERA WITH DELAY (prevents blank screen)
       const t5 = performance.now();
-      setShowCamera(false);
-      console.log("[T] setShowCamera:", (performance.now() - t5).toFixed(0), "ms");
+      setTimeout(() => {
+        setShowCamera(false);
+        console.log("[T] setShowCamera (delayed):", (performance.now() - t5).toFixed(0), "ms");
+      }, 100);
 
       console.log("[T] TOTAL:", (performance.now() - t0).toFixed(0), "ms, photoCount:", updatedShift?.photos?.length);
 
