@@ -163,6 +163,11 @@ export const PhotoWatermark = forwardRef<PhotoWatermarkRef, {}>((_, ref) => {
             GPS: {coords}
           </Text>
         </View>
+
+        {/* Footer - STAMPIA Branding */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Produced by STAMPIA.TECH</Text>
+        </View>
       </View>
     </View>
   );
@@ -248,10 +253,28 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: 4,
   },
-  // GPS coordinates - monospace for accuracy
   coordsText: {
     color: "#888888",
     fontSize: 11,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  // Footer branding
+  footer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderTopWidth: 2,
+    borderTopColor: "#FF6600",
+  },
+  footerText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
+    letterSpacing: 1,
   },
 });
