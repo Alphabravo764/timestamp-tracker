@@ -557,27 +557,50 @@ async function startServer() {
         const formatTime = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         const formatDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 
-        // Build events timeline
+        // Reverse geocode helper using Mapbox
+        const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
+          try {
+            const mapboxToken = ENV.mapboxPublicToken;
+            if (!mapboxToken) return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+            const response = await fetch(
+              `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxToken}&types=address,poi`
+            );
+            const data = await response.json();
+            if (data?.features?.[0]?.place_name) {
+              return data.features[0].place_name;
+            }
+          } catch (e) {
+            console.log('[PDF] Geocoding failed:', e);
+          }
+          return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        };
+
+        // Build events timeline with reverse geocoded addresses
         const events: any[] = [];
         events.push({ time: shift.startTime, type: 'start', title: 'Shift Started', desc: `${shift.staffName} clocked in at ${shift.siteName}` });
-        (shift.photos || []).forEach((p: any, i: number) => {
-          // Show address if available, otherwise show coordinates
+
+        // Process photos with geocoding
+        for (let i = 0; i < (shift.photos || []).length; i++) {
+          const p = shift.photos[i];
           let locationDesc = 'Location captured';
           if (p.address) {
             locationDesc = p.address;
           } else if (p.latitude && p.longitude) {
-            locationDesc = `📍 ${p.latitude.toFixed(6)}, ${p.longitude.toFixed(6)}`;
+            locationDesc = await reverseGeocode(p.latitude, p.longitude);
           }
           events.push({ time: p.timestamp, type: 'photo', title: `Photo Evidence #${i + 1}`, desc: locationDesc, photoUri: p.photoUri });
-        });
-        (shift.notes || []).forEach((n: any) => {
-          // Show note text with location if available
+        }
+
+        // Process notes with geocoding
+        for (const n of (shift.notes || [])) {
           let noteDesc = `"${n.text}"`;
           if (n.location?.latitude && n.location?.longitude) {
-            noteDesc += ` 📍 ${n.location.latitude.toFixed(6)}, ${n.location.longitude.toFixed(6)}`;
+            const address = await reverseGeocode(n.location.latitude, n.location.longitude);
+            noteDesc += ` 📍 ${address}`;
           }
           events.push({ time: n.timestamp, type: 'note', title: 'Note Added', desc: noteDesc });
-        });
+        }
         if (shift.endTime) {
           events.push({ time: shift.endTime, type: 'end', title: 'Shift Ended', desc: `Duration: ${duration}` });
         }
