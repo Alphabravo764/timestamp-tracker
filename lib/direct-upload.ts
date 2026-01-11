@@ -127,6 +127,8 @@ export async function uploadPhotoDirect(
             });
             // Photo is uploaded, metadata save failure is non-critical for display
             // Return the URL anyway - photo was saved to storage
+        } else {
+            console.log('[METADATA] ✅ OK - status:', metadataResponse.status);
         }
 
         console.log('[Direct Upload] Complete, URL:', uploadData.publicUrl);

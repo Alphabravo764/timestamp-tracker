@@ -722,6 +722,7 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
           <View style={styles.mapContainer}>
             {displayLocation ? (
               <LeafletMap
+                key={`map-${activeShift?.id}-${activeShift?.photos?.length || 0}`}
                 latitude={displayLocation.latitude}
                 longitude={displayLocation.longitude}
                 height={160}
