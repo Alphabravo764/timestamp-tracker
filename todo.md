@@ -969,3 +969,11 @@ Based on user's detailed specifications and sample code:
 - [x] Fix blank screen after second photo: move PhotoWatermark off-screen (left: -9999, top: -9999)
 - [x] Verify pointerEvents="none" is on the outermost container View
 - [x] Robust fix: both off-screen positioning AND pointerEvents="none" for safety
+
+
+## TIMELINE BUGS - Jan 11, 2026
+- [x] Notes not showing in timeline - Added debug logging to identify issue
+- [x] Photos not appearing in timeline after app restart - Added persistPhoto to save to permanent storage
+- [x] Only 5 photos showing in timeline - Increased limit from 5 to 20 events
+- [x] Added debug logging to getSafePhotos/getSafeNotes to track data flow
+- [ ] Blank screen still happening after adding note + taking photo - needs further investigation

@@ -281,13 +281,28 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
 
       console.log('[Photo] Using cached location:', { lat, lng, accuracy, address });
 
-      // 3. Save photo IMMEDIATELY with cached location
+      // 3. Persist photo to permanent storage (survives app restart)
       const photoId = `photo_${now}`;
+      let persistedUri = photo.uri;
+      
+      try {
+        const { persistPhoto } = await import('@/lib/shift-storage');
+        const savedUri = await persistPhoto(photo.uri);
+        if (savedUri) {
+          persistedUri = savedUri;
+          console.log('[Photo] Persisted to:', persistedUri);
+        } else {
+          console.warn('[Photo] Failed to persist, using temp URI');
+        }
+      } catch (persistError) {
+        console.warn('[Photo] Persist error, using temp URI:', persistError);
+      }
 
+      // 4. Save photo to shift with persisted URI
       try {
         const updatedShift = await addPhotoToShift({
           id: photoId,
-          uri: photo.uri,
+          uri: persistedUri,
           timestamp,
           ts: now,  // Unix timestamp for consistent sorting
           location: lat && lng ? {
@@ -842,8 +857,12 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
               // Sort by timestamp ascending (oldest first)
               events.sort((a, b) => a.ts - b.ts);
 
-              // Take last 10 events (reversed to show newest first)
-              const recentEvents = events.slice(-10).reverse();
+              // DEBUG: Log what we're working with
+              console.log('[Timeline] Total photos:', photos.length, 'Total notes:', notes.length, 'Total events:', events.length);
+
+              // Take last 20 events (reversed to show newest first) - increased from 5
+              const recentEvents = events.slice(-20).reverse();
+              console.log('[Timeline] Showing', recentEvents.length, 'recent events');
 
               return recentEvents.map((event, idx) => {
                 if (event.type === 'photo') {

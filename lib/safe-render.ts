@@ -53,8 +53,15 @@ export const getNoteKey = (note: any, index: number): string => {
  * Safely get photos array from shift, always returns array
  */
 export const getSafePhotos = (shift: any): any[] => {
-    if (!shift) return [];
-    if (!Array.isArray(shift.photos)) return [];
+    if (!shift) {
+        console.log('[getSafePhotos] shift is null/undefined');
+        return [];
+    }
+    if (!Array.isArray(shift.photos)) {
+        console.log('[getSafePhotos] shift.photos is not an array:', typeof shift.photos, shift.photos);
+        return [];
+    }
+    console.log('[getSafePhotos] Returning', shift.photos.length, 'photos');
     return shift.photos;
 };
 
@@ -62,8 +69,15 @@ export const getSafePhotos = (shift: any): any[] => {
  * Safely get notes array from shift, always returns array
  */
 export const getSafeNotes = (shift: any): any[] => {
-    if (!shift) return [];
-    if (!Array.isArray(shift.notes)) return [];
+    if (!shift) {
+        console.log('[getSafeNotes] shift is null/undefined');
+        return [];
+    }
+    if (!Array.isArray(shift.notes)) {
+        console.log('[getSafeNotes] shift.notes is not an array:', typeof shift.notes, shift.notes);
+        return [];
+    }
+    console.log('[getSafeNotes] Returning', shift.notes.length, 'notes');
     return shift.notes;
 };
 

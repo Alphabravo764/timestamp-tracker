@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import type { Shift, ShiftPhoto, LocationPoint } from "./shift-types";
 
 const ACTIVE_SHIFT_KEY = "@timestamp_camera_active_shift";
