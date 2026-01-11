@@ -271,14 +271,38 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
       const now = Date.now();
       const timestamp = new Date(now).toISOString();
 
-      // 2. USE CACHED LOCATION IMMEDIATELY - DON'T WAIT!
-      // currentLocation is already being tracked in useEffect
+      // 2. GET LOCATION - Use cache or quick fallback
       let lat = currentLocation?.coords?.latitude || 0;
       let lng = currentLocation?.coords?.longitude || 0;
       let accuracy = currentLocation?.coords?.accuracy || 0;
       let address = currentAddress || "Location pending";
 
-      console.log('[Photo] Using cached location:', { lat, lng, accuracy, address });
+      // If cache is empty, try quick fallback
+      if (lat === 0 && lng === 0) {
+        try {
+          // Try getLastKnownPositionAsync first (instant)
+          const lastKnown = await Location.getLastKnownPositionAsync({});
+          if (lastKnown?.coords) {
+            lat = lastKnown.coords.latitude;
+            lng = lastKnown.coords.longitude;
+            accuracy = lastKnown.coords.accuracy || 0;
+            console.log('[Photo] Got last known location:', lat, lng);
+          }
+        } catch (e) {
+          console.log('[Photo] Last known failed, using 0,0');
+        }
+      }
+
+      // Quick geocode in background (non-blocking)
+      if (lat !== 0 && lng !== 0 && (address === "Location pending" || address === "Test address")) {
+        mapboxReverseGeocode(lat, lng)
+          .then((addr: string) => {
+            if (addr) console.log('[Photo] Geocoded address:', addr);
+          })
+          .catch(() => { });
+      }
+
+      console.log('[Photo] Using location:', { lat, lng, accuracy, address });
 
       // 3. Persist photo to permanent storage (survives app restart)
       const photoId = `photo_${now}`;
