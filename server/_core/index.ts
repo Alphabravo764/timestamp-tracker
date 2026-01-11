@@ -8,7 +8,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { storagePut } from "../storage";
+import { storagePut, storageGet } from "../storage";
 import * as syncDb from "../sync-db.js";
 import { getDb } from "../db.js";
 import { sql, eq, and } from "drizzle-orm";
@@ -172,6 +172,26 @@ async function startServer() {
   // Upload URL endpoint for direct-to-storage uploads
   const { createUploadUrl } = await import("../upload-url.js");
   app.post("/api/upload-url", createUploadUrl);
+
+  // Photo proxy - generates signed download URL for private storage
+  app.get("/api/photo-proxy/*", async (req, res) => {
+    try {
+      // Extract the storage path from the URL (after /api/photo-proxy/)
+      const storagePath = req.path.replace('/api/photo-proxy/', '');
+      if (!storagePath) {
+        return res.status(400).json({ error: "Storage path required" });
+      }
+
+      console.log('[photo-proxy] Getting signed URL for:', storagePath);
+      const { url } = await storageGet(storagePath);
+
+      // Redirect to the signed URL
+      res.redirect(302, url);
+    } catch (error: any) {
+      console.error('[photo-proxy] Error:', error?.message || error);
+      res.status(500).json({ error: "Failed to get photo" });
+    }
+  });
 
   app.post("/api/sync/shift", async (req, res) => {
     try {

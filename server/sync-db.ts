@@ -305,14 +305,25 @@ export async function getShiftByPairCode(pairCode: string) {
       timestamp: loc.capturedAt.toISOString(),
       address: undefined, // Address not stored in DB yet
     })),
-    photos: photos.map((photo: PhotoEvent) => ({
-      id: photo.id.toString(),
-      photoUri: photo.fileUrl,
-      latitude: photo.latitude ? parseFloat(photo.latitude) : undefined,
-      longitude: photo.longitude ? parseFloat(photo.longitude) : undefined,
-      timestamp: photo.capturedAt.toISOString(),
-      address: undefined, // Address not stored in DB yet
-    })),
+    photos: photos.map((photo: PhotoEvent) => {
+      // Convert storage URLs to proxy URLs for public access
+      let proxyUrl = photo.fileUrl;
+      if (photo.fileUrl.includes('storage.railway.app')) {
+        // Extract path after bucket name: ".../shifts/PAIRCODE/photos/filename.jpg"
+        const match = photo.fileUrl.match(/storage\.railway\.app\/[^/]+\/(.+)/);
+        if (match) {
+          proxyUrl = `/api/photo-proxy/${match[1]}`;
+        }
+      }
+      return {
+        id: photo.id.toString(),
+        photoUri: proxyUrl,
+        latitude: photo.latitude ? parseFloat(photo.latitude) : undefined,
+        longitude: photo.longitude ? parseFloat(photo.longitude) : undefined,
+        timestamp: photo.capturedAt.toISOString(),
+        address: undefined, // Address not stored in DB yet
+      };
+    }),
     notes: notes.map((note: NoteEvent) => ({
       id: note.id.toString(),
       text: note.noteText,
