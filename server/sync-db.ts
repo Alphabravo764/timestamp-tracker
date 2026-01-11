@@ -37,11 +37,15 @@ export async function upsertShift(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
+  // Normalize pairCode: uppercase, no hyphens (matches client format)
+  const normalizedCode = data.pairCode.toUpperCase().replace(/-/g, '');
+  console.log('[sync-db] upsertShift with code:', normalizedCode);
+
   // Check if shift exists
   const existing = await db
     .select()
     .from(shifts)
-    .where(eq(shifts.pairCode, data.pairCode))
+    .where(eq(shifts.pairCode, normalizedCode))
     .limit(1);
 
   if (existing.length > 0) {
@@ -53,7 +57,7 @@ export async function upsertShift(data: {
         siteName: data.siteName,
         updatedAt: new Date(),
       })
-      .where(eq(shifts.pairCode, data.pairCode));
+      .where(eq(shifts.pairCode, normalizedCode));
     return existing[0];
   } else {
     // Create new shift
@@ -64,7 +68,7 @@ export async function upsertShift(data: {
       status: "active",
       startTimeUtc: new Date(data.startTime),
       liveToken: data.shiftId,
-      pairCode: data.pairCode,
+      pairCode: normalizedCode,
       pairCodeExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
     });
 
@@ -72,7 +76,7 @@ export async function upsertShift(data: {
     const created = await db
       .select()
       .from(shifts)
-      .where(eq(shifts.pairCode, data.pairCode))
+      .where(eq(shifts.pairCode, normalizedCode))
       .limit(1);
 
     return created[0];
@@ -245,13 +249,9 @@ export async function getShiftByPairCode(pairCode: string) {
   const db = await getDb();
   if (!db) return null;
 
-  // Normalize pairCode: accept XXXXXX or XXX-XXX, convert to XXX-XXX
-  let normalizedCode = pairCode.toUpperCase().replace(/-/g, '');
-  if (normalizedCode.length === 6) {
-    normalizedCode = `${normalizedCode.slice(0, 3)}-${normalizedCode.slice(3)}`;
-  } else {
-    normalizedCode = pairCode.toUpperCase();
-  }
+  // Normalize pairCode: uppercase, no hyphens (matches client and upsert format)
+  const normalizedCode = pairCode.toUpperCase().replace(/-/g, '');
+  console.log('[sync-db] getShiftByPairCode looking for:', normalizedCode);
 
   // Get shift
   const shiftData = await db
@@ -261,6 +261,7 @@ export async function getShiftByPairCode(pairCode: string) {
     .limit(1);
 
   if (shiftData.length === 0) {
+    console.log('[sync-db] Shift not found for code:', normalizedCode);
     return null;
   }
 
