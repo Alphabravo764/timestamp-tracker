@@ -258,17 +258,12 @@ async function startServer() {
         return res.status(400).json({ error: "pairCode, photoId, and url required" });
       }
 
-      // Normalize pairCode: accept XXXXXX or XXX-XXX, convert to XXX-XXX
-      let normalizedPairCode = pairCode.toUpperCase().replace(/-/g, '');
+      // Normalize pairCode: uppercase and remove any hyphens for consistency
+      const normalizedPairCode = pairCode.toUpperCase().replace(/-/g, '');
       if (!/^[A-Z0-9]{6}$/.test(normalizedPairCode)) {
         return res.status(400).json({ error: "Invalid pairCode format (must be 6 characters)" });
       }
-      // Add hyphen if missing
-      if (!pairCode.includes('-')) {
-        normalizedPairCode = `${normalizedPairCode.slice(0, 3)}-${normalizedPairCode.slice(3)}`;
-      } else {
-        normalizedPairCode = pairCode.toUpperCase();
-      }
+      // Use the normalized (no hyphen) version - this matches how shifts are stored
 
       // Validate photoId is UUID format
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(photoId)) {
