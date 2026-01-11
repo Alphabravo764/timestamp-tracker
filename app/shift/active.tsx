@@ -722,7 +722,7 @@ function ActiveShiftScreenContent({ onShiftEnd }: { onShiftEnd?: () => void }) {
           <View style={styles.mapContainer}>
             {displayLocation ? (
               <LeafletMap
-                key={`map-${activeShift?.id}-${activeShift?.photos?.length || 0}`}
+                key={`map-${activeShift?.id}`}  // Only remount when shift changes, NOT on every photo
                 latitude={displayLocation.latitude}
                 longitude={displayLocation.longitude}
                 height={160}

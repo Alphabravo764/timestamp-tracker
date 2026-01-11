@@ -977,3 +977,11 @@ Based on user's detailed specifications and sample code:
 - [x] Only 5 photos showing in timeline - Increased limit from 5 to 20 events
 - [x] Added debug logging to getSafePhotos/getSafeNotes to track data flow
 - [ ] Blank screen still happening after adding note + taking photo - needs further investigation
+
+
+## WEBVIEW THRASHING FIX - Jan 11, 2026
+- [x] WebView (LeafletMap) is being mounted/unmounted on each photo causing Android to kill sandboxed process
+- [x] ROOT CAUSE FOUND: key={`map-${activeShift?.id}-${activeShift?.photos?.length || 0}`} was remounting WebView on every photo!
+- [x] FIX APPLIED: Changed key to only include shift ID, not photo count: key={`map-${activeShift?.id}`}
+- [x] Fix: Add onRenderProcessGone recovery handler (already in LeafletMap.tsx)
+- [x] Fix: Add androidLayerType="software" stabilizer (already in LeafletMap.tsx)
